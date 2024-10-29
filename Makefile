@@ -90,7 +90,6 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	echo -e "Close it executing the following command when the tunnel is not needed: pkill -f '^ssh -R'"; \
 	echo -e "===========================================================================\n"; \
 	go run ./cmd/main.go --webhook-client-hostname=$${HOSTNAME} --webhook-client-port=443; \
-	echo -e "\033[38;5;208m[ATTENTION]\033[0m Closing reverse tunnel"; \
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.

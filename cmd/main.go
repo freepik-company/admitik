@@ -64,11 +64,14 @@ func main() {
 	var enableHTTP2 bool
 
 	// Custom flags from here
-	var webhooksServerCABundle string
-	var webhooksServerPort int
-	var webhooksServerPath string
 	var webhooksClientHostname string
 	var webhooksClientPort int
+
+	var webhooksServerPort int
+	var webhooksServerPath string
+	var webhooksServerCA string
+	var webhooksServerCertificate string
+	var webhooksServerPrivateKey string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metric endpoint binds to. "+
 		"Use the port :8080. If not set, it will be 0 in order to disable the metrics server")
@@ -81,12 +84,22 @@ func main() {
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 
-	flag.StringVar(&webhooksServerCABundle, "webhook-server-ca-bundle", "", "The CA bundle to use for the webhooks server")
-	flag.IntVar(&webhooksServerPort, "webhook-server-port", 10250, "The port where the webhooks server listens")
-	flag.StringVar(&webhooksServerPath, "webhook-server-path", "/validate", "The path where the webhooks server listens")
+	// Custom flags from here
+	flag.StringVar(&webhooksClientHostname, "webhook-client-hostname", "webhooks.admitik.svc",
+		"The hostname used by Kubernetes when calling the webhooks server")
+	flag.IntVar(&webhooksClientPort, "webhook-client-port", 10250,
+		"The port used by Kubernetes when calling the webhooks server")
 
-	flag.StringVar(&webhooksClientHostname, "webhook-client-hostname", "webhooks.admitik.svc", "The hostname used by Kubernetes when calling the webhooks server")
-	flag.IntVar(&webhooksClientPort, "webhook-client-port", 10250, "The port used by Kubernetes when calling the webhooks server")
+	flag.IntVar(&webhooksServerPort, "webhook-server-port", 10250,
+		"The port where the webhooks server listens")
+	flag.StringVar(&webhooksServerPath, "webhook-server-path", "/validate",
+		"The path where the webhooks server listens")
+	flag.StringVar(&webhooksServerCA, "webhook-server-ca", "",
+		"The CA bundle to use for the webhooks server")
+	flag.StringVar(&webhooksServerCertificate, "webhook-server-certificate", "",
+		"The Certificate used by webhooks server")
+	flag.StringVar(&webhooksServerPrivateKey, "webhook-server-private-key", "",
+		"The Private Key used by webhooks server")
 
 	opts := zap.Options{
 		Development: true,
@@ -159,13 +172,23 @@ func main() {
 		Path:   webhooksServerPath,
 	}
 
+	// Load the CA bundle if defined
+	caBundleBytes := []byte{}
+	if webhooksServerCA != "" {
+		caBundleBytes, err = os.ReadFile(webhooksServerCA)
+		if err != nil {
+			setupLog.Error(err, "unable to load CA bundle")
+			os.Exit(1)
+		}
+	}
+
 	if err = (&controller.ClusterAdmissionPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		Options: controller.ClusterAdmissionPolicyControllerOptions{
 			WebhookClientConfig: admissionV1.WebhookClientConfig{
 				URL:      func(s string) *string { return &s }(webhooksServerUrl.String()),
-				CABundle: []byte(webhooksServerCABundle),
+				CABundle: caBundleBytes,
 			},
 		},
 	}).SetupWithManager(mgr); err != nil {
@@ -197,10 +220,15 @@ func main() {
 	workloadController := xyz.WorkloadController{
 		Client: mgr.GetClient(),
 		Options: xyz.WorkloadControllerOptions{
-			ServerAddr:     "0.0.0.0",                      // TODO: Get this from flags
-			ServerPort:     webhooksServerPort,             // TODO: Get this from flags
-			ServerPath:     webhooksServerPath,             // TODO: Get this from flags
-			ServerCaBundle: []byte(webhooksServerCABundle), // TODO: Get this from flags
+
+			//
+			ServerAddr: "0.0.0.0",
+			ServerPort: webhooksServerPort,
+			ServerPath: webhooksServerPath,
+
+			//
+			TLSCertificate: webhooksServerCertificate,
+			TLSPrivateKey:  webhooksServerPrivateKey,
 		},
 	}
 

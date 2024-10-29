@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	//
 
@@ -37,10 +38,14 @@ const (
 // WorkloadControllerOptions represents available options that can be passed
 // to WorkloadController on start
 type WorkloadControllerOptions struct {
-	ServerAddr     string
-	ServerPort     int
-	ServerPath     string
-	ServerCaBundle []byte
+	//
+	ServerAddr string
+	ServerPort int
+	ServerPath string
+
+	//
+	TLSCertificate string
+	TLSPrivateKey  string
 }
 
 // WorkloadController represents the controller that triggers parallel threads.
@@ -66,6 +71,8 @@ func (r *WorkloadController) Start(ctx context.Context) {
 		default:
 			r.runWebserver(ctx)
 		}
+
+		time.Sleep(2 * time.Second)
 	}
 }
 
@@ -90,7 +97,12 @@ func (r *WorkloadController) runWebserver(ctx context.Context) {
 	customServer.setAddr(fmt.Sprintf("%s:%d", r.Options.ServerAddr, r.Options.ServerPort))
 	customServer.setHandler(mux)
 
-	err := customServer.ListenAndServe()
+	var err error
+	if r.Options.TLSCertificate != "" && r.Options.TLSPrivateKey != "" {
+		err = customServer.ListenAndServeTLS(r.Options.TLSCertificate, r.Options.TLSPrivateKey)
+	} else {
+		err = customServer.ListenAndServe()
+	}
 	if err != nil {
 		logger.Error(err, "Server failed")
 	}

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	//
 	admissionV1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -29,8 +30,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	//
 	"freepik.com/admitik/api/v1alpha1"
-	admitikv1alpha1 "freepik.com/admitik/api/v1alpha1"
 )
 
 const (
@@ -141,7 +142,7 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterAdmissionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&admitikv1alpha1.ClusterAdmissionPolicy{}).
+		For(&v1alpha1.ClusterAdmissionPolicy{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Complete(r)
 }
