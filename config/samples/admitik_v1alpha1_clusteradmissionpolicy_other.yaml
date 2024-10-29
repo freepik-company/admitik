@@ -1,0 +1,65 @@
+apiVersion: admitik.freepik.com/v1alpha1
+kind: ClusterAdmissionPolicy
+metadata:
+  labels:
+    app.kubernetes.io/name: admitik
+    app.kubernetes.io/managed-by: kustomize
+  name: clusteradmissionpolicy-sample-other
+spec:
+
+  # Resources to be watched
+  watchedResources:
+    group: ""
+    version: v1
+    resource: namespaces
+    operations:
+      - CREATE
+      - UPDATE
+
+      # (Optional) It's possible to exclude resources from the watch list.
+      # It's possible to use dot-notation to get nested fields. The resource to be evaluated is under: .request.resource
+      # Ref: https://kubernetes.io/docs/reference/using-api/cel/
+
+      # Match conditions have access to the following CEL variables:
+      # * object - The object from the incoming request. The value is null for DELETE requests.
+      #   The object version may be converted based on the matchPolicy.
+      #
+      # * oldObject - The existing object. The value is null for CREATE requests.
+      # * request - The request portion of the AdmissionReview, excluding object and oldObject.
+      # * authorizer - A CEL Authorizer. May be used to perform authorization checks for the principal
+      #   (authenticated user) of the request. See Authz in the Kubernetes CEL library documentation for more details.
+      #
+      # * authorizer.requestResource - A shortcut for an authorization check configured with the request resource
+      #   (group, resource, (subresource), namespace, name).
+
+    matchConditions:
+      - name: exclude-default-namespace
+        expression: '!(request.resource.namespace == "default")'
+
+  # Other resources to be retrieved for conditions templates.
+  # They will be included under .sources scope in the template
+  sources:
+    - group: gateway.networking.k8s.io
+      version: v1
+      resource: httproutes
+
+      # (Optional) It's possible to watch specific resources
+      # name: secondary-route
+      # namespace: default
+
+  conditions:
+    - name: check-secret-name
+      # The 'key' field admits vitamin Golang templating (well known from Helm)
+      # The result of this field will be compared with 'value' for equality
+      key: |
+        {{- $object := .object -}}
+        {{- $sources := .sources -}}
+        {{- $routeFound := false -}}
+
+        {{- printf "%s" $object.metadata.name -}}
+      value: "true"
+
+  message:
+    template: |
+      {{- $object := .object -}}
+      {{- printf "Resource '%s' was rejected as it does not meet the conditions" $object.metadata.name -}}

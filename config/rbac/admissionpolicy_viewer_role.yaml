@@ -1,0 +1,23 @@
+# permissions for end users to view admissionpolicies.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: admitik
+    app.kubernetes.io/managed-by: kustomize
+  name: admissionpolicy-viewer-role
+rules:
+- apiGroups:
+  - admitik.freepik.com
+  resources:
+  - admissionpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - admitik.freepik.com
+  resources:
+  - admissionpolicies/status
+  verbs:
+  - get
