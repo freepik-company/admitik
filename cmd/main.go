@@ -27,7 +27,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	admissionV1 "k8s.io/api/admissionregistration/v1"
+	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -186,7 +186,7 @@ func main() {
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		Options: controller.ClusterAdmissionPolicyControllerOptions{
-			WebhookClientConfig: admissionV1.WebhookClientConfig{
+			WebhookClientConfig: admissionregv1.WebhookClientConfig{
 				URL:      func(s string) *string { return &s }(webhooksServerUrl.String()),
 				CABundle: caBundleBytes,
 			},

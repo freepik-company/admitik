@@ -21,7 +21,7 @@ import (
 	"fmt"
 
 	//
-	admissionV1 "k8s.io/api/admissionregistration/v1"
+	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -45,7 +45,7 @@ const (
 
 // TODO
 type ClusterAdmissionPolicyControllerOptions struct {
-	WebhookClientConfig admissionV1.WebhookClientConfig
+	WebhookClientConfig admissionregv1.WebhookClientConfig
 }
 
 // ClusterAdmissionPolicyReconciler reconciles a ClusterAdmissionPolicy object

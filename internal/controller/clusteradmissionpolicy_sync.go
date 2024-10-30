@@ -11,7 +11,7 @@ import (
 	"freepik.com/admitik/internal/globals"
 
 	//
-	admissionV1 "k8s.io/api/admissionregistration/v1"
+	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
@@ -23,10 +23,10 @@ const (
 )
 
 var (
-	AdmissionOperations = []admissionV1.OperationType{admissionV1.Create, admissionV1.Update, admissionV1.Delete, admissionV1.Connect}
+	AdmissionOperations = []admissionregv1.OperationType{admissionregv1.Create, admissionregv1.Update, admissionregv1.Delete, admissionregv1.Connect}
 
 	//
-	ValidatingWebhookConfigurationRuleScopeAll = admissionV1.ScopeType("*")
+	ValidatingWebhookConfigurationRuleScopeAll = admissionregv1.ScopeType("*")
 )
 
 func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context, eventType watch.EventType, object *v1alpha1.ClusterAdmissionPolicy) (err error) {
@@ -35,7 +35,7 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 	_ = logger
 
 	// Replace wildcards in operations
-	if slices.Contains(object.Spec.WatchedResources.Operations, admissionV1.OperationAll) {
+	if slices.Contains(object.Spec.WatchedResources.Operations, admissionregv1.OperationAll) {
 		object.Spec.WatchedResources.Operations = AdmissionOperations
 	}
 
@@ -114,7 +114,7 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 	}
 
 	// Craft ValidatingWebhookConfiguration rules based on the pool keys
-	currentVwcRules := []admissionV1.RuleWithOperations{}
+	currentVwcRules := []admissionregv1.RuleWithOperations{}
 	for resourcePattern, _ := range globals.Application.ClusterAdmissionPolicyPool.Pool {
 
 		resourcePatternParts := strings.Split(resourcePattern, "/")
@@ -123,20 +123,20 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 			return
 		}
 
-		tmpRule := admissionV1.RuleWithOperations{
-			Rule: admissionV1.Rule{
+		tmpRule := admissionregv1.RuleWithOperations{
+			Rule: admissionregv1.Rule{
 				APIGroups:   []string{resourcePatternParts[1]},
 				APIVersions: []string{resourcePatternParts[2]},
 				Resources:   []string{resourcePatternParts[3]},
 				Scope:       &ValidatingWebhookConfigurationRuleScopeAll,
 			},
-			Operations: []admissionV1.OperationType{admissionV1.OperationType(resourcePatternParts[4])},
+			Operations: []admissionregv1.OperationType{admissionregv1.OperationType(resourcePatternParts[4])},
 		}
 		currentVwcRules = append(currentVwcRules, tmpRule)
 	}
 
 	// Obtain potential existing ValidatingWebhookConfiguration
-	metaWebhookObj := admissionV1.ValidatingWebhookConfiguration{}
+	metaWebhookObj := admissionregv1.ValidatingWebhookConfiguration{}
 	metaWebhookObj.Name = ValidatingWebhookConfigurationName
 
 	err = r.Get(ctx, types.NamespacedName{
@@ -151,7 +151,7 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 	}
 
 	// Create a bare new 'webhooks' section for the ValidatingWebhookConfiguration and fill it
-	tmpWebhookObj := admissionV1.ValidatingWebhook{}
+	tmpWebhookObj := admissionregv1.ValidatingWebhook{}
 
 	tmpWebhookObj.Name = "validate.admitik.svc"
 	tmpWebhookObj.AdmissionReviewVersions = []string{"v1"}
@@ -159,11 +159,11 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 	tmpWebhookObj.Rules = currentVwcRules
 	//tmpWebhookObj.MatchConditions = object.Spec.WatchedResources.MatchConditions
 
-	sideEffectsClass := admissionV1.SideEffectClass(admissionV1.SideEffectClassNone)
+	sideEffectsClass := admissionregv1.SideEffectClass(admissionregv1.SideEffectClassNone)
 	tmpWebhookObj.SideEffects = &sideEffectsClass
 
 	// Replace the webhooks section in the ValidatingWebhookConfiguration
-	metaWebhookObj.Webhooks = []admissionV1.ValidatingWebhook{tmpWebhookObj}
+	metaWebhookObj.Webhooks = []admissionregv1.ValidatingWebhook{tmpWebhookObj}
 
 	// Sync changes to Kubernetes
 	if errors.IsNotFound(err) {

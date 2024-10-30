@@ -12,7 +12,7 @@ func GetObjectMapFromRuntimeObject(obj *runtime.Object) (objectData map[string]i
 	return objectData, err
 }
 
-// TODO
+// GetObjectBasicData extracts 'name' and 'namespace' from the object
 func GetObjectBasicData(object *map[string]interface{}) (objectData map[string]interface{}, err error) {
 
 	metadata, ok := (*object)["metadata"].(map[string]interface{})

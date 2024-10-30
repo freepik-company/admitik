@@ -69,21 +69,17 @@ func (r *WorkloadController) Start(ctx context.Context) {
 			logger.Info(controllerContextFinishedMessage)
 			return
 		default:
-			r.runWebserver(ctx)
+			logger.Info(fmt.Sprintf("Starting HTTP server: %s:%d", r.Options.ServerAddr, r.Options.ServerPort))
+			err := r.runWebserver()
+			logger.Info(fmt.Sprintf("HTTP server failed: %s", err.Error()))
 		}
 
 		time.Sleep(2 * time.Second)
 	}
 }
 
-// runWebserver TODO
-func (r *WorkloadController) runWebserver(ctx context.Context) {
-
-	logger := log.FromContext(ctx)
-
-	defer func() {
-		logger.Info("Stopped HTTP server")
-	}()
+// runWebserver prepares and runs the HTTP server
+func (r *WorkloadController) runWebserver() (err error) {
 
 	customServer := NewHttpServer()
 
@@ -91,19 +87,15 @@ func (r *WorkloadController) runWebserver(ctx context.Context) {
 	mux := http.NewServeMux()
 	mux.HandleFunc(r.Options.ServerPath, customServer.handleRequest)
 
-	logger.Info(fmt.Sprintf("Starting HTTP server: %s:%d", r.Options.ServerAddr, r.Options.ServerPort))
-
 	// Configure and use the server previously crafted
 	customServer.setAddr(fmt.Sprintf("%s:%d", r.Options.ServerAddr, r.Options.ServerPort))
 	customServer.setHandler(mux)
 
-	var err error
 	if r.Options.TLSCertificate != "" && r.Options.TLSPrivateKey != "" {
 		err = customServer.ListenAndServeTLS(r.Options.TLSCertificate, r.Options.TLSPrivateKey)
 	} else {
 		err = customServer.ListenAndServe()
 	}
-	if err != nil {
-		logger.Error(err, "Server failed")
-	}
+
+	return err
 }
