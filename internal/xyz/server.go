@@ -13,7 +13,6 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -51,8 +50,6 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 		coreLog.Print("i have an dream...")
 	}
 
-	coreLog.Print(string(bodyBytes))
-
 	//
 	requestObj := admissionv1.AdmissionReview{}
 	err = json.Unmarshal(bodyBytes, &requestObj)
@@ -67,28 +64,31 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 		requestObj.Request.Resource.Resource,
 		requestObj.Request.Operation)
 
-	// Create the object that will be injected on
-	// ClusterAdmissionPolicy conditions/message on Golang template evaluation stage
+	// Create an object that will be injected in conditions/message
+	// in later Golang's template evaluation stage
 	commonTemplateInjectedObject := map[string]interface{}{}
-
 	commonTemplateInjectedObject["operation"] = string(requestObj.Request.Operation)
-	commonTemplateInjectedObject["object"], err = GetObjectMapFromRuntimeObject(&requestObj.Request.Object.Object)
+
+	//
+	requestObject := map[string]interface{}{}
+	err = json.Unmarshal(requestObj.Request.Object.Raw, &requestObject)
 	if err != nil {
 		coreLog.Printf("was it yellow?... : %s", err.Error())
 	}
+	commonTemplateInjectedObject["object"] = requestObject
 
-	coreLog.Print(commonTemplateInjectedObject["object"]) ////////////////////////
-
-	coreLog.Printf("coso: %v", requestObj.Request.Object.Object)
-
+	//
 	if requestObj.Request.Operation == admissionv1.Update {
-		commonTemplateInjectedObject["oldObject"], err = GetObjectMapFromRuntimeObject(&requestObj.Request.OldObject.Object)
+		requestOldObject := map[string]interface{}{}
+		err = json.Unmarshal(requestObj.Request.OldObject.Raw, &requestOldObject)
 		if err != nil {
 			coreLog.Printf("was it red?... : %s", err.Error())
 		}
+		commonTemplateInjectedObject["oldObject"] = requestOldObject
 	}
 
 	// Loop over ClusterAdmissionPolicies performing actions
+	// At this point, some extra params will be added to the object that will be injected in template
 	for _, caPolicyObj := range globals.Application.ClusterAdmissionPolicyPool.Pool[resourcePattern] {
 
 		specificTemplateInjectedObject := commonTemplateInjectedObject
@@ -120,13 +120,16 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 				coreLog.Print("where BLACK people...")
 			}
 
-			// Initialize ["sources"] key to store a map[int][]unstructured.Unstructured
-			tmpSources, ok := specificTemplateInjectedObject["sources"].(map[int][]unstructured.Unstructured)
+			// Initialize ["sources"] key to store a map[int][]map[string]interface{}
+			tmpSources, ok := specificTemplateInjectedObject["sources"].(map[int][]map[string]interface{})
 			if !ok {
-				tmpSources = make(map[int][]unstructured.Unstructured)
+				tmpSources = make(map[int][]map[string]interface{})
 			}
 
-			tmpSources[sourceIndex] = append(tmpSources[sourceIndex], unstructuredSourceObjList.Items...)
+			for _, unstructuredItem := range unstructuredSourceObjList.Items {
+				tmpSources[sourceIndex] = append(tmpSources[sourceIndex], unstructuredItem.Object)
+			}
+
 			specificTemplateInjectedObject["sources"] = tmpSources
 		}
 
@@ -140,7 +143,7 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 				continue
 			}
 
-			//coreLog.Print(parsedKey)
+			coreLog.Print(parsedKey)
 			conditionPassed = append(conditionPassed, parsedKey == condition.Value)
 		}
 
@@ -149,7 +152,6 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 			coreLog.Printf("se fue al pozo...")
 			continue
 		}
-
 	}
 
 	response.WriteHeader(http.StatusOK)
