@@ -3,6 +3,7 @@ package globals
 import (
 
 	//
+	"freepik.com/admitik/api/v1alpha1"
 	"k8s.io/client-go/dynamic"
 	ctrl "sigs.k8s.io/controller-runtime"
 	//
@@ -24,148 +25,66 @@ func NewKubernetesClient() (client *dynamic.DynamicClient, err error) {
 	return client, err
 }
 
-// // TODO
-// func InitWatcher(watcherType ResourceTypeName) {
+// TODO
+func GetClusterAdmissionPolicyIndex(resourcePattern string, resource *v1alpha1.ClusterAdmissionPolicy) (result int) {
 
-// 	var initialStartedState bool = false
-// 	var initialBlockedState bool = false
-// 	var initialNotificationListState []*notifikv1alpha1.Notification
+	tmpResourceList := Application.ClusterAdmissionPolicyPool.Pool[resourcePattern]
 
-// 	initialStopSignalState := make(chan bool)
-// 	initialMutexState := sync.Mutex{}
+	for objectIndex, object := range tmpResourceList {
+		if object.Name == resource.Name {
+			return objectIndex
+		}
+	}
 
-// 	Application.WatcherPool.Pool[watcherType] = ResourceTypeWatcherT{
-// 		Mutex: &initialMutexState,
-
-// 		Started:    &initialStartedState,
-// 		Blocked:    &initialBlockedState,
-// 		StopSignal: &initialStopSignalState,
-
-// 		NotificationList: &initialNotificationListState,
-// 	}
-// }
+	return -1
+}
 
 // TODO
-// func GetWatcherNotificationIndex(watcherType ResourceTypeName, notificationManifest *notifikv1alpha1.Notification) (result int) {
+func GetClusterAdmissionPoolPolicyIndexes(resource *v1alpha1.ClusterAdmissionPolicy) (result map[string]int) {
 
-// 	notificationList := Application.WatcherPool.Pool[watcherType].NotificationList
+	result = make(map[string]int)
 
-// 	for notificationIndex, notification := range *notificationList {
-// 		if (notification.Name == notificationManifest.Name) &&
-// 			(notification.Namespace == notificationManifest.Namespace) {
-// 			return notificationIndex
-// 		}
-// 	}
+	for resourcePattern, _ := range Application.ClusterAdmissionPolicyPool.Pool {
+		policyIndex := GetClusterAdmissionPolicyIndex(resourcePattern, resource)
 
-// 	return -1
-// }
+		if policyIndex != -1 {
+			result[resourcePattern] = policyIndex
+		}
+	}
+
+	return result
+}
 
 // TODO
-// func GetWatcherPoolNotificationIndexes(notificationManifest *notifikv1alpha1.Notification) (result map[string]int) {
+func CreateClusterAdmissionPoolPolicy(resourcePattern string, resource *v1alpha1.ClusterAdmissionPolicy) {
 
-// 	result = make(map[string]int)
+	tmpResourceList := Application.ClusterAdmissionPolicyPool.Pool[resourcePattern]
 
-// 	for watcherType, _ := range Application.WatcherPool.Pool {
-// 		notificationIndex := GetWatcherNotificationIndex(watcherType, notificationManifest)
+	Application.ClusterAdmissionPolicyPool.Mutex.Lock()
+	defer Application.ClusterAdmissionPolicyPool.Mutex.Unlock()
 
-// 		if notificationIndex != -1 {
-// 			result[string(watcherType)] = notificationIndex
-// 		}
-// 	}
+	temporaryManifest := (*resource).DeepCopy()
+	tmpResourceList = append(tmpResourceList, *temporaryManifest)
+	Application.ClusterAdmissionPolicyPool.Pool[resourcePattern] = tmpResourceList
+}
 
-// 	return result
-// }
+// TODO
+func DeleteClusterAdmissionPoolPolicyByIndex(resourcePattern string, objectIndex int) {
 
-// // TODO
-// func CreateWatcherNotification(watcherType ResourceTypeName, notificationManifest *notifikv1alpha1.Notification) {
+	policyList := Application.ClusterAdmissionPolicyPool.Pool[resourcePattern]
 
-// 	notificationList := Application.WatcherPool.Pool[watcherType].NotificationList
+	Application.ClusterAdmissionPolicyPool.Mutex.Lock()
+	defer Application.ClusterAdmissionPolicyPool.Mutex.Unlock()
 
-// 	(Application.WatcherPool.Pool[watcherType].Mutex).Lock()
+	// Replace the selected object with the last one from the list,
+	// then replace the whole list with it, minus the last.
+	policyList = append((policyList)[:objectIndex], (policyList)[objectIndex+1:]...)
 
-// 	temporaryManifest := (*notificationManifest).DeepCopy()
-// 	*notificationList = append(*notificationList, temporaryManifest)
+	// Clean empty patterns in the pool
+	if len(policyList) == 0 {
+		delete(Application.ClusterAdmissionPolicyPool.Pool, resourcePattern)
+		return
+	}
 
-// 	(Application.WatcherPool.Pool[watcherType].Mutex).Unlock()
-// }
-
-// // TODO
-// func DeleteWatcherNotificationByIndex(watcherType ResourceTypeName, notificationIndex int) {
-
-// 	notificationList := Application.WatcherPool.Pool[watcherType].NotificationList
-
-// 	(Application.WatcherPool.Pool[watcherType].Mutex).Lock()
-
-// 	// Substitute the selected notification object with the last one from the list,
-// 	// then replace the whole list with it, minus the last.
-// 	//(*notificationList)[notificationIndex] = (*notificationList)[len(*notificationList)-1]
-// 	//*notificationList = (*notificationList)[:len(*notificationList)-1]
-
-// 	*notificationList = append((*notificationList)[:notificationIndex], (*notificationList)[notificationIndex+1:]...)
-
-// 	(Application.WatcherPool.Pool[watcherType].Mutex).Unlock()
-// }
-
-// DisableWatcherFromWatcherPool disable a watcher from the WatcherPool.
-// It first blocks the watcher to prevent it from being started by xyz.WorkloadController,
-// then blocks the WatcherPool temporary while killing the watcher.
-// func DisableWatcherFromWatcherPool(watcherType ResourceTypeName) (result bool, err error) {
-
-// 	//Application.WatcherPool.Pool[watcherType].Mutex.Lock()
-
-// 	// 1. Prevent watcher from being started again
-// 	*Application.WatcherPool.Pool[watcherType].Blocked = true
-
-// 	// 2. Stop the watcher
-// 	*Application.WatcherPool.Pool[watcherType].StopSignal <- true
-
-// 	//Application.WatcherPool.Pool[watcherType].Mutex.Unlock()
-
-// 	// 3. Wait for the watcher to be stopped. Return false on failure
-// 	stoppedWatcher := false
-// 	for i := 0; i < 10; i++ {
-// 		if !*Application.WatcherPool.Pool[watcherType].Started {
-// 			stoppedWatcher = true
-// 			break
-// 		}
-// 		time.Sleep(1 * time.Second)
-// 	}
-
-// 	if !stoppedWatcher {
-// 		return false, errors.New("impossible to stop the watcher")
-// 	}
-
-// 	// 4. Delete the watcher from the WatcherPool.Pool
-// 	//Application.WatcherPool.Mutex.Lock()
-// 	//delete(Application.WatcherPool.Pool, watcherType)
-// 	//Application.WatcherPool.Mutex.Unlock()
-
-// 	//if _, keyFound := Application.WatcherPool.Pool[watcherType]; keyFound {
-// 	//	return false, errors.New("impossible to delete the watcherType from WatcherPool")
-// 	//}
-
-// 	return true, nil
-// }
-
-// CleanWatcherPool check the WatcherPool looking for empty watchers to trigger their deletion.
-// This function is intended to be executed on its own, so returns nothing
-// func CleanWatcherPool() {
-// 	logger := log.FromContext(Application.Context)
-
-// 	for watcherType, _ := range Application.WatcherPool.Pool {
-
-// 		if len(*Application.WatcherPool.Pool[watcherType].NotificationList) != 0 {
-// 			continue
-// 		}
-
-// 		watcherDeleted, err := DisableWatcherFromWatcherPool(watcherType)
-// 		if !watcherDeleted {
-// 			logger.WithValues("watcher", watcherType, "error", err).
-// 				Info("watcher was not deleted from WatcherPool")
-// 			continue
-// 		}
-
-// 		logger.WithValues("watcher", watcherType).
-// 			Info("watcher has been deleted from WatcherPool")
-// 	}
-// }
+	Application.ClusterAdmissionPolicyPool.Pool[resourcePattern] = policyList
+}
