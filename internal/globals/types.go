@@ -24,16 +24,26 @@ import (
 // 	// Watcher will be potentially re-launched by xyz.WorkloadController
 // 	StopSignal *chan bool
 
-// 	//
-// 	NotificationList *[]*v1alpha1.Notification
+// type AdmissionPolicyPoolT struct {
+// 	// Enforce concurrency safety
+// 	Mutex *sync.Mutex
+
+// 	Pool []v1alpha1.AdmissionPolicy
 // }
 
-type AdmissionPoolT struct {
+type ClusterAdmissionPolicyPoolT struct {
 	// Enforce concurrency safety
 	Mutex *sync.Mutex
 
 	Pool map[string][]v1alpha1.ClusterAdmissionPolicy
 }
+
+// type AdmissionPoolT struct {
+// 	// Enforce concurrency safety
+// 	Mutex *sync.Mutex
+
+// 	Pool map[string][]v1alpha1.ClusterAdmissionPolicy
+// }
 
 // ApplicationT TODO
 type applicationT struct {
@@ -43,7 +53,11 @@ type applicationT struct {
 	// KubeRawClient TODO
 	KubeRawClient *dynamic.DynamicClient
 
+	//
+	ClusterAdmissionPolicyPool ClusterAdmissionPolicyPoolT
+	//AdmissionPolicyPool AdmissionPolicyPoolT
+
 	// WatcherPool TODO
 	//AdmissionPoolT map[string]AdmissionPoolT
-	AdmissionPool AdmissionPoolT
+	//ClasifiedAdmissionPolicyPool AdmissionPoolT
 }

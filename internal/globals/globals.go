@@ -11,7 +11,7 @@ var (
 	Application = applicationT{
 		Context: context.Background(),
 
-		AdmissionPool: AdmissionPoolT{
+		ClusterAdmissionPolicyPool: ClusterAdmissionPolicyPoolT{
 			Mutex: &sync.Mutex{},
 			Pool:  make(map[string][]v1alpha1.ClusterAdmissionPolicy),
 		},
