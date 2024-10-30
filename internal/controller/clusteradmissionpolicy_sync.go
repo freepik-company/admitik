@@ -5,18 +5,28 @@ import (
 	"fmt"
 	coreLog "log"
 	"slices"
+	"strings"
 
 	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/globals"
 
 	//
 	admissionV1 "k8s.io/api/admissionregistration/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+const (
+	ValidatingWebhookConfigurationName = "admitik-cluster-admission-policy"
+)
+
 var (
 	AdmissionOperations = []admissionV1.OperationType{admissionV1.Create, admissionV1.Update, admissionV1.Delete, admissionV1.Connect}
+
+	//
+	ValidatingWebhookConfigurationRuleScopeAll = admissionV1.ScopeType("*")
 )
 
 func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context, eventType watch.EventType, object *v1alpha1.ClusterAdmissionPolicy) (err error) {
@@ -103,117 +113,73 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 		coreLog.Printf("[DEBUG] ClusterAdmissionPool: { key '%s', items_count: '%d' }", key, len(item))
 	}
 
-	// 1. Check if an existing ClusterAdmissionPolicy exists in the AdmissionPool calling the same watchedResources
+	// Craft ValidatingWebhookConfiguration rules based on the pool keys
+	currentVwcRules := []admissionV1.RuleWithOperations{}
+	for resourcePattern, _ := range globals.Application.ClusterAdmissionPolicyPool.Pool {
 
-	// // Obtain potential existing ValidatingWebhookConfiguration for this AdmissionPolicy
-	// metaWebhookObj := admissionV1.ValidatingWebhookConfiguration{}
+		resourcePatternParts := strings.Split(resourcePattern, "/")
+		if len(resourcePatternParts) != 5 {
+			return fmt.Errorf("TODO") // TODO:
+		}
 
-	// err = r.Get(ctx, types.NamespacedName{
-	// 	Name: object.Name,
-	// }, &metaWebhookObj)
-	// if err != nil {
-	// 	logger.Info(fmt.Sprintf("Error getting the ValidatingWebhookConfiguration: %s", err.Error()))
-	// }
-	// err = r.Get(ctx, types.NamespacedName{
-	// 	Name: object.Name,
-	// }, &metaWebhookObj)
-	// if err != nil {
-	// 	logger.Info(fmt.Sprintf("Error getting the ValidatingWebhookConfiguration: %s", err.Error()))
-	// }
+		tmpRule := admissionV1.RuleWithOperations{
+			Rule: admissionV1.Rule{
+				APIGroups:   []string{resourcePatternParts[1]},
+				APIVersions: []string{resourcePatternParts[2]},
+				Resources:   []string{resourcePatternParts[3]},
+				Scope:       &ValidatingWebhookConfigurationRuleScopeAll,
+			},
+			Operations: []admissionV1.OperationType{admissionV1.OperationType(resourcePatternParts[4])},
+		}
+		currentVwcRules = append(currentVwcRules, tmpRule)
+	}
 
-	// // Create a bare new 'webhooks' section for the ValidatingWebhookConfiguration and fill it
-	// tmpWebhookObj := admissionV1.ValidatingWebhook{}
-	// metaWebhookObj.Name = object.Name
-	// // Create a bare new 'webhooks' section for the ValidatingWebhookConfiguration and fill it
-	// tmpWebhookObj := admissionV1.ValidatingWebhook{}
-	// metaWebhookObj.Name = object.Name
+	// Obtain potential existing ValidatingWebhookConfiguration
+	metaWebhookObj := admissionV1.ValidatingWebhookConfiguration{}
+	metaWebhookObj.Name = ValidatingWebhookConfigurationName
 
-	// //
-	// ruleScope := admissionV1.ScopeType("*")
-	// ruleObj := admissionV1.RuleWithOperations{
-	// 	Rule: admissionV1.Rule{
-	// 		APIGroups:   []string{object.Spec.WatchedResources.Group},
-	// 		APIVersions: []string{object.Spec.WatchedResources.Version},
-	// 		Resources:   []string{object.Spec.WatchedResources.Resource},
-	// 		Scope:       &ruleScope,
-	// 	},
-	// 	Operations: object.Spec.WatchedResources.Operations,
-	// }
-	// //
-	// ruleScope := admissionV1.ScopeType("*")
-	// ruleObj := admissionV1.RuleWithOperations{
-	// 	Rule: admissionV1.Rule{
-	// 		APIGroups:   []string{object.Spec.WatchedResources.Group},
-	// 		APIVersions: []string{object.Spec.WatchedResources.Version},
-	// 		Resources:   []string{object.Spec.WatchedResources.Resource},
-	// 		Scope:       &ruleScope,
-	// 	},
-	// 	Operations: object.Spec.WatchedResources.Operations,
-	// }
+	err = r.Get(ctx, types.NamespacedName{
+		Name: ValidatingWebhookConfigurationName,
+	}, &metaWebhookObj)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			err = fmt.Errorf("error getting the ValidatingWebhookConfiguration '%s' : %s",
+				ValidatingWebhookConfigurationName, err.Error())
+			return
+		}
+	}
 
-	// tmpWebhookObj.Name = "validate.admitik.svc"
-	// tmpWebhookObj.AdmissionReviewVersions = []string{"v1"}
-	// tmpWebhookObj.ClientConfig = r.Options.WebhookClientConfig
-	// tmpWebhookObj.Rules = append(tmpWebhookObj.Rules, ruleObj)
-	// tmpWebhookObj.MatchConditions = object.Spec.WatchedResources.MatchConditions
-	// tmpWebhookObj.Name = "validate.admitik.svc"
-	// tmpWebhookObj.AdmissionReviewVersions = []string{"v1"}
-	// tmpWebhookObj.ClientConfig = r.Options.WebhookClientConfig
-	// tmpWebhookObj.Rules = append(tmpWebhookObj.Rules, ruleObj)
-	// tmpWebhookObj.MatchConditions = object.Spec.WatchedResources.MatchConditions
+	// Create a bare new 'webhooks' section for the ValidatingWebhookConfiguration and fill it
+	tmpWebhookObj := admissionV1.ValidatingWebhook{}
 
-	// sideEffectsClass := admissionV1.SideEffectClass(admissionV1.SideEffectClassNone)
-	// tmpWebhookObj.SideEffects = &sideEffectsClass
-	// sideEffectsClass := admissionV1.SideEffectClass(admissionV1.SideEffectClassNone)
-	// tmpWebhookObj.SideEffects = &sideEffectsClass
+	tmpWebhookObj.Name = "validate.admitik.svc"
+	tmpWebhookObj.AdmissionReviewVersions = []string{"v1"}
+	tmpWebhookObj.ClientConfig = r.Options.WebhookClientConfig
+	tmpWebhookObj.Rules = currentVwcRules
+	//tmpWebhookObj.MatchConditions = object.Spec.WatchedResources.MatchConditions
 
-	// // Replace the webhooks section in the ValidatingWebhookConfiguration
-	// metaWebhookObj.Webhooks = []admissionV1.ValidatingWebhook{tmpWebhookObj}
-	// // Replace the webhooks section in the ValidatingWebhookConfiguration
-	// metaWebhookObj.Webhooks = []admissionV1.ValidatingWebhook{tmpWebhookObj}
+	sideEffectsClass := admissionV1.SideEffectClass(admissionV1.SideEffectClassNone)
+	tmpWebhookObj.SideEffects = &sideEffectsClass
 
-	// // Sync changes to Kubernetes
-	// if errors.IsNotFound(err) {
-	// 	err = r.Create(ctx, &metaWebhookObj)
-	// 	if err != nil {
-	// 		logger.Info(fmt.Sprintf("Error creating ValidatingWebhookConfiguration: %s", err.Error()))
-	// 	}
-	// } else {
-	// 	err = r.Update(ctx, &metaWebhookObj)
-	// 	if err != nil {
-	// 		logger.Info(fmt.Sprintf("Error updating ValidatingWebhookConfiguration: %s", err.Error()))
-	// 	}
-	// }
-	// // Sync changes to Kubernetes
-	// if errors.IsNotFound(err) {
-	// 	err = r.Create(ctx, &metaWebhookObj)
-	// 	if err != nil {
-	// 		logger.Info(fmt.Sprintf("Error creating ValidatingWebhookConfiguration: %s", err.Error()))
-	// 	}
-	// } else {
-	// 	err = r.Update(ctx, &metaWebhookObj)
-	// 	if err != nil {
-	// 		logger.Info(fmt.Sprintf("Error updating ValidatingWebhookConfiguration: %s", err.Error()))
-	// 	}
-	// }
+	// Replace the webhooks section in the ValidatingWebhookConfiguration
+	metaWebhookObj.Webhooks = []admissionV1.ValidatingWebhook{tmpWebhookObj}
 
-	// // 2. Update the AdmissionPool in concordance with the AdmissionPolicy
-	// // Splitting the rules by operations using the pattern: {group}/{version}/{resource}/{operation}
-	// // 2. Update the AdmissionPool in concordance with the AdmissionPolicy
-	// // Splitting the rules by operations using the pattern: {group}/{version}/{resource}/{operation}
-
-	// //
-	// if eventType == watch.Added || eventType == watch.Modified {
-	// 	// 3.3 Guardar los AdmissionPolicies en los key que le toque
-	// } else if eventType == watch.Deleted {
-	// 	// Si el evento es eliminar, sacarlo de los keys que le toque
-	// }
-	// //
-	// if eventType == watch.Added || eventType == watch.Modified {
-	// 	// 3.3 Guardar los AdmissionPolicies en los key que le toque
-	// } else if eventType == watch.Deleted {
-	// 	// Si el evento es eliminar, sacarlo de los keys que le toque
-	// }
+	// Sync changes to Kubernetes
+	if errors.IsNotFound(err) {
+		err = r.Create(ctx, &metaWebhookObj)
+		if err != nil {
+			err = fmt.Errorf("error creating ValidatingWebhookConfiguration '%s': %s",
+				ValidatingWebhookConfigurationName, err.Error())
+			return
+		}
+	} else {
+		err = r.Update(ctx, &metaWebhookObj)
+		if err != nil {
+			err = fmt.Errorf("error updating ValidatingWebhookConfiguration '%s': %s",
+				ValidatingWebhookConfigurationName, err.Error())
+			return
+		}
+	}
 
 	return nil
 }
