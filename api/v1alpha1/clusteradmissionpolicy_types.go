@@ -25,8 +25,7 @@ import (
 type WatchedResourceT struct {
 	metav1.GroupVersionResource `json:",inline"`
 
-	Operations      []admissionV1.OperationType  `json:"operations"`
-	MatchConditions []admissionV1.MatchCondition `json:"matchConditions,omitempty"`
+	Operations []admissionV1.OperationType `json:"operations"`
 }
 
 type SourceT struct {

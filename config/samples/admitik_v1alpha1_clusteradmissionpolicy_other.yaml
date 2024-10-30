@@ -16,26 +16,6 @@ spec:
       - CREATE
       - UPDATE
 
-      # (Optional) It's possible to exclude resources from the watch list.
-      # It's possible to use dot-notation to get nested fields. The resource to be evaluated is under: .request.resource
-      # Ref: https://kubernetes.io/docs/reference/using-api/cel/
-
-      # Match conditions have access to the following CEL variables:
-      # * object - The object from the incoming request. The value is null for DELETE requests.
-      #   The object version may be converted based on the matchPolicy.
-      #
-      # * oldObject - The existing object. The value is null for CREATE requests.
-      # * request - The request portion of the AdmissionReview, excluding object and oldObject.
-      # * authorizer - A CEL Authorizer. May be used to perform authorization checks for the principal
-      #   (authenticated user) of the request. See Authz in the Kubernetes CEL library documentation for more details.
-      #
-      # * authorizer.requestResource - A shortcut for an authorization check configured with the request resource
-      #   (group, resource, (subresource), namespace, name).
-
-    matchConditions:
-      - name: exclude-default-namespace
-        expression: '!(request.resource.namespace == "default")'
-
   # Other resources to be retrieved for conditions templates.
   # They will be included under .sources scope in the template
   sources:
