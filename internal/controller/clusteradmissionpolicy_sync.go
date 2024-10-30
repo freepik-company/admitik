@@ -119,7 +119,8 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 
 		resourcePatternParts := strings.Split(resourcePattern, "/")
 		if len(resourcePatternParts) != 5 {
-			return fmt.Errorf("TODO") // TODO:
+			err = fmt.Errorf("some key-pattern is invalid on ClusterAdmissionPolicyPool. Open an issue to fix it")
+			return
 		}
 
 		tmpRule := admissionV1.RuleWithOperations{
