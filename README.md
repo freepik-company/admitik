@@ -1,104 +1,248 @@
-# admitik
-// TODO(user): Add simple overview of use/purpose
+# Admitik
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+<img src="https://raw.githubusercontent.com/achetronic/admitik/master/docs/img/logo.png" alt="Admitik Logo (Main) logo." width="150">
 
-## Getting Started
+![GitHub go.mod Go version (subdirectory of monorepo)](https://img.shields.io/github/go-mod/go-version/freepik-company/admitik)
+![GitHub](https://img.shields.io/github/license/freepik-company/admitik)
+
+![YouTube Channel Subscribers](https://img.shields.io/youtube/channel/subscribers/UCeSb3yfsPNNVr13YsYNvCAw?label=achetronic&link=http%3A%2F%2Fyoutube.com%2Fachetronic)
+![GitHub followers](https://img.shields.io/github/followers/achetronic?label=achetronic&link=http%3A%2F%2Fgithub.com%2Fachetronic)
+![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/achetronic?style=flat&logo=twitter&link=https%3A%2F%2Ftwitter.com%2Fachetronic)
+
+
+A dynamic Kubernetes admission controller that validates or modifies resources based on conditions you define using Helm templates. It can retrieve data from other resources and inject it into templates, allowing for customizable conditions and messages.
+
+
+
+## Motivation
+
+Kubernetes has not an implementation of an admission controller to validate/mutate resources.
+Instead, it leverages its creation to the clusters administrators.
+
+This project was initiated to fill that gap by providing a potent and flexible admission controller.
+It allows for dynamic validation and mutation of resources, using data from other resources and
+enabling conditions and messages defined through Helm templates.
+
+Our goal is to equip administrators with a tool that offers greater control and adaptability
+in managing Kubernetes resources due to:
+
+1. There are Kubernetes clusters where resources are introduced from a multitude of sources,
+   where maintaining harmony and preventing conflicts in production environments is a significant challenge.
+
+   It's essential to have a comprehensive set of policies that can enforce rules and prevent
+   resource collisions effectively.
+
+2. Existing solutions often fall short—they may not offer the level of power and dynamism
+   necessary to address complex deployment scenarios.
+
+
+
+## Deployment
+
+We have designed the deployment of this project to allow remote deployment using Kustomize or Helm. This way it is possible
+to use it with a GitOps approach, using tools such as ArgoCD or FluxCD.
+
+If you prefer Kustomize, just make a Kustomization manifest referencing
+the tag of the version you want to deploy as follows:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- https://github.com/freepik-company/admitik/releases/download/v0.1.0/bundle.yaml
+```
+
+> 🧚🏼 **Hey, listen! If you prefer to deploy using Helm, go to the [Helm registry](https://github.com/freepik-company/helm-charts)**
+
+
+
+## Examples
+
+After deploying this operator, you will have new resources available. Let's talk about them.
+
+### How to create kubernetes dynamic admission policies
+
+To create a dynamic admission policy in your cluster, you will need to create a `ClusterAdmissionPolicy` resource.
+You may prefer to learn directly from an example, so let's explain it creating a ClusterAdmissionPolicy:
+
+> [!TIP]
+> You can find the spec samples for all the versions of the resource in the [examples directory](./config/samples)
+
+> [!IMPORTANT]
+> When you have multiple ClusterAdmissionPolicy resources with the same watchedResources parameters,
+> a resource can be rejected due to conditions specified in any of these policies.
+>
+> However, because conditions are evaluated one after the other, the rejection message displayed
+> will be the one defined in the specific ClusterAdmissionPolicy where the rejecting condition is located.
+
+```yaml
+apiVersion: admitik.freepik.com/v1alpha1
+kind: ClusterAdmissionPolicy
+metadata:
+  labels:
+    app.kubernetes.io/name: admitik
+    app.kubernetes.io/managed-by: kustomize
+  name: avoid-colisioning-routes
+spec:
+
+  # Resources to be validated against the webhooks server.
+  # Those matching any combination of following params will be sent.
+  # As a hint: don't set operations you don't need for a resource type
+  watchedResources:
+    group: gateway.networking.k8s.io
+    version: v1
+    resource: httproutes
+    operations:
+      - CREATE
+      - UPDATE
+
+  # Other resources to be retrieved for later templates.
+  # They will be included under .sources scope for conditions and message
+  sources:
+    - group: gateway.networking.k8s.io
+      version: v1
+      resource: httproutes
+
+      # (Optional) It's possible to retrieve specific resources
+      # name: secondary-route
+      # namespace: default
+
+
+  # ALL the conditions must be valid to allow the resource entrance.
+  conditions:
+    - name: confirm-non-existing-routes
+
+      # The 'key' field admits vitamin Golang templating (well known from Helm)
+      # The result of this field will be compared with 'value' for equality
+      key: |
+        {{- $operation := .operation -}}
+        {{- $object := .object -}}
+        {{- $oldObject := .oldObject -}}
+        {{- $sources := .sources -}}
+
+
+        {{- $routeFound := false -}}
+
+        {{- $routes := (index .sources 0) -}}
+        {{- range $routeObjIndex, $routeObj := $routes -}}
+
+          {{/* Here some logic to confirm you found the route already existing */}}
+          {{- $routeFound := true -}}
+
+        {{- end -}}
+
+        {{- if $routeFound -}}
+          {{- printf "route-already-created" -}}
+        {{- else -}}
+          {{- printf "route-not-found" -}}
+        {{- end -}}
+
+      value: "route-not-found"
+
+  message:
+    template: |
+      {{- $object := .object -}}
+      {{- printf "Resource '%s' was rejected as some of declared routes already exists" $object.metadata.name -}}
+
+```
+
+
+
+## How to develop
 
 ### Prerequisites
+- Kubebuilder v4.0.0+
 - go version v1.22.0+
 - docker version 17.03+.
 - kubectl version v1.11.3+.
 - Access to a Kubernetes v1.11.3+ cluster.
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+### The process
 
-```sh
-make docker-build docker-push IMG=<some-registry>/admitik:tag
+> We recommend you to use a development tool like [Kind](https://kind.sigs.k8s.io/) or [Minikube](https://minikube.sigs.k8s.io/docs/start/)
+> to launch a lightweight Kubernetes on your local machine for development purposes
+
+For learning purposes, we will suppose you are going to use Kind. So the first step is to create a Kubernetes cluster
+on your local machine executing the following command:
+
+```console
+kind create cluster
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+Once you have launched a safe play place, execute the following command. It will install the custom resource definitions
+(CRDs) in the cluster configured in your ~/.kube/config file and run Kuberbac locally against the cluster:
 
-**Install the CRDs into the cluster:**
-
-```sh
-make install
+```console
+make install run
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+> [!IMPORTANT]
+> When executing this, a temporary public reverse tunnel will be created.
+> It goes from Kube Apiserver to your local webhooks server. It's done this way to be able to test the webhooks server
+> using local development tools such as **Kind**
 
-```sh
-make deploy IMG=<some-registry>/admitik:tag
-```
-
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
-
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+If you would like to test the operator against some resources, our examples can be applied to see the result in
+your Kind cluster
 
 ```sh
 kubectl apply -k config/samples/
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
+> Remember that your `kubectl` is pointing to your Kind cluster. However, you should always review the context your
+> kubectl CLI is pointing to
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
 
-```sh
-kubectl delete -k config/samples/
-```
 
-**Delete the APIs(CRDs) from the cluster:**
+## How releases are created
 
-```sh
-make uninstall
-```
+Each release of this operator is done following several steps carefully in order not to break the things for anyone.
+Reliability is important to us, so we automated all the process of launching a release. For a better understanding of
+the process, the steps are described in the following recipe:
 
-**UnDeploy the controller from the cluster:**
+1. Test the changes on the code:
 
-```sh
-make undeploy
-```
+    ```console
+    make test
+    ```
 
-## Project Distribution
+   > A release is not done if this stage fails
 
-Following are the steps to build the installer and distribute this project to users.
 
-1. Build the installer for the image built and published in the registry:
+2. Define the package information
 
-```sh
-make build-installer IMG=<some-registry>/admitik:tag
-```
+    ```console
+    export VERSION="0.0.1"
+    export IMG="ghcr.io/freepik-company/admitik:v$VERSION"
+    ```
 
-NOTE: The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without
-its dependencies.
+3. Generate and push the Docker image (published on Docker Hub).
 
-2. Using the installer
+    ```console
+    make docker-build docker-push
+    ```
 
-Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project, i.e.:
+4. Generate the manifests for deployments using Kustomize
 
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/admitik/<tag or branch>/dist/install.yaml
-```
+   ```console
+    make build-installer
+    ```
 
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
 
-**NOTE:** Run `make help` for more information on all potential `make` targets
 
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+## How to collaborate
+
+This project is done on top of [Kubebuilder](https://github.com/kubernetes-sigs/kubebuilder), so read about that project
+before collaborating. Of course, we are open to external collaborations for this project. For doing it you must fork the
+repository, make your changes to the code and open a PR. The code will be reviewed and tested (always)
+
+> We are developers and hate bad code. For that reason we ask you the highest quality on each line of code to improve
+> this project on each iteration.
+
+
 
 ## License
 
-Copyright 2024.
+Copyright 2022.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -111,4 +255,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
