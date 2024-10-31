@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	coreLog "log"
 	"slices"
 	"strings"
 
@@ -107,10 +106,6 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 				globals.DeleteClusterAdmissionPoolPolicyByIndex(resourcePattern, policyIndex)
 			}
 		}
-	}
-
-	for key, item := range globals.Application.ClusterAdmissionPolicyPool.Pool {
-		coreLog.Printf("[DEBUG] ClusterAdmissionPool: { key '%s', items_count: '%d' }", key, len(item))
 	}
 
 	// Craft ValidatingWebhookConfiguration rules based on the pool keys
