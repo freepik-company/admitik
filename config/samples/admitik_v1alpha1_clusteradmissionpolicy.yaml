@@ -4,7 +4,7 @@ metadata:
   labels:
     app.kubernetes.io/name: admitik
     app.kubernetes.io/managed-by: kustomize
-  name: clusteradmissionpolicy-sample
+  name: avoid-colisioning-routes
 spec:
 
   # Resources to be watched
@@ -28,7 +28,7 @@ spec:
       # namespace: default
 
   conditions:
-    - name: check-secret-name
+    - name: confirm-non-existing-routes
       # The 'key' field admits vitamin Golang templating (well known from Helm)
       # The result of this field will be compared with 'value' for equality
       key: |
@@ -36,10 +36,23 @@ spec:
         {{- $sources := .sources -}}
         {{- $routeFound := false -}}
 
-        {{- printf "%s" $object.metadata.name -}}
-      value: "true"
+        {{- $routes := (index .sources 0) -}}
+        {{- range $routeObjIndex, $routeObj := $routes -}}
+
+          {{/* Here some logic to confirm you found the route already existing */}}
+          {{- $routeFound := true -}}
+
+        {{- end -}}
+
+        {{- if $routeFound -}}
+          {{- printf "route-already-created" -}}
+        {{- else -}}
+          {{- printf "route-not-found" -}}
+        {{- end -}}
+
+      value: "route-not-found"
 
   message:
     template: |
       {{- $object := .object -}}
-      {{- printf "Resource '%s' was rejected as it does not meet the conditions" $object.metadata.name -}}
+      {{- printf "Resource '%s' was rejected as some of declared routes already exists" $object.metadata.name -}}

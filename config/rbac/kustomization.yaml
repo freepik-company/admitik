@@ -15,6 +15,3 @@ resources:
 # if you do not want those helpers be installed with your Project.
 - clusteradmissionpolicy_editor_role.yaml
 - clusteradmissionpolicy_viewer_role.yaml
-- admissionpolicy_editor_role.yaml
-- admissionpolicy_viewer_role.yaml
-

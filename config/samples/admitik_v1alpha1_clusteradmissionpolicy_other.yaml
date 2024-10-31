@@ -4,7 +4,7 @@ metadata:
   labels:
     app.kubernetes.io/name: admitik
     app.kubernetes.io/managed-by: kustomize
-  name: clusteradmissionpolicy-sample-other
+  name: confirm-existing-namespace-labels
 spec:
 
   # Resources to be watched
@@ -18,28 +18,32 @@ spec:
 
   # Other resources to be retrieved for conditions templates.
   # They will be included under .sources scope in the template
-  sources:
-    - group: gateway.networking.k8s.io
-      version: v1
-      resource: httproutes
-
-      # (Optional) It's possible to watch specific resources
-      # name: secondary-route
-      # namespace: default
+  sources: []
 
   conditions:
-    - name: check-secret-name
+    - name: confirm-existing-label
       # The 'key' field admits vitamin Golang templating (well known from Helm)
       # The result of this field will be compared with 'value' for equality
       key: |
         {{- $object := .object -}}
-        {{- $sources := .sources -}}
-        {{- $routeFound := false -}}
+        {{- $labels := $object.metadata.labels -}}
+        {{- $labelFound := false -}}
 
-        {{- printf "%s" $object.metadata.name -}}
-      value: "true"
+        {{- range $labelKey, $labelValue := $labels -}}
+          {{- if eq $labelKey "admitik.freepik.com/label" -}}
+            {{- $labelFound := true -}}
+          {{- end -}}
+        {{- end -}}
+
+        {{- if $labelFound -}}
+          {{- printf "label-found" -}}
+        {{- else -}}
+          {{- printf "label-not-found" -}}
+        {{- end -}}
+
+      value: "label-found"
 
   message:
     template: |
       {{- $object := .object -}}
-      {{- printf "Resource '%s' was rejected as it does not meet the conditions" $object.metadata.name -}}
+      {{- printf "Resource '%s' was rejected as some required label is missing" $object.metadata.name -}}
