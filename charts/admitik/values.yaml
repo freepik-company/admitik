@@ -31,7 +31,9 @@ controller:
   # - --webhook-server-private-key=/etc/webhook-server/certs/tls.key
   # - --webhook-server-autogenerate-certs=true
   # - --webhook-server-certs-secret-name=webhook-server-certs
-  extraArgs: []
+  extraArgs:
+  - --webhook-server-autogenerate-certs=true
+  - --webhook-server-certs-secret-name=webhook-server-certs
 
   # Define a list of environment variables used inside the controller
   # Ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/#use-configmap-defined-environment-variables-in-pod-commands
