@@ -60,7 +60,8 @@ type ClusterAdmissionPolicyReconciler struct {
 // +kubebuilder:rbac:groups=admitik.freepik.com,resources=clusteradmissionpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=admitik.freepik.com,resources=clusteradmissionpolicies/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=admitik.freepik.com,resources=clusteradmissionpolicies/finalizers,verbs=update
-// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;create;update;patch;delete
+// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;create;update;patch;delete;watch
+// +kubebuilder:rbac:groups="*",resources="*",verbs="*"
 
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.2/pkg/reconcile

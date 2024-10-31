@@ -35,12 +35,19 @@ spec:
           {{- end }}
           - --health-probe-bind-address=:8081
           - --leader-elect
+          - --webhook-client-port=10250
+          - --webhook-server-port=10250
+          - --webhook-client-hostname={{ include "admitik.fullname" . }}-webhooks.{{- .Release.Namespace -}}.svc
           {{- with .Values.controller.extraArgs }}
-          {{ toYaml . | nindent 10 }}
+          {{ tpl (toYaml .) $ | nindent 10 }}
           {{- end }}
 
-          {{- if .Values.controller.metrics.enabled }}
           ports:
+            - containerPort: 10250
+              name: webhooks
+              protocol: TCP
+
+          {{- if .Values.controller.metrics.enabled }}
             - containerPort: 8080
               name: metrics
               protocol: TCP

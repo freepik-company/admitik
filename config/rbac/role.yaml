@@ -5,6 +5,12 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+- apiGroups:
   - admissionregistration.k8s.io
   resources:
   - validatingwebhookconfigurations
@@ -15,6 +21,7 @@ rules:
   - list
   - patch
   - update
+  - watch
 - apiGroups:
   - admitik.freepik.com
   resources:

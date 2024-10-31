@@ -6,6 +6,12 @@ metadata:
     {{- include "admitik.labels" . | nindent 4 }}
 rules:
 - apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+- apiGroups:
   - admissionregistration.k8s.io
   resources:
   - validatingwebhookconfigurations
@@ -16,6 +22,7 @@ rules:
   - list
   - patch
   - update
+  - watch
 - apiGroups:
   - admitik.freepik.com
   resources:
@@ -42,5 +49,3 @@ rules:
   - get
   - patch
   - update
-
-

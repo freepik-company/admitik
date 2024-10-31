@@ -22,12 +22,17 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
+	apimacherrors "k8s.io/apimachinery/pkg/api/errors"
+	apimachv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -38,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	admitikv1alpha1 "freepik.com/admitik/api/v1alpha1"
+	"freepik.com/admitik/internal/certificates"
 	"freepik.com/admitik/internal/controller"
 	"freepik.com/admitik/internal/globals"
 	"freepik.com/admitik/internal/xyz"
@@ -57,6 +63,8 @@ func init() {
 }
 
 func main() {
+	var err error
+
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
@@ -72,6 +80,9 @@ func main() {
 	var webhooksServerCA string
 	var webhooksServerCertificate string
 	var webhooksServerPrivateKey string
+
+	var webhooksServerAutogenerateCerts bool
+	var webhooksServerCertsSecretName string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metric endpoint binds to. "+
 		"Use the port :8080. If not set, it will be 0 in order to disable the metrics server")
@@ -100,6 +111,11 @@ func main() {
 		"The Certificate used by webhooks server")
 	flag.StringVar(&webhooksServerPrivateKey, "webhook-server-private-key", "",
 		"The Private Key used by webhooks server")
+
+	flag.BoolVar(&webhooksServerAutogenerateCerts, "webhook-server-autogenerate-certs", false,
+		"Enable autogeneration of certificates for webhooks server")
+	flag.StringVar(&webhooksServerCertsSecretName, "webhook-server-certs-secret-name", "",
+		"Kubernetes Secret object name to get certificates from. Keys are: ca.crt, tls.crt, tls.key")
 
 	opts := zap.Options{
 		Development: true,
@@ -157,20 +173,126 @@ func main() {
 		os.Exit(1)
 	}
 
-	// When 'webhook-client-port' flag is defined, configure Kubernetes to call webhooks there.
-	// Otherwise, use port defined in 'webhooks-server-port'.
-	// Being able to use different port for launching the webhooks server and the url in ValidatingWebhookConfiguration
-	// allows us to test the webhooks server locally, through a reverse tunnel
-	webhooksClientHost := fmt.Sprintf("%s:%d", webhooksClientHostname, webhooksServerPort)
-	if webhooksClientPort != 0 {
-		webhooksClientHost = fmt.Sprintf("%s:%d", webhooksClientHostname, webhooksClientPort)
+	// Define the context separated as it will be used by our custom controller too.
+	// This will synchronize goroutine death when the main controller is killed
+	globals.Application.Context = ctrl.SetupSignalHandler()
+
+	// TODO
+	globals.Application.KubeRawClient, globals.Application.KubeRawCoreClient, err = globals.NewKubernetesClient()
+	if err != nil {
+		setupLog.Error(err, "unable to set up kubernetes clients")
+		os.Exit(1)
 	}
 
-	webhooksServerUrl := url.URL{
-		Scheme: "https",
-		Host:   webhooksClientHost,
-		Path:   webhooksServerPath,
+	///////////////////////////////////
+	var ca, cert, privKey string
+
+	if (webhooksServerCA != "" || webhooksServerCertificate != "" || webhooksServerPrivateKey != "") &&
+		(webhooksServerCertsSecretName != "") {
+		setupLog.Error(err, "getting certificates from files and from Secret objects are mutually exclusive")
+		os.Exit(1)
 	}
+
+	currentNamespace, err := globals.GetCurrentNamespace()
+	if err != nil {
+		setupLog.Error(err, "unable to get current namespace")
+		os.Exit(1)
+	}
+
+	if webhooksServerCertsSecretName != "" {
+
+		succeededProcess := false
+		for try := 0; try < 3; try++ {
+
+			secretObj := &corev1.Secret{}
+			secretObj, err = globals.Application.KubeRawCoreClient.CoreV1().Secrets(currentNamespace).
+				Get(globals.Application.Context, webhooksServerCertsSecretName, apimachv1.GetOptions{})
+
+			if err != nil {
+				if !apimacherrors.IsNotFound(err) {
+					setupLog.Error(err, "unable to get secret with certificates")
+					continue
+				}
+
+				if apimacherrors.IsNotFound(err) && !webhooksServerAutogenerateCerts {
+					setupLog.Error(err, "unable to get secret and autogeneration is disabled")
+					continue
+				}
+
+				dnsNames := []string{"localhost", webhooksClientHostname}
+				if strings.HasSuffix(webhooksClientHostname, ".cluster.local") {
+					dnsNames = append(dnsNames, strings.TrimSuffix(webhooksClientHostname, ".cluster.local"))
+				}
+				if strings.HasSuffix(webhooksClientHostname, ".svc") {
+					dnsNames = append(dnsNames, webhooksClientHostname+".cluster.local")
+				}
+				ca, cert, privKey, err = certificates.GenerateCerts(dnsNames)
+
+				if err != nil {
+					setupLog.Error(err, "unable to generate self-signed certificates")
+					continue
+				}
+
+				secretObj.StringData = map[string]string{
+					"ca.crt":  ca,
+					"tls.crt": cert,
+					"tls.key": privKey,
+				}
+
+				secretObj.Name = webhooksServerCertsSecretName
+				_, err = globals.Application.KubeRawCoreClient.CoreV1().Secrets(currentNamespace).
+					Create(globals.Application.Context, secretObj, apimachv1.CreateOptions{})
+				if err != nil {
+					setupLog.Error(err, "unable to create secret with self-signed certificates")
+					continue
+				}
+
+				succeededProcess = true
+				break
+			}
+
+			caBytes, dataFound := secretObj.Data["ca.crt"]
+			if !dataFound {
+				setupLog.Error(err, "unable to get ca.crt from defined secret")
+				os.Exit(1)
+			}
+			ca = string(caBytes)
+
+			certBytes, dataFound := secretObj.Data["tls.crt"]
+			if !dataFound {
+				setupLog.Error(err, "unable to get tls.crt from defined secret")
+				os.Exit(1)
+			}
+			cert = string(certBytes)
+
+			privKeyBytes, dataFound := secretObj.Data["tls.key"]
+			if !dataFound {
+				setupLog.Error(err, "unable to get tls.key from defined secret")
+				os.Exit(1)
+			}
+			privKey = string(privKeyBytes)
+
+			succeededProcess = true
+			break
+		}
+
+		if !succeededProcess {
+			setupLog.Error(err, "unable to get self-signed certificates")
+			os.Exit(1)
+		}
+
+		tempDir := os.TempDir()
+		webhooksServerCA = filepath.Join(tempDir, "ca.crt")
+		os.WriteFile(webhooksServerCA, []byte(ca), 0744)
+
+		webhooksServerCertificate = filepath.Join(tempDir, "tls.crt")
+		os.WriteFile(webhooksServerCertificate, []byte(cert), 0744)
+
+		webhooksServerPrivateKey = filepath.Join(tempDir, "tls.key")
+		os.WriteFile(webhooksServerPrivateKey, []byte(privKey), 0744)
+	}
+
+	//////////////////////////////////
 
 	// Load the CA bundle if defined
 	caBundleBytes := []byte{}
@@ -182,14 +304,53 @@ func main() {
 		}
 	}
 
+	webhookClientConfig := &admissionregv1.WebhookClientConfig{
+		CABundle: caBundleBytes,
+	}
+
+	// TODO
+	if strings.HasSuffix(webhooksClientHostname, ".svc") || strings.HasSuffix(webhooksClientHostname, ".svc.cluster.local") {
+		tmpWebhooksClientHostname := strings.TrimSuffix(webhooksClientHostname, ".svc")
+		tmpWebhooksClientHostname = strings.TrimSuffix(tmpWebhooksClientHostname, ".svc.cluster.local")
+
+		hostnameParts := strings.Split(tmpWebhooksClientHostname, ".")
+		if len(hostnameParts) != 2 {
+			setupLog.Error(err, "invalid hostname in flag 'webhooks-client-hostname' for internal Kubernetes service")
+			os.Exit(1)
+		}
+
+		webhooksClientPortConv := int32(webhooksClientPort)
+		webhookClientConfig.Service = &admissionregv1.ServiceReference{
+			Name:      hostnameParts[0],
+			Namespace: hostnameParts[1],
+			Port:      &webhooksClientPortConv,
+			Path:      &webhooksServerPath,
+		}
+	} else {
+		// When 'webhook-client-port' flag is defined, configure Kubernetes to call webhooks there.
+		// Otherwise, use port defined in 'webhooks-server-port'.
+		// Being able to use different port for launching the webhooks server and the url in ValidatingWebhookConfiguration
+		// allows us to test the webhooks server locally, through a reverse tunnel
+		webhooksClientHost := fmt.Sprintf("%s:%d", webhooksClientHostname, webhooksServerPort)
+		if webhooksClientPort != 0 {
+			webhooksClientHost = fmt.Sprintf("%s:%d", webhooksClientHostname, webhooksClientPort)
+		}
+
+		webhooksServerUrl := url.URL{
+			Scheme: "https",
+			Host:   webhooksClientHost,
+			Path:   webhooksServerPath,
+		}
+
+		webhooksServerUrlString := webhooksServerUrl.String()
+		webhookClientConfig.URL = &webhooksServerUrlString
+	}
+
 	if err = (&controller.ClusterAdmissionPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		Options: controller.ClusterAdmissionPolicyControllerOptions{
-			WebhookClientConfig: admissionregv1.WebhookClientConfig{
-				URL:      func(s string) *string { return &s }(webhooksServerUrl.String()),
-				CABundle: caBundleBytes,
-			},
+			WebhookClientConfig: *webhookClientConfig,
 		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterAdmissionPolicy")
@@ -203,16 +364,6 @@ func main() {
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
-	}
-
-	// Define the context separated as it will be used by our custom controller too.
-	// This will synchronize goroutine death when the main controller is killed
-	//signalCtx := ctrl.SetupSignalHandler()
-	globals.Application.Context = ctrl.SetupSignalHandler()
-	globals.Application.KubeRawClient, err = globals.NewKubernetesClient()
-	if err != nil {
-		setupLog.Error(err, "unable to set up kubernetes client")
 		os.Exit(1)
 	}
 

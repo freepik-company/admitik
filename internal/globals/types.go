@@ -6,6 +6,7 @@ import (
 
 	//
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 
 	//
 	"freepik.com/admitik/api/v1alpha1"
@@ -52,6 +53,9 @@ type applicationT struct {
 
 	// KubeRawClient TODO
 	KubeRawClient *dynamic.DynamicClient
+
+	// KubeRawCoreClient TODO
+	KubeRawCoreClient *kubernetes.Clientset
 
 	//
 	ClusterAdmissionPolicyPool ClusterAdmissionPolicyPoolT
