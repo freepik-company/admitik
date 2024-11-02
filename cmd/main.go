@@ -19,8 +19,6 @@ package main
 import (
 	"crypto/tls"
 	"flag"
-	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +27,6 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apimacherrors "k8s.io/apimachinery/pkg/api/errors"
 	apimachv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,7 +39,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	admitikv1alpha1 "freepik.com/admitik/api/v1alpha1"
+	//
+	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/certificates"
 	"freepik.com/admitik/internal/controller"
 	"freepik.com/admitik/internal/globals"
@@ -58,7 +56,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(admitikv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -177,7 +175,8 @@ func main() {
 	// This will synchronize goroutine death when the main controller is killed
 	globals.Application.Context = ctrl.SetupSignalHandler()
 
-	// TODO
+	// Create ans store raw Kubernetes clients from client-go
+	// They are used by kubebuilder non-related processess and controllers
 	globals.Application.KubeRawClient, globals.Application.KubeRawCoreClient, err = globals.NewKubernetesClient()
 	if err != nil {
 		setupLog.Error(err, "unable to set up kubernetes clients")
@@ -185,6 +184,7 @@ func main() {
 	}
 
 	///////////////////////////////////
+	// Get/Generate certificates needed by admission webhooks server
 	var ca, cert, privKey string
 
 	if (webhooksServerCA != "" || webhooksServerCertificate != "" || webhooksServerPrivateKey != "") &&
@@ -291,7 +291,6 @@ func main() {
 		webhooksServerPrivateKey = filepath.Join(tempDir, "tls.key")
 		os.WriteFile(webhooksServerPrivateKey, []byte(privKey), 0744)
 	}
-
 	//////////////////////////////////
 
 	// Load the CA bundle if defined
@@ -304,48 +303,21 @@ func main() {
 		}
 	}
 
-	webhookClientConfig := &admissionregv1.WebhookClientConfig{
-		CABundle: caBundleBytes,
+	// Generate WebhooksClientConfig with data passed by the user
+	cfgWebhooksClientPort := webhooksServerPort
+	if webhooksClientPort != 0 {
+		cfgWebhooksClientPort = webhooksClientPort
+	}
+	webhookClientConfig, err := controller.GetWebhookClientConfig(caBundleBytes,
+		webhooksClientHostname, cfgWebhooksClientPort, webhooksServerPath)
+	if err != nil {
+		setupLog.Error(err, "failed generating webhooks client config: %s", err.Error())
+		os.Exit(1)
 	}
 
-	// TODO
-	if strings.HasSuffix(webhooksClientHostname, ".svc") || strings.HasSuffix(webhooksClientHostname, ".svc.cluster.local") {
-		tmpWebhooksClientHostname := strings.TrimSuffix(webhooksClientHostname, ".svc")
-		tmpWebhooksClientHostname = strings.TrimSuffix(tmpWebhooksClientHostname, ".svc.cluster.local")
-
-		hostnameParts := strings.Split(tmpWebhooksClientHostname, ".")
-		if len(hostnameParts) != 2 {
-			setupLog.Error(err, "invalid hostname in flag 'webhooks-client-hostname' for internal Kubernetes service")
-			os.Exit(1)
-		}
-
-		webhooksClientPortConv := int32(webhooksClientPort)
-		webhookClientConfig.Service = &admissionregv1.ServiceReference{
-			Name:      hostnameParts[0],
-			Namespace: hostnameParts[1],
-			Port:      &webhooksClientPortConv,
-			Path:      &webhooksServerPath,
-		}
-	} else {
-		// When 'webhook-client-port' flag is defined, configure Kubernetes to call webhooks there.
-		// Otherwise, use port defined in 'webhooks-server-port'.
-		// Being able to use different port for launching the webhooks server and the url in ValidatingWebhookConfiguration
-		// allows us to test the webhooks server locally, through a reverse tunnel
-		webhooksClientHost := fmt.Sprintf("%s:%d", webhooksClientHostname, webhooksServerPort)
-		if webhooksClientPort != 0 {
-			webhooksClientHost = fmt.Sprintf("%s:%d", webhooksClientHostname, webhooksClientPort)
-		}
-
-		webhooksServerUrl := url.URL{
-			Scheme: "https",
-			Host:   webhooksClientHost,
-			Path:   webhooksServerPath,
-		}
-
-		webhooksServerUrlString := webhooksServerUrl.String()
-		webhookClientConfig.URL = &webhooksServerUrlString
-	}
-
+	// Init primary controller
+	// ATTENTION: This controller may be replaced by a custom one in the future doing the same tasks
+	// to simplify this project's dependencies and maintainability
 	if err = (&controller.ClusterAdmissionPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),

@@ -34,7 +34,6 @@ spec:
           - --metrics-bind-address=127.0.0.1:8080
           {{- end }}
           - --health-probe-bind-address=:8081
-          - --leader-elect
           - --webhook-client-port=10250
           - --webhook-server-port=10250
           - --webhook-client-hostname={{ include "admitik.fullname" . }}-webhooks.{{- .Release.Namespace -}}.svc

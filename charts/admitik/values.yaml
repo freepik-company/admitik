@@ -13,7 +13,7 @@ controller:
     # If not set and create is true, a name is generated using the fullname template
     name: "admitik-controller-manager"
 
-  replicaCount: 1
+  replicaCount: 2
 
   image:
     repository: ghcr.io/freepik-company/admitik
@@ -82,8 +82,8 @@ controller:
 
   autoscaling:
     enabled: false
-    minReplicas: 1
-    maxReplicas: 100
+    minReplicas: 2
+    maxReplicas: 10
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
 
