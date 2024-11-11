@@ -62,6 +62,6 @@ jobs:
           tag_name: ${{ steps.read_tag.outputs.release_tag }}
           body: ""
           files: |
-            dist/bundle.yaml
+            dist/install.yaml
           append_body: true
           generate_release_notes: false

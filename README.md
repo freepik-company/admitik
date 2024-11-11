@@ -51,7 +51,7 @@ the tag of the version you want to deploy as follows:
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-- https://github.com/freepik-company/admitik/releases/download/v0.1.0/bundle.yaml
+- https://github.com/freepik-company/admitik/releases/download/v0.1.0/install.yaml
 ```
 
 > 🧚🏼 **Hey, listen! If you prefer to deploy using Helm, go to the [Helm registry](https://github.com/freepik-company/helm-charts)**
