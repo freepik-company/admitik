@@ -54,7 +54,7 @@ resources:
 - https://github.com/freepik-company/admitik/releases/download/v0.1.0/install.yaml
 ```
 
-> 🧚🏼 **Hey, listen! If you prefer to deploy using Helm, go to the [Helm registry](https://github.com/freepik-company/helm-charts)**
+> 🧚🏼 **Hey, listen! If you prefer to deploy using Helm, go to the [Helm registry](https://freepik-company.github.io/admitik/)**
 
 
 
