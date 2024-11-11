@@ -130,6 +130,7 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 	// 7. The object CR already exists: manage the update
 	err = r.SyncAdmissionPool(ctx, watch.Modified, reqObject)
 	if err != nil {
+		r.UpdateConditionKubernetesApiCallFailure(reqObject)
 		logger.Info(fmt.Sprintf(notificationReconcileError, reqObject.Name))
 		return result, err
 	}

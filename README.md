@@ -10,7 +10,9 @@
 ![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/achetronic?style=flat&logo=twitter&link=https%3A%2F%2Ftwitter.com%2Fachetronic)
 
 
-A dynamic Kubernetes admission controller that validates or modifies resources based on conditions you define using Helm templates. It can retrieve data from other resources and inject it into templates, allowing for customizable conditions and messages.
+A dynamic Kubernetes admission controller that validates or modifies resources based on conditions you define using Helm templates.
+
+It can retrieve data from other resources and inject it into templates, allowing for customizable conditions and messages.
 
 
 
