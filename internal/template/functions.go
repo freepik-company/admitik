@@ -17,8 +17,26 @@ import (
 // for people who are already comfortable with Helm. Not all the extra functionality was added to keep this simpler.
 // Ref: https://github.com/helm/helm/blob/main/pkg/engine/funcs.go
 
-func EvaluateTemplate(templateString string, data map[string]interface{}) (result string, err error) {
+func EvaluateTemplate(templateString string, data *map[string]interface{}) (result string, err error) {
+
+	// setVar function is defined as clojure to intercept 'data'
+	// done this way as 'data' being passed as func param in later func map is not convenient
+	setVar := func(key string, value interface{}) string {
+
+		// Init data['vars'] when needed
+		vars, ok := (*data)["vars"].(map[string]interface{})
+		if !ok || vars == nil {
+			vars = make(map[string]interface{})
+			(*data)["vars"] = vars
+		}
+
+		// Store data inside
+		vars[key] = value
+		return ""
+	}
+
 	templateFunctionsMap := GetFunctionsMap()
+	templateFunctionsMap["setVar"] = setVar
 
 	// Create a Template object from the given string
 	parsedTemplate, err := template.New("main").Funcs(templateFunctionsMap).Parse(templateString)
