@@ -4,10 +4,10 @@ apiVersion: v2
 name: admitik
 type: application
 description: >-
-  A Helm chart for admitik, an admission controller for Kubernetes
+  A Helm chart for Admitik, an admission controller for Kubernetes
   that allow resources entrance if conditions are met (realtime)
-version: 0.1.0 # chart version
-appVersion: "0.1.0" # admitik version
+version: 0.2.0 # chart version
+appVersion: "0.2.0" # admitik version
 kubeVersion: ">=1.22.0-0" # kubernetes version
 home: https://github.com/freepik-company/admitik
 sources:

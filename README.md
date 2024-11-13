@@ -148,6 +148,43 @@ spec:
 
 ```
 
+As you probably noticed in the previous example, conditions are made using vitamin Golang template
+(better known as Helm template), so **all the functions available in Helm are available here too.**
+This way you start creating wonderful policies from first minute.
+
+**Sometimes you need to store information** during conditions' evaluation that will be useful in later messages shown to the team.
+This will help your mates having meaningful messages that save time during debug.
+
+Because of that, there is a special function available in templates called `setVar`. It can be used as follows:
+
+```yaml
+apiVersion: admitik.freepik.com/v1alpha1
+kind: ClusterAdmissionPolicy
+spec:
+
+  ...
+
+  conditions:
+    - name: store-vars-for-later-usage
+      key: |
+        {{- $someDataForLater := dict "name" "example-name" "namespace" "example-namespace" -}}
+
+
+        {{/* Store your data under your desired key. You can use as many keys as needed */}}
+        {{- setVar "some_key" $someDataForLater -}}
+
+
+        {{- printf "force-condition-not-being-met" -}}
+      value: "condition-key-result"
+
+  message:
+    template: |
+      {{- $myVars := .vars -}}
+
+      {{- $someKeyInside := $myVars.some_key-}}
+
+      {{- printf "let's show some stored data: %s/%s" $someKeyInside.name $someKeyInside.namespace -}}
+```
 
 
 ## How to develop

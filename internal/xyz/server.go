@@ -171,7 +171,7 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 		// Evaluate template conditions
 		var conditionPassed []bool
 		for _, condition := range caPolicyObj.Spec.Conditions {
-			parsedKey, err := template.EvaluateTemplate(condition.Key, specificTemplateInjectedObject)
+			parsedKey, err := template.EvaluateTemplate(condition.Key, &specificTemplateInjectedObject)
 			if err != nil {
 				logger.Info(fmt.Sprintf("failed evaluating condition '%s': %s", condition.Name, err.Error()))
 				conditionPassed = append(conditionPassed, false)
@@ -183,7 +183,7 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 
 		// When some condition is not met, evaluate message's template and emit a negative response
 		if slices.Contains(conditionPassed, false) {
-			parsedMessage, err := template.EvaluateTemplate(caPolicyObj.Spec.Message.Template, specificTemplateInjectedObject)
+			parsedMessage, err := template.EvaluateTemplate(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
 			if err != nil {
 				logger.Info(fmt.Sprintf("failed parsing message template: %s", err.Error()))
 				return
