@@ -34,15 +34,6 @@ import (
 	"freepik.com/admitik/api/v1alpha1"
 )
 
-const (
-	notificationNotFoundError          = "Notification resource not found. Ignoring since object must be deleted."
-	notificationRetrievalError         = "Error getting the notification from the cluster"
-	notificationFinalizersUpdateError  = "Failed to update finalizer of notification: %s"
-	notificationConditionUpdateError   = "Failed to update the condition on notification: %s"
-	notificationSyncTimeRetrievalError = "Can not get synchronization time from the notification: %s"
-	notificationReconcileError         = "Can not reconcile Notification: %s"
-)
-
 // TODO
 type ClusterAdmissionPolicyControllerOptions struct {
 	WebhookClientConfig admissionregv1.WebhookClientConfig
@@ -78,12 +69,12 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 
 		// 2.1 It does NOT exist: manage removal
 		if err = client.IgnoreNotFound(err); err == nil {
-			logger.Info(notificationNotFoundError)
+			logger.Info(fmt.Sprintf(resourceNotFoundError, clusterAdmissionPolicyResourceType, req.Name))
 			return result, err
 		}
 
 		// 2.2 Failed to get the resource, requeue the request
-		logger.Info(notificationRetrievalError)
+		logger.Info(fmt.Sprintf(resourceRetrievalError, clusterAdmissionPolicyResourceType, req.Name, err.Error()))
 		return result, err
 	}
 
@@ -94,7 +85,7 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 			// Delete AdmissionPolicy from AdmissionPool
 			err = r.SyncAdmissionPool(ctx, watch.Deleted, reqObject)
 			if err != nil {
-				logger.Info(fmt.Sprintf(notificationReconcileError, reqObject.Name))
+				logger.Info(fmt.Sprintf(resourceReconcileError, clusterAdmissionPolicyResourceType, req.Name, err.Error()))
 				return result, err
 			}
 
@@ -102,7 +93,7 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 			controllerutil.RemoveFinalizer(reqObject, resourceFinalizer)
 			err = r.Update(ctx, reqObject)
 			if err != nil {
-				logger.Info(fmt.Sprintf(notificationFinalizersUpdateError, req.Name))
+				logger.Info(fmt.Sprintf(resourceFinalizersUpdateError, clusterAdmissionPolicyResourceType, req.Name, err.Error()))
 			}
 		}
 		result = ctrl.Result{}
@@ -123,7 +114,7 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 	defer func() {
 		err = r.Status().Update(ctx, reqObject)
 		if err != nil {
-			logger.Info(fmt.Sprintf(notificationConditionUpdateError, req.Name))
+			logger.Info(fmt.Sprintf(resourceConditionUpdateError, clusterAdmissionPolicyResourceType, req.Name, err.Error()))
 		}
 	}()
 
@@ -131,7 +122,7 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 	err = r.SyncAdmissionPool(ctx, watch.Modified, reqObject)
 	if err != nil {
 		r.UpdateConditionKubernetesApiCallFailure(reqObject)
-		logger.Info(fmt.Sprintf(notificationReconcileError, reqObject.Name))
+		logger.Info(fmt.Sprintf(resourceReconcileError, clusterAdmissionPolicyResourceType, req.Name, err.Error()))
 		return result, err
 	}
 
