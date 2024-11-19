@@ -194,19 +194,18 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 			}
 			reviewResponse.Response.Result.Message = parsedMessage
 
-			// Create the Event in Kubernetes about involved object
-			err = createKubeEvent(request.Context(), "default", requestObject, caPolicyObj, parsedMessage)
-			if err != nil {
-				logger.Info(fmt.Sprintf("failed creating kubernetes event: %s", err.Error()))
-				return
-			}
-
 			// When the policy is in Audit mode, allow it anyway
 			if caPolicyObj.Spec.FailureAction == v1alpha1.FailureActionAudit {
 				reviewResponse.Response.Allowed = true
 				logger.Info(fmt.Sprintf("object accepted with unmet conditions: %s", parsedMessage))
 			} else {
 				logger.Info(fmt.Sprintf("object rejected due to unmet conditions: %s", parsedMessage))
+			}
+
+			// Create the Event in Kubernetes about involved object
+			err = createKubeEvent(request.Context(), "default", requestObject, caPolicyObj, parsedMessage)
+			if err != nil {
+				logger.Info(fmt.Sprintf("failed creating kubernetes event: %s", err.Error()))
 			}
 			return
 		}
