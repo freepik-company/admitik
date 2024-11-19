@@ -189,7 +189,7 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 				return
 			}
 
-			logger.Info("object rejected due to unmet conditions")
+			logger.Info(fmt.Sprintf("object rejected due to unmet conditions: %s", parsedMessage))
 			reviewResponse.Response.Result.Message = parsedMessage
 			return
 		}

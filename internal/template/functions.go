@@ -3,6 +3,7 @@ package template
 import (
 	"bytes"
 	"encoding/json"
+	"log"
 	"strings"
 	"text/template"
 
@@ -66,6 +67,7 @@ func GetFunctionsMap() template.FuncMap {
 
 	// Add some extra functionality
 	extra := template.FuncMap{
+		// Helm related funcs
 		"toToml":        toTOML,
 		"toYaml":        toYAML,
 		"fromYaml":      fromYAML,
@@ -73,6 +75,10 @@ func GetFunctionsMap() template.FuncMap {
 		"toJson":        toJSON,
 		"fromJson":      fromJSON,
 		"fromJsonArray": fromJSONArray,
+
+		// Extended funcs
+		"logPrintf": logPrintf,
+		//"setVar":    func(string, interface{}) string,
 	}
 
 	for k, v := range extra {
@@ -80,6 +86,14 @@ func GetFunctionsMap() template.FuncMap {
 	}
 
 	return f
+}
+
+// logPrintf is the equivalent of printf function.
+// It take a format-string and several items as arguments and throw the result by logs.
+// It returns an empty string as returning something is required in Go template's func mapping
+func logPrintf(format string, v ...interface{}) string {
+	log.Printf(format, v...)
+	return ""
 }
 
 // toYAML takes an interface, marshals it to yaml, and returns a string. It will
