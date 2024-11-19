@@ -21,6 +21,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	FailureActionAudit   string = "Audit"
+	FailureActionEnforce string = "Enforce"
+)
+
 // WatchedResourceT represents TODO
 type WatchedResourceT struct {
 	metav1.GroupVersionResource `json:",inline"`
@@ -47,10 +52,15 @@ type MessageT struct {
 
 // ClusterAdmissionPolicySpec defines the desired state of ClusterAdmissionPolicy
 type ClusterAdmissionPolicySpec struct {
+	FailureAction string `json:"failureAction,omitempty"`
+
+	//
 	WatchedResources WatchedResourceT `json:"watchedResources"`
 	Sources          []SourceT        `json:"sources"`
-	Conditions       []ConditionT     `json:"conditions"`
-	Message          MessageT         `json:"message"`
+
+	//
+	Conditions []ConditionT `json:"conditions"`
+	Message    MessageT     `json:"message"`
 }
 
 // ClusterAdmissionPolicyStatus defines the observed state of ClusterAdmissionPolicy

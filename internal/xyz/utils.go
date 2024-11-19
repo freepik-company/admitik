@@ -14,6 +14,9 @@ func GetObjectBasicData(object *map[string]interface{}) (objectData map[string]i
 	}
 
 	objectData = make(map[string]interface{})
+
+	objectData["apiVersion"] = (*object)["apiVersion"].(string)
+	objectData["kind"] = (*object)["kind"].(string)
 	objectData["name"] = metadata["name"]
 	objectData["namespace"] = metadata["namespace"]
 

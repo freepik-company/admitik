@@ -76,7 +76,7 @@ func GetFunctionsMap() template.FuncMap {
 		"fromJson":      fromJSON,
 		"fromJsonArray": fromJSONArray,
 
-		// Extended funcs
+		// Admitik related funcs
 		"logPrintf": logPrintf,
 		//"setVar":    func(string, interface{}) string,
 	}

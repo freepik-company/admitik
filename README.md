@@ -87,6 +87,13 @@ metadata:
   name: avoid-colisioning-routes
 spec:
 
+  # (Optional) Action to perform with the conditions are not met
+  # Posible values: Enforce, Audit
+  # Enforce: (default) Reject the object.
+  # Audit: Accept the object as if the conditions were met
+  # Both results create an event in Kubernetes
+  failureAction: Enforce
+
   # Resources to be validated against the webhooks server.
   # Those matching any combination of following params will be sent.
   # As a hint: don't set operations you don't need for a resource type
@@ -185,6 +192,10 @@ spec:
 
       {{- printf "let's show some stored data: %s/%s" $someKeyInside.name $someKeyInside.namespace -}}
 ```
+
+> [!TIP]
+> Another useful function that can be used in templates is `logPrintf`. It accepts the same params as printf
+> but throw the result in controller's logs instead of returning it
 
 
 ## How to develop

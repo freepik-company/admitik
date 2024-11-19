@@ -7,12 +7,16 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"time"
 
+	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/globals"
 	"freepik.com/admitik/internal/template"
 
 	admissionv1 "k8s.io/api/admission/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -77,7 +81,7 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 	reviewResponse.Response = &admissionv1.AdmissionResponse{
 		UID:     requestObj.Request.UID,
 		Allowed: false,
-		Result: &v1.Status{
+		Result: &metav1.Status{
 			Code: http.StatusForbidden,
 		},
 	}
@@ -181,22 +185,35 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 			conditionPassed = append(conditionPassed, parsedKey == condition.Value)
 		}
 
-		// When some condition is not met, evaluate message's template and emit a negative response
+		// When some condition is not met, evaluate message's template and emit a response
 		if slices.Contains(conditionPassed, false) {
 			parsedMessage, err := template.EvaluateTemplate(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
 			if err != nil {
 				logger.Info(fmt.Sprintf("failed parsing message template: %s", err.Error()))
 				return
 			}
-
-			logger.Info(fmt.Sprintf("object rejected due to unmet conditions: %s", parsedMessage))
 			reviewResponse.Response.Result.Message = parsedMessage
+
+			// Create the Event in Kubernetes about involved object
+			err = createKubeEvent(request.Context(), "default", requestObject, caPolicyObj, parsedMessage)
+			if err != nil {
+				logger.Info(fmt.Sprintf("failed creating kubernetes event: %s", err.Error()))
+				return
+			}
+
+			// When the policy is in Audit mode, allow it anyway
+			if caPolicyObj.Spec.FailureAction == v1alpha1.FailureActionAudit {
+				reviewResponse.Response.Allowed = true
+				logger.Info(fmt.Sprintf("object accepted with unmet conditions: %s", parsedMessage))
+			} else {
+				logger.Info(fmt.Sprintf("object rejected due to unmet conditions: %s", parsedMessage))
+			}
 			return
 		}
 	}
 
 	reviewResponse.Response.Allowed = true
-	reviewResponse.Response.Result = &v1.Status{}
+	reviewResponse.Response.Result = &metav1.Status{}
 }
 
 // getKubeResourceList returns an unstructuredList of resources selected by params
@@ -209,7 +226,7 @@ func getKubeResourceList(ctx context.Context, group, version, resource, namespac
 		Resource: resource,
 	})
 
-	sourceListOptions := v1.ListOptions{}
+	sourceListOptions := metav1.ListOptions{}
 
 	if namespace != "" {
 		sourceListOptions.FieldSelector = fmt.Sprintf("metadata.namespace=%s", namespace)
@@ -224,4 +241,47 @@ func getKubeResourceList(ctx context.Context, group, version, resource, namespac
 
 	resourceList, err = unstructuredSourceObj.List(ctx, sourceListOptions)
 	return resourceList, err
+}
+
+// createKubeEvent TODO
+func createKubeEvent(ctx context.Context, namespace string, object map[string]interface{},
+	policy v1alpha1.ClusterAdmissionPolicy, message string) (err error) {
+
+	objectData, err := GetObjectBasicData(&object)
+	if err != nil {
+		return err
+	}
+
+	eventObj := eventsv1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "admission-",
+		},
+
+		EventTime:           metav1.NewMicroTime(time.Now()),
+		ReportingController: "admitik",
+		ReportingInstance:   "admission-server",
+		Action:              "Reviewed",
+		Reason:              "ClusterAdmissionPolicyConfigured",
+
+		Regarding: corev1.ObjectReference{
+			APIVersion: objectData["apiVersion"].(string),
+			Kind:       objectData["kind"].(string),
+			Name:       objectData["name"].(string),
+			Namespace:  objectData["namespace"].(string),
+		},
+
+		Related: &corev1.ObjectReference{
+			APIVersion: policy.APIVersion,
+			Kind:       policy.Kind,
+			Name:       policy.Name,
+		},
+
+		Note: message,
+		Type: "Normal",
+	}
+
+	_, err = globals.Application.KubeRawCoreClient.EventsV1().Events(namespace).
+		Create(ctx, &eventObj, metav1.CreateOptions{})
+
+	return err
 }
