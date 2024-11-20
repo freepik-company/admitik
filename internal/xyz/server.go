@@ -76,6 +76,8 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 		"namespace", requestObj.Request.Namespace,
 		"operation", requestObj.Request.Operation)
 
+	logger.Info("object under review")
+
 	// Assume that the request is rejected as default
 	reviewResponse := &requestObj
 	reviewResponse.Response = &admissionv1.AdmissionResponse{
