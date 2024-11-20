@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	FailureActionAudit   string = "Audit"
-	FailureActionEnforce string = "Enforce"
+	FailureActionPermissive string = "Permissive"
+	FailureActionEnforce    string = "Enforce"
 )
 
 // WatchedResourceT represents TODO

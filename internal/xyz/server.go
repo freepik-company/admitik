@@ -189,6 +189,7 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 
 		// When some condition is not met, evaluate message's template and emit a response
 		if slices.Contains(conditionPassed, false) {
+
 			parsedMessage, err := template.EvaluateTemplate(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
 			if err != nil {
 				logger.Info(fmt.Sprintf("failed parsing message template: %s", err.Error()))
@@ -196,16 +197,19 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 			}
 			reviewResponse.Response.Result.Message = parsedMessage
 
-			// When the policy is in Audit mode, allow it anyway
-			if caPolicyObj.Spec.FailureAction == v1alpha1.FailureActionAudit {
+			// When the policy is in Permissive mode, allow it anyway
+			var kubeEventAction string
+			if caPolicyObj.Spec.FailureAction == v1alpha1.FailureActionPermissive {
 				reviewResponse.Response.Allowed = true
+				kubeEventAction = "AllowedWithViolations"
 				logger.Info(fmt.Sprintf("object accepted with unmet conditions: %s", parsedMessage))
 			} else {
+				kubeEventAction = "Rejected"
 				logger.Info(fmt.Sprintf("object rejected due to unmet conditions: %s", parsedMessage))
 			}
 
 			// Create the Event in Kubernetes about involved object
-			err = createKubeEvent(request.Context(), "default", requestObject, caPolicyObj, parsedMessage)
+			err = createKubeEvent(request.Context(), "default", requestObject, caPolicyObj, kubeEventAction, parsedMessage)
 			if err != nil {
 				logger.Info(fmt.Sprintf("failed creating kubernetes event: %s", err.Error()))
 			}
@@ -246,7 +250,7 @@ func getKubeResourceList(ctx context.Context, group, version, resource, namespac
 
 // createKubeEvent TODO
 func createKubeEvent(ctx context.Context, namespace string, object map[string]interface{},
-	policy v1alpha1.ClusterAdmissionPolicy, message string) (err error) {
+	policy v1alpha1.ClusterAdmissionPolicy, action, message string) (err error) {
 
 	objectData, err := GetObjectBasicData(&object)
 	if err != nil {
@@ -261,8 +265,8 @@ func createKubeEvent(ctx context.Context, namespace string, object map[string]in
 		EventTime:           metav1.NewMicroTime(time.Now()),
 		ReportingController: "admitik",
 		ReportingInstance:   "admission-server",
-		Action:              "Reviewed",
-		Reason:              "ClusterAdmissionPolicyConfigured",
+		Action:              action,
+		Reason:              "ClusterAdmissionPolicyAudit",
 
 		Regarding: corev1.ObjectReference{
 			APIVersion: objectData["apiVersion"].(string),

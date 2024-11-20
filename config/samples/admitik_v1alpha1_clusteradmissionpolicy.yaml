@@ -7,7 +7,7 @@ metadata:
   name: avoid-colisioning-routes
 spec:
 
-  failureAction: Audit
+  failureAction: Permissive
 
   # Resources to be watched
   watchedResources:

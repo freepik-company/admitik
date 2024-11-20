@@ -88,9 +88,9 @@ metadata:
 spec:
 
   # (Optional) Action to perform with the conditions are not met
-  # Posible values: Enforce, Audit
+  # Posible values: Enforce, Permissive
   # Enforce: (default) Reject the object.
-  # Audit: Accept the object as if the conditions were met
+  # Permissive: Accept the object
   # Both results create an event in Kubernetes
   failureAction: Enforce
 
