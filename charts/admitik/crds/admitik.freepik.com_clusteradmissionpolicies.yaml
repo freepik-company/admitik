@@ -55,6 +55,8 @@ spec:
                   - value
                   type: object
                 type: array
+              failureAction:
+                type: string
               message:
                 properties:
                   template:
