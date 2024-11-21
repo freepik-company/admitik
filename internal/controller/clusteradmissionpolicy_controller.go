@@ -37,6 +37,7 @@ import (
 // TODO
 type ClusterAdmissionPolicyControllerOptions struct {
 	WebhookClientConfig admissionregv1.WebhookClientConfig
+	WebhookTimeout      int
 }
 
 // ClusterAdmissionPolicyReconciler reconciles a ClusterAdmissionPolicy object

@@ -72,6 +72,7 @@ func main() {
 	// Custom flags from here
 	var webhooksClientHostname string
 	var webhooksClientPort int
+	var webhooksClientTimeout int
 
 	var webhooksServerPort int
 	var webhooksServerPath string
@@ -98,6 +99,8 @@ func main() {
 		"The hostname used by Kubernetes when calling the webhooks server")
 	flag.IntVar(&webhooksClientPort, "webhook-client-port", 10250,
 		"The port used by Kubernetes when calling the webhooks server")
+	flag.IntVar(&webhooksClientTimeout, "webhook-client-timeout", 10,
+		"The time waited by Kubernetes when calling the webhooks server before considering timeout")
 
 	flag.IntVar(&webhooksServerPort, "webhook-server-port", 10250,
 		"The port where the webhooks server listens")
@@ -323,6 +326,7 @@ func main() {
 		Scheme: mgr.GetScheme(),
 		Options: controller.ClusterAdmissionPolicyControllerOptions{
 			WebhookClientConfig: *webhookClientConfig,
+			WebhookTimeout:      webhooksClientTimeout,
 		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterAdmissionPolicy")

@@ -147,11 +147,13 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 
 	// Create a bare new 'webhooks' section for the ValidatingWebhookConfiguration and fill it
 	tmpWebhookObj := admissionregv1.ValidatingWebhook{}
+	timeoutSecondsConverted := int32(r.Options.WebhookTimeout)
 
 	tmpWebhookObj.Name = "validate.admitik.svc"
 	tmpWebhookObj.AdmissionReviewVersions = []string{"v1"}
 	tmpWebhookObj.ClientConfig = r.Options.WebhookClientConfig
 	tmpWebhookObj.Rules = currentVwcRules
+	tmpWebhookObj.TimeoutSeconds = &timeoutSecondsConverted
 	//tmpWebhookObj.MatchConditions = object.Spec.WatchedResources.MatchConditions
 
 	sideEffectsClass := admissionregv1.SideEffectClass(admissionregv1.SideEffectClassNone)
