@@ -31,6 +31,7 @@ controller:
   # - --webhook-server-private-key=/etc/webhook-server/certs/tls.key
   # - --webhook-server-autogenerate-certs=true
   # - --webhook-server-certs-secret-name=webhook-server-certs
+  # - --webhook-client-timeout=15
   extraArgs:
   - --webhook-server-autogenerate-certs=true
   - --webhook-server-certs-secret-name=webhook-server-certs
