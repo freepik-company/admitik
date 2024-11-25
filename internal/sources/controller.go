@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	//
@@ -48,10 +49,20 @@ type SourcesController struct {
 	WatcherPool WatcherPoolT
 }
 
+// TODO
+func (r *SourcesController) init() {
+	r.WatcherPool = WatcherPoolT{
+		Mutex: &sync.Mutex{},
+		Pool:  map[ResourceTypeName]ResourceTypeWatcherT{},
+	}
+}
+
 // Start launches the SourcesController and keeps it alive
 // It kills the controller on application context death, and rerun the process when failed
 func (r *SourcesController) Start(ctx context.Context) {
 	logger := log.FromContext(ctx)
+
+	r.init()
 
 	for {
 		select {
@@ -59,7 +70,6 @@ func (r *SourcesController) Start(ctx context.Context) {
 			logger.Info("SourcesController finished by context")
 			return
 		default:
-			logger.Info("Starting SourcesController")
 			r.reconcileWatchers(ctx)
 		}
 
@@ -92,7 +102,7 @@ func (r *SourcesController) reconcileWatchers(ctx context.Context) {
 
 			// Wait for the resourceType watcher to ACK itself into WatcherPool
 			time.Sleep(r.Options.WatcherDurationToAck)
-			if *(r.WatcherPool.Pool[resourceType].Started) == false {
+			if !*(r.WatcherPool.Pool[resourceType].Started) {
 				logger.Info(fmt.Sprintf("Impossible to start watcher for resource type: %s", resourceType))
 			}
 		}
@@ -166,22 +176,22 @@ func (r *SourcesController) watchType(ctx context.Context, watchedType ResourceT
 
 		AddFunc: func(eventObject interface{}) {
 			convertedObject := eventObject.(*unstructured.Unstructured)
-			r.CreateWatcherResource(watchedType, convertedObject)
+			r.createWatcherResource(watchedType, convertedObject)
 		},
 		UpdateFunc: func(_, eventObject interface{}) {
 			convertedObject := eventObject.(*unstructured.Unstructured)
-			objectIndex := r.GetWatcherResourceIndex(watchedType, convertedObject)
+			objectIndex := r.getWatcherResourceIndex(watchedType, convertedObject)
 
 			if objectIndex > -1 {
-				r.UpdateWatcherResourceByIndex(watchedType, objectIndex, convertedObject)
+				r.updateWatcherResourceByIndex(watchedType, objectIndex, convertedObject)
 			}
 		},
 		DeleteFunc: func(eventObject interface{}) {
 			convertedObject := eventObject.(*unstructured.Unstructured)
-			objectIndex := r.GetWatcherResourceIndex(watchedType, convertedObject)
+			objectIndex := r.getWatcherResourceIndex(watchedType, convertedObject)
 
 			if objectIndex > -1 {
-				r.DeleteWatcherResourceByIndex(watchedType, objectIndex)
+				r.deleteWatcherResourceByIndex(watchedType, objectIndex)
 			}
 		},
 	}

@@ -19,6 +19,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	coreLog "log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -332,6 +333,23 @@ func main() {
 
 	setupLog.Info("starting sources controller")
 	go sourcesController.Start(globals.Application.Context)
+
+	go func() {
+		err = sourcesController.SyncWatchers([]sources.ResourceTypeName{
+			"/v1/namespaces//",
+			"gateway.networking.k8s.io/v1/httproutes//"})
+		if err != nil {
+			coreLog.Printf("error syncing watchers: %s", err.Error())
+		}
+
+		time.Sleep(5 * time.Second)
+
+		err = sourcesController.SyncWatchers([]sources.ResourceTypeName{
+			"gateway.networking.k8s.io/v1/httproutes//"})
+		if err != nil {
+			coreLog.Printf("error syncing watchers: %s", err.Error())
+		}
+	}()
 
 	// Init primary controller
 	// ATTENTION: This controller may be replaced by a custom one in the future doing the same tasks
