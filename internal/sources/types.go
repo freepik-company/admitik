@@ -12,7 +12,7 @@ type ResourceTypeName string
 // TODO
 type ResourceTypeWatcherT struct {
 	// Enforce concurrency safety
-	Mutex *sync.Mutex
+	Mutex *sync.RWMutex
 
 	// Started represents a flag to know if the watcher is running
 	Started *bool
@@ -24,17 +24,13 @@ type ResourceTypeWatcherT struct {
 	// Watcher will be potentially re-launched by SourcesController
 	StopSignal *chan bool
 
-	// Dependants represents the amount of policies
-	// depending on the resources cached by this watcher
-	//Dependants int
-
 	//
-	ResourceList *[]*unstructured.Unstructured
+	ResourceList []*unstructured.Unstructured
 }
 
 type WatcherPoolT struct {
 	// Enforce concurrency safety
-	Mutex *sync.Mutex
+	Mutex *sync.RWMutex
 
-	Pool map[ResourceTypeName]ResourceTypeWatcherT
+	Pool map[ResourceTypeName]*ResourceTypeWatcherT
 }

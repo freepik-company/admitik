@@ -3,7 +3,6 @@ package sources
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"sync"
 	"time"
 
@@ -16,22 +15,17 @@ import (
 // That process will create the real Kubernetes informer for this object
 // This function is not responsible for blocking the pool before being executed
 func (r *SourcesController) prepareWatcher(watcherType ResourceTypeName) {
+	started := false
+	blocked := false
+	stopSignal := make(chan bool)
+	mutex := &sync.RWMutex{}
 
-	var initialStartedState bool = false
-	var initialBlockedState bool = false
-	var initialResourceListState []*unstructured.Unstructured
-
-	initialStopSignalState := make(chan bool)
-	initialMutexState := sync.Mutex{}
-
-	r.WatcherPool.Pool[watcherType] = ResourceTypeWatcherT{
-		Mutex: &initialMutexState,
-
-		Started:    &initialStartedState,
-		Blocked:    &initialBlockedState,
-		StopSignal: &initialStopSignalState,
-
-		ResourceList: &initialResourceListState,
+	r.WatcherPool.Pool[watcherType] = &ResourceTypeWatcherT{
+		Mutex:        mutex,
+		Started:      &started,
+		Blocked:      &blocked,
+		StopSignal:   &stopSignal,
+		ResourceList: make([]*unstructured.Unstructured, 0),
 	}
 }
 
@@ -61,7 +55,7 @@ func (r *SourcesController) disableWatcher(watcherType ResourceTypeName) (result
 		return false
 	}
 
-	*r.WatcherPool.Pool[watcherType].ResourceList = []*unstructured.Unstructured{}
+	r.WatcherPool.Pool[watcherType].ResourceList = []*unstructured.Unstructured{}
 	return true
 }
 
@@ -71,71 +65,115 @@ func (r *SourcesController) disableWatcher(watcherType ResourceTypeName) (result
 // this function creates missing watchers, ensures active ones are unblocked, and removes
 // any watchers that are no longer needed.
 func (r *SourcesController) SyncWatchers(watcherTypeList []ResourceTypeName) (err error) {
-	r.WatcherPool.Mutex.Lock()
-	defer r.WatcherPool.Mutex.Unlock()
 
-	// 1. Keep existing watchers (or create them) for desired resources types
-	for _, desiredPoolName := range watcherTypeList {
-
-		// Scaffold new watchers when they does not exist
-		if _, exists := r.WatcherPool.Pool[desiredPoolName]; !exists {
-			r.prepareWatcher(desiredPoolName)
-			continue
-		}
-
-		// Ensure already existing ones are NOT blocked
-		r.WatcherPool.Pool[desiredPoolName].Mutex.Lock()
-		if !*r.WatcherPool.Pool[desiredPoolName].Started {
-			falseVal := false
-			*r.WatcherPool.Pool[desiredPoolName].Blocked = falseVal
-		}
-		r.WatcherPool.Pool[desiredPoolName].Mutex.Unlock()
+	// 0. Check if WatcherPool is ready to work
+	if r.WatcherPool.Mutex == nil {
+		return fmt.Errorf("watcher pool is not ready")
 	}
 
-	// 2. Clean up unneeded watchers
-	for existingPoolName, existingPool := range r.WatcherPool.Pool {
+	// 1. Small conversions to gain performance on huge watchers lists
+	desiredWatchers := make(map[ResourceTypeName]struct{}, len(watcherTypeList))
+	for _, watcherType := range watcherTypeList {
+		desiredWatchers[watcherType] = struct{}{}
+	}
 
-		if !slices.Contains(watcherTypeList, existingPoolName) {
-			existingPool.Mutex.Lock()
+	// 2. Keep or create desired watchers
+	for watcherType := range desiredWatchers {
 
-			watcherDisabled := r.disableWatcher(existingPoolName)
+		// Lock the WatcherPool mutex for reading
+		r.WatcherPool.Mutex.RLock()
+		watcher, exists := r.WatcherPool.Pool[watcherType]
+		r.WatcherPool.Mutex.RUnlock()
+
+		if !exists {
+			// Lock the watcher's mutex for writing
+			r.WatcherPool.Mutex.Lock()
+			r.prepareWatcher(watcherType)
+			r.WatcherPool.Mutex.Unlock()
+			continue
+		}
+
+		// Ensure the watcher is NOT blocked
+		watcher.Mutex.Lock()
+		if !*watcher.Started {
+			*watcher.Blocked = false
+		}
+		watcher.Mutex.Unlock()
+	}
+
+	// 3. Clean undesired watchers
+	r.WatcherPool.Mutex.RLock()
+	existingWatchers := make([]ResourceTypeName, 0, len(r.WatcherPool.Pool))
+	for watcherType := range r.WatcherPool.Pool {
+		existingWatchers = append(existingWatchers, watcherType)
+	}
+	r.WatcherPool.Mutex.RUnlock()
+
+	for _, watcherType := range existingWatchers {
+		if _, needed := desiredWatchers[watcherType]; !needed {
+			// Lock WatcherPool to access the watcher
+			r.WatcherPool.Mutex.RLock()
+			watcher := r.WatcherPool.Pool[watcherType]
+			r.WatcherPool.Mutex.RUnlock()
+
+			watcher.Mutex.Lock()
+			watcherDisabled := r.disableWatcher(watcherType)
+			watcher.Mutex.Unlock()
+
 			if !watcherDisabled {
-				err = errors.Join(fmt.Errorf("impossible to disable watcher for: %s", existingPoolName))
+				err = errors.Join(err, fmt.Errorf("imposible to disable watcher for: %s", watcherType))
 			}
 
-			existingPool.Mutex.Unlock()
-
-			// Clean up the watcher from the pool
-			delete(r.WatcherPool.Pool, existingPoolName)
-			continue
+			// Delete the watcher from the WatcherPool
+			r.WatcherPool.Mutex.Lock()
+			delete(r.WatcherPool.Pool, watcherType)
+			r.WatcherPool.Mutex.Unlock()
 		}
 	}
 
 	return err
 }
 
-// TODO
-func (r *SourcesController) createWatcherResource(watcherType ResourceTypeName, resource *unstructured.Unstructured) {
+// createWatcherResource TODO
+func (r *SourcesController) createWatcherResource(watcherType ResourceTypeName, resource *unstructured.Unstructured) error {
+	// Lock the WatcherPool mutex for reading
+	r.WatcherPool.Mutex.RLock()
+	watcher, exists := r.WatcherPool.Pool[watcherType]
+	r.WatcherPool.Mutex.RUnlock()
 
-	resourceList := r.WatcherPool.Pool[watcherType].ResourceList
+	if !exists {
+		return fmt.Errorf("watcher type '%s' not found. Is the watcher created?", watcherType)
+	}
 
-	(r.WatcherPool.Pool[watcherType].Mutex).Lock()
-	defer (r.WatcherPool.Pool[watcherType].Mutex).Unlock()
+	// Lock the watcher's mutex for writing
+	watcher.Mutex.Lock()
+	defer watcher.Mutex.Unlock()
 
-	temporaryManifest := (*resource).DeepCopy()
-	*resourceList = append(*resourceList, temporaryManifest)
+	temporaryManifest := resource.DeepCopy()
+	watcher.ResourceList = append(watcher.ResourceList, temporaryManifest)
+
+	return nil
 }
 
 // TODO
-func (r *SourcesController) getWatcherResourceIndex(watcherType ResourceTypeName, resource *unstructured.Unstructured) (result int) {
+func (r *SourcesController) getWatcherResourceIndex(watcherType ResourceTypeName, resource *unstructured.Unstructured) int {
+	// Lock the WatcherPool mutex for reading
+	r.WatcherPool.Mutex.RLock()
+	watcher, exists := r.WatcherPool.Pool[watcherType]
+	r.WatcherPool.Mutex.RUnlock()
 
-	resourceList := r.WatcherPool.Pool[watcherType].ResourceList
+	if !exists {
+		return -1
+	}
 
-	for tmpResourceIndex, tmpResource := range *resourceList {
+	// Lock the watcher's mutex for reading
+	watcher.Mutex.RLock()
+	defer watcher.Mutex.RUnlock()
 
-		if (tmpResource.GetName() == resource.GetName()) &&
-			(tmpResource.GetNamespace() == resource.GetNamespace()) {
-			return tmpResourceIndex
+	for index, tmpResource := range watcher.ResourceList {
+		if tmpResource.GetName() == resource.GetName() &&
+			tmpResource.GetNamespace() == resource.GetNamespace() {
+			return index
 		}
 	}
 
@@ -143,25 +181,51 @@ func (r *SourcesController) getWatcherResourceIndex(watcherType ResourceTypeName
 }
 
 // TODO
-func (r *SourcesController) updateWatcherResourceByIndex(watcherType ResourceTypeName, resourceIndex int, resource *unstructured.Unstructured) {
+func (r *SourcesController) updateWatcherResourceByIndex(watcherType ResourceTypeName, resourceIndex int, resource *unstructured.Unstructured) error {
+	// Lock the WatcherPool mutex for reading
+	r.WatcherPool.Mutex.RLock()
+	watcher, exists := r.WatcherPool.Pool[watcherType]
+	r.WatcherPool.Mutex.RUnlock()
 
-	resourceList := r.WatcherPool.Pool[watcherType].ResourceList
+	if !exists {
+		return fmt.Errorf("watcher type '%s' not found", watcherType)
+	}
 
-	(r.WatcherPool.Pool[watcherType].Mutex).Lock()
-	defer (r.WatcherPool.Pool[watcherType].Mutex).Unlock()
+	// Lock the watcher's mutex for writing
+	watcher.Mutex.Lock()
+	defer watcher.Mutex.Unlock()
 
-	(*resourceList)[resourceIndex] = resource
+	if resourceIndex < 0 || resourceIndex >= len((*watcher).ResourceList) {
+		return fmt.Errorf("resource index out of bounds")
+	}
+
+	((*watcher).ResourceList)[resourceIndex] = resource
+
+	return nil
 }
 
 // TODO
-func (r *SourcesController) deleteWatcherResourceByIndex(watcherType ResourceTypeName, resourceIndex int) {
+func (r *SourcesController) deleteWatcherResourceByIndex(watcherType ResourceTypeName, resourceIndex int) error {
+	// Lock the WatcherPool mutex for reading
+	r.WatcherPool.Mutex.RLock()
+	watcher, exists := r.WatcherPool.Pool[watcherType]
+	r.WatcherPool.Mutex.RUnlock()
 
-	resourceList := r.WatcherPool.Pool[watcherType].ResourceList
+	if !exists {
+		return fmt.Errorf("watcher type '%s' not found", watcherType)
+	}
 
-	(r.WatcherPool.Pool[watcherType].Mutex).Lock()
-	defer (r.WatcherPool.Pool[watcherType].Mutex).Unlock()
+	// Lock the watcher's mutex for writing
+	watcher.Mutex.Lock()
+	defer watcher.Mutex.Unlock()
+
+	if resourceIndex < 0 || resourceIndex >= len((*watcher).ResourceList) {
+		return fmt.Errorf("resource index out of bounds")
+	}
 
 	// Substitute the selected notification object with the last one from the list,
 	// then replace the whole list with it, minus the last.
-	*resourceList = append((*resourceList)[:resourceIndex], (*resourceList)[resourceIndex+1:]...)
+	(*watcher).ResourceList = append(((*watcher).ResourceList)[:resourceIndex], ((*watcher).ResourceList)[resourceIndex+1:]...)
+
+	return nil
 }

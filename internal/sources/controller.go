@@ -52,8 +52,8 @@ type SourcesController struct {
 // TODO
 func (r *SourcesController) init() {
 	r.WatcherPool = WatcherPoolT{
-		Mutex: &sync.Mutex{},
-		Pool:  map[ResourceTypeName]ResourceTypeWatcherT{},
+		Mutex: &sync.RWMutex{},
+		Pool:  map[ResourceTypeName]*ResourceTypeWatcherT{},
 	}
 }
 
@@ -176,14 +176,30 @@ func (r *SourcesController) watchType(ctx context.Context, watchedType ResourceT
 
 		AddFunc: func(eventObject interface{}) {
 			convertedObject := eventObject.(*unstructured.Unstructured)
-			r.createWatcherResource(watchedType, convertedObject)
+
+			err := r.createWatcherResource(watchedType, convertedObject)
+			if err != nil {
+				logger.WithValues(
+					"watcher", watchedType,
+					"object", convertedObject.GetNamespace()+"/"+convertedObject.GetName(),
+				).Error(err, "Error creating resource in resource list")
+				return
+			}
 		},
 		UpdateFunc: func(_, eventObject interface{}) {
 			convertedObject := eventObject.(*unstructured.Unstructured)
-			objectIndex := r.getWatcherResourceIndex(watchedType, convertedObject)
 
+			objectIndex := r.getWatcherResourceIndex(watchedType, convertedObject)
 			if objectIndex > -1 {
-				r.updateWatcherResourceByIndex(watchedType, objectIndex, convertedObject)
+
+				err := r.updateWatcherResourceByIndex(watchedType, objectIndex, convertedObject)
+				if err != nil {
+					logger.WithValues(
+						"watcher", watchedType,
+						"object", convertedObject.GetNamespace()+"/"+convertedObject.GetName(),
+					).Error(err, "Error updating resource in resource list")
+					return
+				}
 			}
 		},
 		DeleteFunc: func(eventObject interface{}) {
@@ -191,7 +207,14 @@ func (r *SourcesController) watchType(ctx context.Context, watchedType ResourceT
 			objectIndex := r.getWatcherResourceIndex(watchedType, convertedObject)
 
 			if objectIndex > -1 {
-				r.deleteWatcherResourceByIndex(watchedType, objectIndex)
+				err := r.deleteWatcherResourceByIndex(watchedType, objectIndex)
+				if err != nil {
+					logger.WithValues(
+						"watcher", watchedType,
+						"object", convertedObject.GetNamespace()+"/"+convertedObject.GetName(),
+					).Error(err, "Error deleting resource from resource list")
+					return
+				}
 			}
 		},
 	}
