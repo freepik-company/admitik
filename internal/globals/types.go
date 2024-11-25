@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	//
+
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
@@ -33,4 +34,8 @@ type applicationT struct {
 
 	//
 	ClusterAdmissionPolicyPool ClusterAdmissionPolicyPoolT
+
+	// WatcherPool TODO
+	//WatcherPool map[ResourceTypeName]ResourceTypeWatcherT
+	//WatcherPool *sources.WatcherPoolT
 }

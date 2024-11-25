@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -44,6 +45,7 @@ import (
 	"freepik.com/admitik/internal/certificates"
 	"freepik.com/admitik/internal/controller"
 	"freepik.com/admitik/internal/globals"
+	"freepik.com/admitik/internal/sources"
 	"freepik.com/admitik/internal/xyz"
 	// +kubebuilder:scaffold:imports
 )
@@ -317,6 +319,19 @@ func main() {
 		setupLog.Error(err, "failed generating webhooks client config: %s", err.Error())
 		os.Exit(1)
 	}
+
+	// Init a controller in charge of launching watchers TODO
+	sourcesController := sources.SourcesController{
+		Client: globals.Application.KubeRawClient,
+		Options: sources.SourcesControllerOptions{
+			InformerDurationToResync:              60 * time.Second,
+			WatchersDurationBetweenReconcileLoops: 10 * time.Second,
+			WatcherDurationToAck:                  2 * time.Second,
+		},
+	}
+
+	setupLog.Info("starting sources controller")
+	go sourcesController.Start(globals.Application.Context)
 
 	// Init primary controller
 	// ATTENTION: This controller may be replaced by a custom one in the future doing the same tasks
