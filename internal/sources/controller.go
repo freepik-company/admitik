@@ -46,14 +46,14 @@ type SourcesController struct {
 	Options SourcesControllerOptions
 
 	// Carried stuff
-	WatcherPool WatcherPoolT
+	watcherPool WatcherPoolT
 }
 
 // TODO
 func (r *SourcesController) init() {
-	r.WatcherPool = WatcherPoolT{
+	r.watcherPool = WatcherPoolT{
 		Mutex: &sync.RWMutex{},
-		Pool:  map[resourceTypeName]*ResourceTypeWatcherT{},
+		Pool:  map[resourceTypeName]*resourceTypeWatcherT{},
 	}
 }
 
@@ -82,12 +82,12 @@ func (r *SourcesController) Start(ctx context.Context) {
 func (r *SourcesController) reconcileWatchers(ctx context.Context) {
 	logger := log.FromContext(ctx)
 
-	for resourceType, resourceTypeWatcher := range r.WatcherPool.Pool {
+	for resourceType, resourceTypeWatcher := range r.watcherPool.Pool {
 
 		// TODO: Is this really needed or useful?
 		// Check the existence of the resourceType into the WatcherPool.
 		// Remember the controller.ClusterAdmissionPolicyController can remove watchers on garbage collection
-		if _, resourceTypeFound := r.WatcherPool.Pool[resourceType]; !resourceTypeFound {
+		if _, resourceTypeFound := r.watcherPool.Pool[resourceType]; !resourceTypeFound {
 			continue
 		}
 
@@ -102,7 +102,7 @@ func (r *SourcesController) reconcileWatchers(ctx context.Context) {
 
 			// Wait for the resourceType watcher to ACK itself into WatcherPool
 			time.Sleep(r.Options.WatcherDurationToAck)
-			if !*(r.WatcherPool.Pool[resourceType].Started) {
+			if !*(r.watcherPool.Pool[resourceType].Started) {
 				logger.Info(fmt.Sprintf("Impossible to start watcher for resource type: %s", resourceType))
 			}
 		}
@@ -120,9 +120,9 @@ func (r *SourcesController) watchType(ctx context.Context, watchedType resourceT
 	logger.Info(fmt.Sprintf("Watcher for '%s' has been started", watchedType))
 
 	// Set ACK flag for watcher launching into the WatcherPool
-	*(r.WatcherPool.Pool[watchedType].Started) = true
+	*(r.watcherPool.Pool[watchedType].Started) = true
 	defer func() {
-		*(r.WatcherPool.Pool[watchedType].Started) = false
+		*(r.watcherPool.Pool[watchedType].Started) = false
 	}()
 
 	// Extract GVR + Namespace + Name from watched type:
@@ -158,7 +158,7 @@ func (r *SourcesController) watchType(ctx context.Context, watchedType resourceT
 	stopCh := make(chan struct{})
 
 	go func() {
-		<-*(r.WatcherPool.Pool[watchedType].StopSignal)
+		<-*(r.watcherPool.Pool[watchedType].StopSignal)
 		close(stopCh)
 		logger.Info(fmt.Sprintf("Watcher for resource type '%s' killed by StopSignal", watchedType))
 	}()

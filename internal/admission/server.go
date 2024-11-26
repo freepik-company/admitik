@@ -18,7 +18,6 @@ import (
 	eventsv1 "k8s.io/api/events/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -149,7 +148,7 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 		// Retrieve the sources declared per policy
 		for sourceIndex, sourceItem := range caPolicyObj.Spec.Sources {
 
-			unstructuredSourceObjList, err := getKubeResourceList(request.Context(),
+			unstructuredSourceObjList, err := getSourcesFromPool(
 				sourceItem.Group,
 				sourceItem.Version,
 				sourceItem.Resource,
@@ -167,8 +166,8 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 				tmpSources = make(map[int][]map[string]interface{})
 			}
 
-			for _, unstructuredItem := range unstructuredSourceObjList.Items {
-				tmpSources[sourceIndex] = append(tmpSources[sourceIndex], unstructuredItem.Object)
+			for _, unstructuredItem := range unstructuredSourceObjList {
+				tmpSources[sourceIndex] = append(tmpSources[sourceIndex], (*unstructuredItem).Object)
 			}
 
 			specificTemplateInjectedObject["sources"] = tmpSources
@@ -221,34 +220,16 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 	reviewResponse.Response.Result = &metav1.Status{}
 }
 
-// getKubeResourceList returns an unstructuredList of resources selected by params
-func getKubeResourceList(ctx context.Context, group, version, resource, namespace, name string) (
-	resourceList *unstructured.UnstructuredList, err error) {
+// getSourcesFromPool returns a list of unstructured resources selected by params from the sources cache
+func getSourcesFromPool(group, version, resource, namespace, name string) (
+	resourceList []*unstructured.Unstructured, err error) {
 
-	unstructuredSourceObj := globals.Application.KubeRawClient.Resource(schema.GroupVersionResource{
-		Group:    group,
-		Version:  version,
-		Resource: resource,
-	})
+	sourceString := fmt.Sprintf("%s/%s/%s/%s/%s", group, version, resource, namespace, name)
 
-	sourceListOptions := metav1.ListOptions{}
-
-	if namespace != "" {
-		sourceListOptions.FieldSelector = fmt.Sprintf("metadata.namespace=%s", namespace)
-	}
-
-	if name != "" {
-		if sourceListOptions.FieldSelector != "" {
-			sourceListOptions.FieldSelector += ","
-		}
-		sourceListOptions.FieldSelector = fmt.Sprintf("metadata.name=%s", name)
-	}
-
-	resourceList, err = unstructuredSourceObj.List(ctx, sourceListOptions)
-	return resourceList, err
+	return globals.Application.SourceController.GetWatcherResources(sourceString)
 }
 
-// createKubeEvent TODO
+// createKubeEvent creates a modern event in Kuvernetes with data given by params
 func createKubeEvent(ctx context.Context, namespace string, object map[string]interface{},
 	policy v1alpha1.ClusterAdmissionPolicy, action, message string) (err error) {
 

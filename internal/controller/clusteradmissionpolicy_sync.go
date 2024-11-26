@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	//
 	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/globals"
 
@@ -22,7 +23,8 @@ const (
 )
 
 var (
-	AdmissionOperations = []admissionregv1.OperationType{admissionregv1.Create, admissionregv1.Update, admissionregv1.Delete, admissionregv1.Connect}
+	AdmissionOperations = []admissionregv1.OperationType{
+		admissionregv1.Create, admissionregv1.Update, admissionregv1.Delete, admissionregv1.Connect}
 
 	//
 	ValidatingWebhookConfigurationRuleScopeAll = admissionregv1.ScopeType("*")
@@ -154,7 +156,6 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 	tmpWebhookObj.ClientConfig = r.Options.WebhookClientConfig
 	tmpWebhookObj.Rules = currentVwcRules
 	tmpWebhookObj.TimeoutSeconds = &timeoutSecondsConverted
-	//tmpWebhookObj.MatchConditions = object.Spec.WatchedResources.MatchConditions
 
 	sideEffectsClass := admissionregv1.SideEffectClass(admissionregv1.SideEffectClassNone)
 	tmpWebhookObj.SideEffects = &sideEffectsClass
@@ -179,5 +180,46 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 		}
 	}
 
+	// Ask SourcesController to watch all the sources
+	watchersList := r.getAllSourcesReferences()
+
+	err = globals.Application.SourceController.SyncWatchers(watchersList)
+	if err != nil {
+		err = fmt.Errorf("error syncing watchers: %s", err.Error())
+		return
+	}
+
 	return nil
+}
+
+// getAllSourcesReferences TODO
+func (r *ClusterAdmissionPolicyReconciler) getAllSourcesReferences() (references []string) {
+
+	globals.Application.ClusterAdmissionPolicyPool.Mutex.Lock()
+	defer globals.Application.ClusterAdmissionPolicyPool.Mutex.Unlock()
+
+	//
+	for _, capList := range globals.Application.ClusterAdmissionPolicyPool.Pool {
+		for _, capObject := range capList {
+			for _, capObjSource := range capObject.Spec.Sources {
+
+				sourceString := fmt.Sprintf("%s/%s/%s/%s/%s",
+					capObjSource.Group,
+					capObjSource.Version,
+					capObjSource.Resource,
+					capObjSource.Namespace,
+					capObjSource.Namespace,
+				)
+
+				if slices.Contains(references, sourceString) {
+					continue
+				}
+
+				references = append(references, sourceString)
+
+			}
+		}
+	}
+
+	return references
 }

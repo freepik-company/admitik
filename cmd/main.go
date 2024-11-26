@@ -320,7 +320,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Init a controller in charge of launching watchers TODO
+	// Init SourcesController.
+	// This controller is in charge of launching watchers to cache sources expressed in some CRs in background.
+	// This way we avoid retrieving them from Kubernetes on each request to the Admission/Mutation controllers.
 	sourcesController := sources.SourcesController{
 		Client: globals.Application.KubeRawClient,
 		Options: sources.SourcesControllerOptions{
