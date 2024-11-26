@@ -1,3 +1,21 @@
+/*
+Copyright 2024.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// TODO: Decouple this controller from 'globals' package
+
 package controller
 
 import (
@@ -110,6 +128,48 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 		}
 	}
 
+	// Craft ValidatingWebhookConfiguration rules based on the previous existing one and current pool keys
+	metaWebhookObj, err := r.getMergedValidatingWebhookConfiguration(ctx)
+	if err != nil {
+		err = fmt.Errorf("error building ValidatingWebhookConfiguration '%s': %s",
+			ValidatingWebhookConfigurationName, err.Error())
+		return
+	}
+
+	// Sync changes to Kubernetes
+	if errors.IsNotFound(err) {
+		err = r.Create(ctx, &metaWebhookObj)
+		if err != nil {
+			err = fmt.Errorf("error creating ValidatingWebhookConfiguration in Kubernetes'%s': %s",
+				ValidatingWebhookConfigurationName, err.Error())
+			return
+		}
+	} else {
+		err = r.Update(ctx, &metaWebhookObj)
+		if err != nil {
+			err = fmt.Errorf("error updating ValidatingWebhookConfiguration in Kubernetes '%s': %s",
+				ValidatingWebhookConfigurationName, err.Error())
+			return
+		}
+	}
+
+	// Ask SourcesController to watch all the sources
+	watchersList := r.getAllSourcesReferences()
+
+	err = globals.Application.SourceController.SyncWatchers(watchersList)
+	if err != nil {
+		err = fmt.Errorf("error syncing watchers: %s", err.Error())
+		return
+	}
+
+	return nil
+}
+
+// getValidatingWebhookConfiguration return a ValidatingWebhookConfiguration object that is built based on
+// previous existing one in Kubernetes and the current pool keys extracted from ClusterAdmissionPolicy.spec.watchedResources
+func (r *ClusterAdmissionPolicyReconciler) getMergedValidatingWebhookConfiguration(ctx context.Context) (
+	vwConfig admissionregv1.ValidatingWebhookConfiguration, err error) {
+
 	// Craft ValidatingWebhookConfiguration rules based on the pool keys
 	currentVwcRules := []admissionregv1.RuleWithOperations{}
 	for resourcePattern, _ := range globals.Application.ClusterAdmissionPolicyPool.Pool {
@@ -163,36 +223,11 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 	// Replace the webhooks section in the ValidatingWebhookConfiguration
 	metaWebhookObj.Webhooks = []admissionregv1.ValidatingWebhook{tmpWebhookObj}
 
-	// Sync changes to Kubernetes
-	if errors.IsNotFound(err) {
-		err = r.Create(ctx, &metaWebhookObj)
-		if err != nil {
-			err = fmt.Errorf("error creating ValidatingWebhookConfiguration '%s': %s",
-				ValidatingWebhookConfigurationName, err.Error())
-			return
-		}
-	} else {
-		err = r.Update(ctx, &metaWebhookObj)
-		if err != nil {
-			err = fmt.Errorf("error updating ValidatingWebhookConfiguration '%s': %s",
-				ValidatingWebhookConfigurationName, err.Error())
-			return
-		}
-	}
-
-	// Ask SourcesController to watch all the sources
-	watchersList := r.getAllSourcesReferences()
-
-	err = globals.Application.SourceController.SyncWatchers(watchersList)
-	if err != nil {
-		err = fmt.Errorf("error syncing watchers: %s", err.Error())
-		return
-	}
-
-	return nil
+	return metaWebhookObj, nil
 }
 
-// getAllSourcesReferences TODO
+// getAllSourcesReferences iterates over all the ClusterAdmissionPolicy objects and
+// create a list with all the sources in the format GVRNN (Group/Version/Resource/Namespace/Name)
 func (r *ClusterAdmissionPolicyReconciler) getAllSourcesReferences() (references []string) {
 
 	globals.Application.ClusterAdmissionPolicyPool.Mutex.Lock()
