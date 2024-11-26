@@ -7,7 +7,7 @@ import (
 )
 
 // TODO
-type ResourceTypeName string
+type resourceTypeName string
 
 // TODO
 type ResourceTypeWatcherT struct {
@@ -32,5 +32,5 @@ type WatcherPoolT struct {
 	// Enforce concurrency safety
 	Mutex *sync.RWMutex
 
-	Pool map[ResourceTypeName]*ResourceTypeWatcherT
+	Pool map[resourceTypeName]*ResourceTypeWatcherT
 }

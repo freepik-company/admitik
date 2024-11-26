@@ -11,6 +11,7 @@ import (
 
 	//
 	"freepik.com/admitik/api/v1alpha1"
+	"freepik.com/admitik/internal/sources"
 )
 
 // ClusterAdmissionPolicyPoolT represents TODO
@@ -26,16 +27,13 @@ type applicationT struct {
 	// Context TODO
 	Context context.Context
 
-	// KubeRawClient TODO
-	KubeRawClient *dynamic.DynamicClient
-
-	// KubeRawCoreClient TODO
+	// Kubernetes clients
+	KubeRawClient     *dynamic.DynamicClient
 	KubeRawCoreClient *kubernetes.Clientset
 
 	//
-	ClusterAdmissionPolicyPool ClusterAdmissionPolicyPoolT
+	SourceController *sources.SourcesController
 
-	// WatcherPool TODO
-	//WatcherPool map[ResourceTypeName]ResourceTypeWatcherT
-	//WatcherPool *sources.WatcherPoolT
+	//
+	ClusterAdmissionPolicyPool ClusterAdmissionPolicyPoolT
 }

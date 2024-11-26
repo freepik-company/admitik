@@ -19,7 +19,6 @@ package main
 import (
 	"crypto/tls"
 	"flag"
-	coreLog "log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,11 +42,11 @@ import (
 
 	//
 	"freepik.com/admitik/api/v1alpha1"
+	"freepik.com/admitik/internal/admission"
 	"freepik.com/admitik/internal/certificates"
 	"freepik.com/admitik/internal/controller"
 	"freepik.com/admitik/internal/globals"
 	"freepik.com/admitik/internal/sources"
-	"freepik.com/admitik/internal/xyz"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -332,24 +331,8 @@ func main() {
 	}
 
 	setupLog.Info("starting sources controller")
+	globals.Application.SourceController = &sourcesController
 	go sourcesController.Start(globals.Application.Context)
-
-	go func() {
-		err = sourcesController.SyncWatchers([]sources.ResourceTypeName{
-			"/v1/namespaces//",
-			"gateway.networking.k8s.io/v1/httproutes//"})
-		if err != nil {
-			coreLog.Printf("error syncing watchers: %s", err.Error())
-		}
-
-		time.Sleep(5 * time.Second)
-
-		err = sourcesController.SyncWatchers([]sources.ResourceTypeName{
-			"gateway.networking.k8s.io/v1/httproutes//"})
-		if err != nil {
-			coreLog.Printf("error syncing watchers: %s", err.Error())
-		}
-	}()
 
 	// Init primary controller
 	// ATTENTION: This controller may be replaced by a custom one in the future doing the same tasks
@@ -377,9 +360,9 @@ func main() {
 	}
 
 	// Init secondary controller to process coming events
-	workloadController := xyz.WorkloadController{
+	admissionController := admission.AdmissionController{
 		Client: mgr.GetClient(),
-		Options: xyz.WorkloadControllerOptions{
+		Options: admission.AdmissionControllerOptions{
 
 			//
 			ServerAddr: "0.0.0.0",
@@ -392,8 +375,8 @@ func main() {
 		},
 	}
 
-	setupLog.Info("starting workload controller")
-	go workloadController.Start(globals.Application.Context)
+	setupLog.Info("starting admission controller")
+	go admissionController.Start(globals.Application.Context)
 
 	//
 	setupLog.Info("starting manager")

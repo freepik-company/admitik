@@ -53,7 +53,7 @@ type SourcesController struct {
 func (r *SourcesController) init() {
 	r.WatcherPool = WatcherPoolT{
 		Mutex: &sync.RWMutex{},
-		Pool:  map[ResourceTypeName]*ResourceTypeWatcherT{},
+		Pool:  map[resourceTypeName]*ResourceTypeWatcherT{},
 	}
 }
 
@@ -113,7 +113,7 @@ func (r *SourcesController) reconcileWatchers(ctx context.Context) {
 }
 
 // watchType launches a watcher for a certain resource type, and trigger processing for each entering resource event
-func (r *SourcesController) watchType(ctx context.Context, watchedType ResourceTypeName) {
+func (r *SourcesController) watchType(ctx context.Context, watchedType resourceTypeName) {
 
 	logger := log.FromContext(ctx)
 
