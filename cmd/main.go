@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -41,10 +42,11 @@ import (
 
 	//
 	"freepik.com/admitik/api/v1alpha1"
+	"freepik.com/admitik/internal/admission"
 	"freepik.com/admitik/internal/certificates"
 	"freepik.com/admitik/internal/controller"
 	"freepik.com/admitik/internal/globals"
-	"freepik.com/admitik/internal/xyz"
+	"freepik.com/admitik/internal/sources"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -70,6 +72,10 @@ func main() {
 	var enableHTTP2 bool
 
 	// Custom flags from here
+	var sourcesTimeToResyncInformers time.Duration
+	var sourcesTimeToReconcileWatchers time.Duration
+	var sourcesTimeToAckWatcher time.Duration
+
 	var webhooksClientHostname string
 	var webhooksClientPort int
 	var webhooksClientTimeout int
@@ -95,6 +101,13 @@ func main() {
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 
 	// Custom flags from here
+	flag.DurationVar(&sourcesTimeToResyncInformers, "sources-time-to-resync-informers", 60*time.Second,
+		"Interval to resynchronize all resources in the informers")
+	flag.DurationVar(&sourcesTimeToReconcileWatchers, "sources-time-to-reconcile-watchers", 10*time.Second,
+		"Time between each reconciliation loop of the watchers")
+	flag.DurationVar(&sourcesTimeToAckWatcher, "sources-time-to-ack-watcher", 2*time.Second,
+		"Wait time before marking a watcher as acknowledged (ACK) after it starts")
+
 	flag.StringVar(&webhooksClientHostname, "webhook-client-hostname", "webhooks.admitik.svc",
 		"The hostname used by Kubernetes when calling the webhooks server")
 	flag.IntVar(&webhooksClientPort, "webhook-client-port", 10250,
@@ -318,6 +331,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Init SourcesController.
+	// This controller is in charge of launching watchers to cache sources expressed in some CRs in background.
+	// This way we avoid retrieving them from Kubernetes on each request to the Admission/Mutation controllers.
+	sourcesController := sources.SourcesController{
+		Client: globals.Application.KubeRawClient,
+		Options: sources.SourcesControllerOptions{
+			InformerDurationToResync:              sourcesTimeToResyncInformers,
+			WatchersDurationBetweenReconcileLoops: sourcesTimeToReconcileWatchers,
+			WatcherDurationToAck:                  sourcesTimeToAckWatcher,
+		},
+	}
+
+	setupLog.Info("starting sources controller")
+	globals.Application.SourceController = &sourcesController
+	go sourcesController.Start(globals.Application.Context)
+
 	// Init primary controller
 	// ATTENTION: This controller may be replaced by a custom one in the future doing the same tasks
 	// to simplify this project's dependencies and maintainability
@@ -344,9 +373,9 @@ func main() {
 	}
 
 	// Init secondary controller to process coming events
-	workloadController := xyz.WorkloadController{
+	admissionController := admission.AdmissionController{
 		Client: mgr.GetClient(),
-		Options: xyz.WorkloadControllerOptions{
+		Options: admission.AdmissionControllerOptions{
 
 			//
 			ServerAddr: "0.0.0.0",
@@ -359,8 +388,8 @@ func main() {
 		},
 	}
 
-	setupLog.Info("starting workload controller")
-	go workloadController.Start(globals.Application.Context)
+	setupLog.Info("starting admission controller")
+	go admissionController.Start(globals.Application.Context)
 
 	//
 	setupLog.Info("starting manager")

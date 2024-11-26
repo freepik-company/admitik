@@ -1,4 +1,20 @@
-package xyz
+/*
+Copyright 2024.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package admission
 
 import (
 	"context"
@@ -9,16 +25,17 @@ import (
 	"slices"
 	"time"
 
+	//
 	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/globals"
 	"freepik.com/admitik/internal/template"
 
+	//
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -149,7 +166,7 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 		// Retrieve the sources declared per policy
 		for sourceIndex, sourceItem := range caPolicyObj.Spec.Sources {
 
-			unstructuredSourceObjList, err := getKubeResourceList(request.Context(),
+			unstructuredSourceObjList, err := getSourcesFromPool(
 				sourceItem.Group,
 				sourceItem.Version,
 				sourceItem.Resource,
@@ -167,8 +184,8 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 				tmpSources = make(map[int][]map[string]interface{})
 			}
 
-			for _, unstructuredItem := range unstructuredSourceObjList.Items {
-				tmpSources[sourceIndex] = append(tmpSources[sourceIndex], unstructuredItem.Object)
+			for _, unstructuredItem := range unstructuredSourceObjList {
+				tmpSources[sourceIndex] = append(tmpSources[sourceIndex], (*unstructuredItem).Object)
 			}
 
 			specificTemplateInjectedObject["sources"] = tmpSources
@@ -221,34 +238,16 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 	reviewResponse.Response.Result = &metav1.Status{}
 }
 
-// getKubeResourceList returns an unstructuredList of resources selected by params
-func getKubeResourceList(ctx context.Context, group, version, resource, namespace, name string) (
-	resourceList *unstructured.UnstructuredList, err error) {
+// getSourcesFromPool returns a list of unstructured resources selected by params from the sources cache
+func getSourcesFromPool(group, version, resource, namespace, name string) (
+	resourceList []*unstructured.Unstructured, err error) {
 
-	unstructuredSourceObj := globals.Application.KubeRawClient.Resource(schema.GroupVersionResource{
-		Group:    group,
-		Version:  version,
-		Resource: resource,
-	})
+	sourceString := fmt.Sprintf("%s/%s/%s/%s/%s", group, version, resource, namespace, name)
 
-	sourceListOptions := metav1.ListOptions{}
-
-	if namespace != "" {
-		sourceListOptions.FieldSelector = fmt.Sprintf("metadata.namespace=%s", namespace)
-	}
-
-	if name != "" {
-		if sourceListOptions.FieldSelector != "" {
-			sourceListOptions.FieldSelector += ","
-		}
-		sourceListOptions.FieldSelector = fmt.Sprintf("metadata.name=%s", name)
-	}
-
-	resourceList, err = unstructuredSourceObj.List(ctx, sourceListOptions)
-	return resourceList, err
+	return globals.Application.SourceController.GetWatcherResources(sourceString)
 }
 
-// createKubeEvent TODO
+// createKubeEvent creates a modern event in Kuvernetes with data given by params
 func createKubeEvent(ctx context.Context, namespace string, object map[string]interface{},
 	policy v1alpha1.ClusterAdmissionPolicy, action, message string) (err error) {
 

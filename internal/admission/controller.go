@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package xyz
+package admission
 
 import (
 	"context"
@@ -32,12 +32,12 @@ import (
 const (
 
 	//
-	controllerContextFinishedMessage = "xyz.WorkloadController finished by context"
+	controllerContextFinishedMessage = "admission.AdmissionController finished by context"
 )
 
-// WorkloadControllerOptions represents available options that can be passed
-// to WorkloadController on start
-type WorkloadControllerOptions struct {
+// AdmissionControllerOptions represents available options that can be passed
+// to AdmissionController on start
+type AdmissionControllerOptions struct {
 	//
 	ServerAddr string
 	ServerPort int
@@ -48,19 +48,19 @@ type WorkloadControllerOptions struct {
 	TLSPrivateKey  string
 }
 
-// WorkloadController represents the controller that triggers parallel threads.
+// AdmissionController represents the controller that triggers parallel threads.
 // These threads process coming events against the conditions defined in Notification CRs
 // Each thread is a watcher in charge of a group of resources GVRNN (Group + Version + Resource + Namespace + Name)
-type WorkloadController struct {
+type AdmissionController struct {
 	Client client.Client
 
 	//
-	Options WorkloadControllerOptions
+	Options AdmissionControllerOptions
 }
 
-// Start launches the XYZ.WorkloadController and keeps it alive
+// Start launches the AdmissionController and keeps it alive
 // It kills the controller on application context death, and rerun the process when failed
-func (r *WorkloadController) Start(ctx context.Context) {
+func (r *AdmissionController) Start(ctx context.Context) {
 	logger := log.FromContext(ctx)
 
 	for {
@@ -79,7 +79,7 @@ func (r *WorkloadController) Start(ctx context.Context) {
 }
 
 // runWebserver prepares and runs the HTTP server
-func (r *WorkloadController) runWebserver() (err error) {
+func (r *AdmissionController) runWebserver() (err error) {
 
 	customServer := NewHttpServer()
 
