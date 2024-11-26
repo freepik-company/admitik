@@ -58,7 +58,7 @@ type AdmissionController struct {
 	Options AdmissionControllerOptions
 }
 
-// Start launches the XYZ.AdmissionController and keeps it alive
+// Start launches the AdmissionController and keeps it alive
 // It kills the controller on application context death, and rerun the process when failed
 func (r *AdmissionController) Start(ctx context.Context) {
 	logger := log.FromContext(ctx)
