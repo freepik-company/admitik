@@ -72,6 +72,10 @@ func main() {
 	var enableHTTP2 bool
 
 	// Custom flags from here
+	var sourcesTimeToResyncInformers time.Duration
+	var sourcesTimeToReconcileWatchers time.Duration
+	var sourcesTimeToAckWatcher time.Duration
+
 	var webhooksClientHostname string
 	var webhooksClientPort int
 	var webhooksClientTimeout int
@@ -97,6 +101,13 @@ func main() {
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 
 	// Custom flags from here
+	flag.DurationVar(&sourcesTimeToResyncInformers, "sources-time-to-resync-informers", 60*time.Second,
+		"Interval to resynchronize all resources in the informers")
+	flag.DurationVar(&sourcesTimeToReconcileWatchers, "sources-time-to-reconcile-watchers", 10*time.Second,
+		"Time between each reconciliation loop of the watchers")
+	flag.DurationVar(&sourcesTimeToAckWatcher, "sources-time-to-ack-watcher", 2*time.Second,
+		"Wait time before marking a watcher as acknowledged (ACK) after it starts")
+
 	flag.StringVar(&webhooksClientHostname, "webhook-client-hostname", "webhooks.admitik.svc",
 		"The hostname used by Kubernetes when calling the webhooks server")
 	flag.IntVar(&webhooksClientPort, "webhook-client-port", 10250,
@@ -326,9 +337,9 @@ func main() {
 	sourcesController := sources.SourcesController{
 		Client: globals.Application.KubeRawClient,
 		Options: sources.SourcesControllerOptions{
-			InformerDurationToResync:              60 * time.Second,
-			WatchersDurationBetweenReconcileLoops: 10 * time.Second,
-			WatcherDurationToAck:                  2 * time.Second,
+			InformerDurationToResync:              sourcesTimeToResyncInformers,
+			WatchersDurationBetweenReconcileLoops: sourcesTimeToReconcileWatchers,
+			WatcherDurationToAck:                  sourcesTimeToAckWatcher,
 		},
 	}
 
