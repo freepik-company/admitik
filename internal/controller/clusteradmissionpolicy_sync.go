@@ -37,6 +37,12 @@ import (
 )
 
 const (
+	// ClusterAdmissionPolicyRequesterName represents the name of the requester that this controller will set
+	// when asking SourcesController to SyncWatchers()
+	ClusterAdmissionPolicyRequesterName = "ClusterAdmissionPolicyController"
+
+	// ValidatingWebhookConfigurationName represents the name of the ValidatingWebhookConfiguration resource
+	// that will be created or updated in Kubernetes to forward requests to the admissions webserver
 	ValidatingWebhookConfigurationName = "admitik-cluster-admission-policy"
 )
 
@@ -156,7 +162,7 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 	// Ask SourcesController to watch all the sources
 	watchersList := r.getAllSourcesReferences()
 
-	err = globals.Application.SourceController.SyncWatchers(watchersList)
+	err = globals.Application.SourceController.SyncWatchers(watchersList, ClusterAdmissionPolicyRequesterName)
 	if err != nil {
 		err = fmt.Errorf("error syncing watchers: %s", err.Error())
 		return

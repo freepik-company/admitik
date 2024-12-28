@@ -40,6 +40,10 @@ type resourceTypeWatcherT struct {
 	// Watcher will be potentially re-launched by SourcesController
 	StopSignal *chan bool
 
+	// Requesters represents controllers that are currently using this watcher
+	// Only watchers without requesters can be killed as no-one is using them.
+	Requesters []string
+
 	//
 	ResourceList []*unstructured.Unstructured
 }

@@ -19,6 +19,7 @@ package sources
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -26,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// prepareWatcher scaffolds a new watcher in the WatchedPool.
+// prepareWatcher scaffolds a new watcher in the WatchedPool
 // This prepares the field for later watchers' reconciliation process.
 // That process will create the real Kubernetes informer for this object
 // This function is not responsible for blocking the pool before being executed
@@ -41,6 +42,7 @@ func (r *SourcesController) prepareWatcher(watcherType resourceTypeName) {
 		Started:      &started,
 		Blocked:      &blocked,
 		StopSignal:   &stopSignal,
+		Requesters:   make([]string, 0),
 		ResourceList: make([]*unstructured.Unstructured, 0),
 	}
 }
@@ -80,7 +82,7 @@ func (r *SourcesController) disableWatcher(watcherType resourceTypeName) (result
 // Given a list of desired watchers in GVRNN format (Group/Version/Resource/Namespace/Name),
 // this function creates missing watchers, ensures active ones are unblocked, and removes
 // any watchers that are no longer needed.
-func (r *SourcesController) SyncWatchers(watcherTypeList []string) (err error) {
+func (r *SourcesController) SyncWatchers(watcherTypeList []string, requester string) (err error) {
 
 	// 0. Check if WatcherPool is ready to work
 	if r.watcherPool.Mutex == nil {
@@ -101,13 +103,21 @@ func (r *SourcesController) SyncWatchers(watcherTypeList []string) (err error) {
 		watcher, exists := r.watcherPool.Pool[watcherType]
 		r.watcherPool.Mutex.RUnlock()
 
+		// Create it when is not already created
 		if !exists {
-			// Lock the watcher's mutex for writing
 			r.watcherPool.Mutex.Lock()
 			r.prepareWatcher(watcherType)
+			r.watcherPool.Pool[watcherType].Requesters = append(r.watcherPool.Pool[watcherType].Requesters, requester)
 			r.watcherPool.Mutex.Unlock()
 			continue
 		}
+
+		// Ensure having requester's finalizer for already existing ones
+		watcher.Mutex.Lock()
+		if !slices.Contains(watcher.Requesters, requester) {
+			watcher.Requesters = append(watcher.Requesters, requester)
+		}
+		watcher.Mutex.Unlock()
 
 		// Ensure the watcher is NOT blocked
 		watcher.Mutex.Lock()
@@ -131,6 +141,16 @@ func (r *SourcesController) SyncWatchers(watcherTypeList []string) (err error) {
 			r.watcherPool.Mutex.RLock()
 			watcher := r.watcherPool.Pool[watcherType]
 			r.watcherPool.Mutex.RUnlock()
+
+			// Delete the requester from watchers
+			watcher.Requesters = slices.DeleteFunc(watcher.Requesters, func(finalizer string) bool {
+				return finalizer == requester
+			})
+
+			// Ignore deletion for those watchers that are still requested by other controllers
+			if len(watcher.Requesters) > 0 {
+				continue
+			}
 
 			watcher.Mutex.Lock()
 			watcherDisabled := r.disableWatcher(watcherType)
