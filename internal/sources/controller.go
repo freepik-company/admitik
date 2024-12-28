@@ -51,8 +51,8 @@ type SourcesControllerOptions struct {
 	WatcherDurationToAck time.Duration
 }
 
-// SourcesControllerOptions represents the controller that triggers parallel watchers.
-// These watchers are in charge of maintaining the pool of sources asked by the user in ClusterAdmissionPolicy objects.
+// SourcesController represents the controller that triggers parallel watchers.
+// These watchers are in charge of maintaining the pool of sources asked by the user in Policy objects.
 // A source group is represented by GVRNN (Group + Version + Resource + Namespace + Name)
 type SourcesController struct {
 	// Kubernetes clients
