@@ -39,6 +39,9 @@ import (
 // SourcesControllerOptions TODO
 type SourcesControllerOptions struct {
 
+	// Kubernetes clients
+	Client *dynamic.DynamicClient
+
 	// Duration to wait until resync all the objects
 	InformerDurationToResync time.Duration
 
@@ -56,29 +59,34 @@ type SourcesControllerOptions struct {
 // A source group is represented by GVRNN (Group + Version + Resource + Namespace + Name)
 type SourcesController struct {
 	// Kubernetes clients
-	Client *dynamic.DynamicClient
+	//client *dynamic.DynamicClient
 
 	// options to modify the behavior of this SourcesController
-	Options SourcesControllerOptions
+	options SourcesControllerOptions
 
 	// Carried stuff
 	watcherPool WatcherPoolT
 }
 
-// TODO
-func (r *SourcesController) init() {
-	r.watcherPool = WatcherPoolT{
-		Mutex: &sync.RWMutex{},
-		Pool:  map[resourceTypeName]*resourceTypeWatcherT{},
+func NewSourcesController(options SourcesControllerOptions) *SourcesController {
+
+	sourcesController := &SourcesController{
+		options: options,
+		watcherPool: WatcherPoolT{
+			Mutex: &sync.RWMutex{},
+			Pool:  map[resourceTypeName]*resourceTypeWatcherT{},
+		},
 	}
+
+	return sourcesController
 }
 
-// Start launches the SourcesController and keeps it alive
-// It kills the controller on application context death, and rerun the process when failed
+// Start launches the SourcesController main loop, which continuously monitors and starts
+// eligible watchers until the context is cancelled.
 func (r *SourcesController) Start(ctx context.Context) {
 	logger := log.FromContext(ctx)
 
-	r.init()
+	//r.init()
 
 	for {
 		select {
@@ -86,16 +94,17 @@ func (r *SourcesController) Start(ctx context.Context) {
 			logger.Info("SourcesController finished by context")
 			return
 		default:
-			r.reconcileWatchers(ctx)
+			r.launchEligibleWatchers(ctx)
 		}
 
 		time.Sleep(2 * time.Second)
 	}
 }
 
-// reconcileWatchers launches a parallel process that launches
-// watchers for resource types defined into the WatcherPool
-func (r *SourcesController) reconcileWatchers(ctx context.Context) {
+// launchEligibleWatchers starts watchers for resource types defined into the WatcherPool.
+// It launches watchers that are neither blocked nor already running.
+// It launches each eligible watcher in a separate goroutine and waits for their acknowledgment.
+func (r *SourcesController) launchEligibleWatchers(ctx context.Context) {
 	logger := log.FromContext(ctx)
 
 	for resourceType, resourceTypeWatcher := range r.watcherPool.Pool {
@@ -114,22 +123,27 @@ func (r *SourcesController) reconcileWatchers(ctx context.Context) {
 		}
 
 		if !*resourceTypeWatcher.Started {
-			go r.watchType(ctx, resourceType)
+			go r.startResourceTypeWatcher(ctx, resourceType)
 
 			// Wait for the resourceType watcher to ACK itself into WatcherPool
-			time.Sleep(r.Options.WatcherDurationToAck)
+			time.Sleep(r.options.WatcherDurationToAck)
 			if !*(r.watcherPool.Pool[resourceType].Started) {
 				logger.Info(fmt.Sprintf("Impossible to start watcher for resource type: %s", resourceType))
 			}
 		}
 
 		// Wait a bit to reduce the spam to machine resources
-		time.Sleep(r.Options.WatchersDurationBetweenReconcileLoops)
+		time.Sleep(r.options.WatchersDurationBetweenReconcileLoops)
 	}
 }
 
-// watchType launches a watcher for a certain resource type, and trigger processing for each entering resource event
-func (r *SourcesController) watchType(ctx context.Context, watchedType resourceTypeName) {
+// startResourceTypeWatcher starts a dynamic informer that watches a specific resource type identified by its GVR/namespace/name pattern.
+// It handles resource events (Add/Update/Delete) to maintain a synchronized list of resources in the watcher pool.
+// The watcher runs until either the context is cancelled or a stop signal is received.
+//
+// The watchedType parameter must follow the format: "group/version/resource/namespace/name"
+// where namespace and name are optional filters (use empty string for no filter).
+func (r *SourcesController) startResourceTypeWatcher(ctx context.Context, watchedType resourceTypeName) {
 
 	logger := log.FromContext(ctx)
 
@@ -180,8 +194,8 @@ func (r *SourcesController) watchType(ctx context.Context, watchedType resourceT
 	}()
 
 	// Define our informer
-	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(r.Client,
-		r.Options.InformerDurationToResync, namespace, listOptionsFunc)
+	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(r.options.Client,
+		r.options.InformerDurationToResync, namespace, listOptionsFunc)
 
 	// Create an informer. This is a special type of client-go watcher that includes
 	// mechanisms to hide disconnections, handle reconnections, and cache watched objects

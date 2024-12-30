@@ -170,8 +170,10 @@ func (r *SourcesController) SyncWatchers(watcherTypeList []string, requester str
 	return err
 }
 
-// GetWatcherResources accept a desired watcher in the GVRNN format (Group/Version/Resource/Namespace/Name)
-// and returns a list of resources matching it
+// GetWatcherResources returns all resources being watched for a specific watcher type.
+// Takes a watcherType in format "group/version/resource/namespace/name".
+// Thread-safe using read locks for pool and resource list access.
+// Returns error if pool not initialized or watcher type not found.
 func (r *SourcesController) GetWatcherResources(watcherType string) (resources []*unstructured.Unstructured, err error) {
 
 	// 0. Check if WatcherPool is ready to work
@@ -196,7 +198,9 @@ func (r *SourcesController) GetWatcherResources(watcherType string) (resources [
 	return watcher.ResourceList, nil
 }
 
-// createWatcherResource TODO
+// createWatcherResource adds a new resource to a watcher's resource list.
+// Thread-safe using read lock for pool access and write lock for resource list.
+// Returns error if watcher type doesn't exist.
 func (r *SourcesController) createWatcherResource(watcherType resourceTypeName, resource *unstructured.Unstructured) error {
 	// Lock the WatcherPool mutex for reading
 	r.watcherPool.Mutex.RLock()
@@ -217,7 +221,9 @@ func (r *SourcesController) createWatcherResource(watcherType resourceTypeName, 
 	return nil
 }
 
-// TODO
+// getWatcherResourceIndex finds the index of a resource in a watcher's resource list.
+// Thread-safe using read locks for pool and resource list access.
+// Returns -1 if resource or watcher not found.
 func (r *SourcesController) getWatcherResourceIndex(watcherType resourceTypeName, resource *unstructured.Unstructured) int {
 	// Lock the WatcherPool mutex for reading
 	r.watcherPool.Mutex.RLock()
@@ -242,7 +248,9 @@ func (r *SourcesController) getWatcherResourceIndex(watcherType resourceTypeName
 	return -1
 }
 
-// TODO
+// updateWatcherResourceByIndex updates a resource at the specified index.
+// Thread-safe using read lock for pool access and write lock for resource list.
+// Returns error if watcher not found or index out of bounds.
 func (r *SourcesController) updateWatcherResourceByIndex(watcherType resourceTypeName, resourceIndex int, resource *unstructured.Unstructured) error {
 	// Lock the WatcherPool mutex for reading
 	r.watcherPool.Mutex.RLock()
@@ -266,7 +274,9 @@ func (r *SourcesController) updateWatcherResourceByIndex(watcherType resourceTyp
 	return nil
 }
 
-// TODO
+// deleteWatcherResourceByIndex removes a resource at the specified index.
+// Thread-safe using read lock for pool access and write lock for resource list.
+// Returns error if watcher not found or index out of bounds.
 func (r *SourcesController) deleteWatcherResourceByIndex(watcherType resourceTypeName, resourceIndex int) error {
 	// Lock the WatcherPool mutex for reading
 	r.watcherPool.Mutex.RLock()

@@ -334,17 +334,16 @@ func main() {
 	// Init SourcesController.
 	// This controller is in charge of launching watchers to cache sources expressed in some CRs in background.
 	// This way we avoid retrieving them from Kubernetes on each request to the Admission/Mutation controllers.
-	sourcesController := sources.SourcesController{
-		Client: globals.Application.KubeRawClient,
-		Options: sources.SourcesControllerOptions{
-			InformerDurationToResync:              sourcesTimeToResyncInformers,
-			WatchersDurationBetweenReconcileLoops: sourcesTimeToReconcileWatchers,
-			WatcherDurationToAck:                  sourcesTimeToAckWatcher,
-		},
-	}
+
+	sourcesController := sources.NewSourcesController(sources.SourcesControllerOptions{
+		Client:                                globals.Application.KubeRawClient,
+		InformerDurationToResync:              sourcesTimeToResyncInformers,
+		WatchersDurationBetweenReconcileLoops: sourcesTimeToReconcileWatchers,
+		WatcherDurationToAck:                  sourcesTimeToAckWatcher,
+	})
 
 	setupLog.Info("starting sources controller")
-	globals.Application.SourceController = &sourcesController
+	globals.Application.SourceController = sourcesController
 	go sourcesController.Start(globals.Application.Context)
 
 	// Init primary controller
