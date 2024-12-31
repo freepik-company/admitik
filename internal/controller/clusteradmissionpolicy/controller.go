@@ -170,7 +170,8 @@ func (r *ClusterAdmissionPolicyController) SetupWithManager(mgr ctrl.Manager) er
 		Complete(r)
 }
 
-// TODO: Craft the resourcePattern to look for the ClusterAdmissionPolicy objects in the pool /group/version/resource/operation
+// GetPolicyResources retrieves ClusterAdmissionPolicy objects matching the pattern.
+// Pattern is a string formed as: /{group}/{version}/{resource}/{operation}
 func (r *ClusterAdmissionPolicyController) GetPolicyResources(resourcePattern string) (resources []v1alpha1.ClusterAdmissionPolicy, err error) {
 
 	// 0. Check if WatcherPool is ready to work
@@ -184,7 +185,7 @@ func (r *ClusterAdmissionPolicyController) GetPolicyResources(resourcePattern st
 	r.policyPool.Mutex.Unlock()
 
 	if !policyTypeFound {
-		return nil, fmt.Errorf("policy pattern type '%s' not found. Is TODO?", resourcePattern)
+		return nil, fmt.Errorf("no policies found matching pattern '%s'. Is the pattern right?", resourcePattern)
 	}
 
 	// Return the pointer to the resources
