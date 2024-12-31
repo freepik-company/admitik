@@ -20,8 +20,8 @@ import (
 	"errors"
 )
 
-// GetObjectBasicData extracts 'name' and 'namespace' from the object
-func GetObjectBasicData(object *map[string]interface{}) (objectData map[string]interface{}, err error) {
+// getObjectBasicData extracts 'name' and 'namespace' from the object
+func getObjectBasicData(object *map[string]interface{}) (objectData map[string]interface{}, err error) {
 
 	metadata, ok := (*object)["metadata"].(map[string]interface{})
 	if !ok {

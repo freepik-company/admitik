@@ -45,8 +45,9 @@ import (
 	"freepik.com/admitik/internal/admission"
 	"freepik.com/admitik/internal/certificates"
 	"freepik.com/admitik/internal/controller"
+	"freepik.com/admitik/internal/controller/clusteradmissionpolicy"
+	"freepik.com/admitik/internal/controller/sources"
 	"freepik.com/admitik/internal/globals"
-	"freepik.com/admitik/internal/sources"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -334,29 +335,33 @@ func main() {
 	// Init SourcesController.
 	// This controller is in charge of launching watchers to cache sources expressed in some CRs in background.
 	// This way we avoid retrieving them from Kubernetes on each request to the Admission/Mutation controllers.
-
-	sourcesController := sources.NewSourcesController(sources.SourcesControllerOptions{
-		Client:                                globals.Application.KubeRawClient,
-		InformerDurationToResync:              sourcesTimeToResyncInformers,
-		WatchersDurationBetweenReconcileLoops: sourcesTimeToReconcileWatchers,
-		WatcherDurationToAck:                  sourcesTimeToAckWatcher,
-	})
+	sourcesController := sources.NewSourcesController(
+		sources.SourcesControllerOptions{
+			Client:                                globals.Application.KubeRawClient,
+			InformerDurationToResync:              sourcesTimeToResyncInformers,
+			WatchersDurationBetweenReconcileLoops: sourcesTimeToReconcileWatchers,
+			WatcherDurationToAck:                  sourcesTimeToAckWatcher,
+		})
 
 	setupLog.Info("starting sources controller")
-	globals.Application.SourceController = sourcesController
 	go sourcesController.Start(globals.Application.Context)
 
 	// Init primary controller
 	// ATTENTION: This controller may be replaced by a custom one in the future doing the same tasks
 	// to simplify this project's dependencies and maintainability
-	if err = (&controller.ClusterAdmissionPolicyReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Options: controller.ClusterAdmissionPolicyControllerOptions{
+	clusterAdmissionPolicyController := clusteradmissionpolicy.NewClusterAdmissionPolicyController(
+		clusteradmissionpolicy.ClusterAdmissionPolicyControllerOptions{
 			WebhookClientConfig: *webhookClientConfig,
 			WebhookTimeout:      webhooksClientTimeout,
 		},
-	}).SetupWithManager(mgr); err != nil {
+		clusteradmissionpolicy.ClusterAdmissionPolicyControllerDependencies{
+			Sources: sourcesController,
+		})
+
+	clusterAdmissionPolicyController.Client = mgr.GetClient()
+	clusterAdmissionPolicyController.Scheme = mgr.GetScheme()
+
+	if err = clusterAdmissionPolicyController.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterAdmissionPolicy")
 		os.Exit(1)
 	}
@@ -371,11 +376,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Init secondary controller to process coming events
-	admissionController := admission.AdmissionController{
-		Client: mgr.GetClient(),
-		Options: admission.AdmissionControllerOptions{
-
+	// Init admissions server to process incoming events
+	admissionServer := admission.NewAdmissionServer(
+		admission.AdmissionServerOptions{
 			//
 			ServerAddr: "0.0.0.0",
 			ServerPort: webhooksServerPort,
@@ -385,10 +388,13 @@ func main() {
 			TLSCertificate: webhooksServerCertificate,
 			TLSPrivateKey:  webhooksServerPrivateKey,
 		},
-	}
+		admission.AdmissionServerDependencies{
+			Sources:                  sourcesController,
+			ClusterAdmissionPolicies: clusterAdmissionPolicyController,
+		})
 
 	setupLog.Info("starting admission controller")
-	go admissionController.Start(globals.Application.Context)
+	go admissionServer.Start(globals.Application.Context)
 
 	//
 	setupLog.Info("starting manager")

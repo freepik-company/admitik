@@ -14,9 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// TODO: Decouple this controller from 'globals' package
-
-package controller
+package clusteradmissionpolicy
 
 import (
 	"context"
@@ -26,8 +24,6 @@ import (
 
 	//
 	"freepik.com/admitik/api/v1alpha1"
-	"freepik.com/admitik/internal/globals"
-
 	//
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -48,13 +44,16 @@ const (
 
 var (
 	AdmissionOperations = []admissionregv1.OperationType{
-		admissionregv1.Create, admissionregv1.Update, admissionregv1.Delete, admissionregv1.Connect}
+		admissionregv1.Create,
+		admissionregv1.Update,
+		admissionregv1.Delete,
+		admissionregv1.Connect}
 
 	//
 	ValidatingWebhookConfigurationRuleScopeAll = admissionregv1.ScopeType("*")
 )
 
-func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context, eventType watch.EventType, object *v1alpha1.ClusterAdmissionPolicy) (err error) {
+func (r *ClusterAdmissionPolicyController) SyncAdmissionPool(ctx context.Context, eventType watch.EventType, object *v1alpha1.ClusterAdmissionPolicy) (err error) {
 
 	logger := log.FromContext(ctx)
 	_ = logger
@@ -90,10 +89,10 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 
 		// Review pool key-patterns matching current object to
 		// clean objects that are not needed anymore
-		policyPoolLocations := globals.GetClusterAdmissionPoolPolicyIndexes(object)
+		policyPoolLocations := r.policyPool.getClusterAdmissionPoolPolicyIndexes(object)
 
 		for resourcePattern, policyIndex := range policyPoolLocations {
-			globals.DeleteClusterAdmissionPoolPolicyByIndex(resourcePattern, policyIndex)
+			r.policyPool.deleteClusterAdmissionPoolPolicyByIndex(resourcePattern, policyIndex)
 		}
 
 	case watch.Modified:
@@ -107,29 +106,29 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 			// only over objects under: /.../CREATE and /.../UPDATE
 			if slices.Contains(admissionPoolKeyPatterns, potentialKeyPattern) {
 
-				objectIndex := globals.GetClusterAdmissionPolicyIndex(potentialKeyPattern, object)
+				objectIndex := r.policyPool.getClusterAdmissionPolicyIndex(potentialKeyPattern, object)
 
 				// Object is present for this pattern, update it
 				// TODO: Craft an update function that truly updates this
 				if objectIndex >= 0 {
-					globals.DeleteClusterAdmissionPoolPolicyByIndex(potentialKeyPattern, objectIndex)
-					globals.CreateClusterAdmissionPoolPolicy(potentialKeyPattern, object)
+					r.policyPool.deleteClusterAdmissionPoolPolicyByIndex(potentialKeyPattern, objectIndex)
+					r.policyPool.createClusterAdmissionPoolPolicy(potentialKeyPattern, object)
 					continue
 				}
 
 				// Object is missing for this pattern, add it
-				globals.CreateClusterAdmissionPoolPolicy(potentialKeyPattern, object)
+				r.policyPool.createClusterAdmissionPoolPolicy(potentialKeyPattern, object)
 			}
 		}
 
 		// Review pool patterns NOT matching current object to clean potential
 		// previous added objects that are not needed anymore
-		policyPoolLocations := globals.GetClusterAdmissionPoolPolicyIndexes(object)
+		policyPoolLocations := r.policyPool.getClusterAdmissionPoolPolicyIndexes(object)
 
 		for resourcePattern, policyIndex := range policyPoolLocations {
 
 			if !slices.Contains(admissionPoolKeyPatterns, resourcePattern) {
-				globals.DeleteClusterAdmissionPoolPolicyByIndex(resourcePattern, policyIndex)
+				r.policyPool.deleteClusterAdmissionPoolPolicyByIndex(resourcePattern, policyIndex)
 			}
 		}
 	}
@@ -162,7 +161,7 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 	// Ask SourcesController to watch all the sources
 	watchersList := r.getAllSourcesReferences()
 
-	err = globals.Application.SourceController.SyncWatchers(watchersList, ClusterAdmissionPolicyRequesterName)
+	err = r.dependencies.Sources.SyncWatchers(watchersList, ClusterAdmissionPolicyRequesterName)
 	if err != nil {
 		err = fmt.Errorf("error syncing watchers: %s", err.Error())
 		return
@@ -173,12 +172,12 @@ func (r *ClusterAdmissionPolicyReconciler) SyncAdmissionPool(ctx context.Context
 
 // getValidatingWebhookConfiguration return a ValidatingWebhookConfiguration object that is built based on
 // previous existing one in Kubernetes and the current pool keys extracted from ClusterAdmissionPolicy.spec.watchedResources
-func (r *ClusterAdmissionPolicyReconciler) getMergedValidatingWebhookConfiguration(ctx context.Context) (
+func (r *ClusterAdmissionPolicyController) getMergedValidatingWebhookConfiguration(ctx context.Context) (
 	vwConfig admissionregv1.ValidatingWebhookConfiguration, err error) {
 
 	// Craft ValidatingWebhookConfiguration rules based on the pool keys
 	currentVwcRules := []admissionregv1.RuleWithOperations{}
-	for resourcePattern, _ := range globals.Application.ClusterAdmissionPolicyPool.Pool {
+	for resourcePattern, _ := range r.policyPool.Pool {
 
 		resourcePatternParts := strings.Split(resourcePattern, "/")
 		if len(resourcePatternParts) != 5 {
@@ -215,11 +214,11 @@ func (r *ClusterAdmissionPolicyReconciler) getMergedValidatingWebhookConfigurati
 
 	// Create a bare new 'webhooks' section for the ValidatingWebhookConfiguration and fill it
 	tmpWebhookObj := admissionregv1.ValidatingWebhook{}
-	timeoutSecondsConverted := int32(r.Options.WebhookTimeout)
+	timeoutSecondsConverted := int32(r.options.WebhookTimeout)
 
 	tmpWebhookObj.Name = "validate.admitik.svc"
 	tmpWebhookObj.AdmissionReviewVersions = []string{"v1"}
-	tmpWebhookObj.ClientConfig = r.Options.WebhookClientConfig
+	tmpWebhookObj.ClientConfig = r.options.WebhookClientConfig
 	tmpWebhookObj.Rules = currentVwcRules
 	tmpWebhookObj.TimeoutSeconds = &timeoutSecondsConverted
 
@@ -234,13 +233,13 @@ func (r *ClusterAdmissionPolicyReconciler) getMergedValidatingWebhookConfigurati
 
 // getAllSourcesReferences iterates over all the ClusterAdmissionPolicy objects and
 // create a list with all the sources in the format GVRNN (Group/Version/Resource/Namespace/Name)
-func (r *ClusterAdmissionPolicyReconciler) getAllSourcesReferences() (references []string) {
+func (r *ClusterAdmissionPolicyController) getAllSourcesReferences() (references []string) {
 
-	globals.Application.ClusterAdmissionPolicyPool.Mutex.Lock()
-	defer globals.Application.ClusterAdmissionPolicyPool.Mutex.Unlock()
+	r.policyPool.Mutex.Lock()
+	defer r.policyPool.Mutex.Unlock()
 
 	//
-	for _, capList := range globals.Application.ClusterAdmissionPolicyPool.Pool {
+	for _, capList := range r.policyPool.Pool {
 		for _, capObject := range capList {
 			for _, capObjSource := range capObject.Spec.Sources {
 

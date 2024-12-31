@@ -88,8 +88,6 @@ func NewSourcesController(options SourcesControllerOptions) *SourcesController {
 func (r *SourcesController) Start(ctx context.Context) {
 	logger := log.FromContext(ctx)
 
-	//r.init()
-
 	for {
 		select {
 		case <-ctx.Done():

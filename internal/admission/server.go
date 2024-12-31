@@ -42,12 +42,16 @@ import (
 // HttpServer represents a simple HTTP server
 type HttpServer struct {
 	*http.Server
+
+	// Injected dependencies
+	dependencies *AdmissionServerDependencies
 }
 
 // NewHttpServer creates a new HttpServer
-func NewHttpServer() *HttpServer {
+func NewHttpServer(dependencies *AdmissionServerDependencies) *HttpServer {
 	return &HttpServer{
 		&http.Server{},
+		dependencies,
 	}
 }
 
@@ -155,7 +159,14 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 
 	// Loop over ClusterAdmissionPolicies performing actions
 	// At this point, some extra params will be added to the object that will be injected in template
-	for _, caPolicyObj := range globals.Application.ClusterAdmissionPolicyPool.Pool[resourcePattern] {
+
+	caPolicyList, err := s.dependencies.ClusterAdmissionPolicies.GetPolicyResources(resourcePattern)
+	if err != nil {
+		logger.Info(fmt.Sprintf("failed getting policies for pattern '%s': %s", resourcePattern, err.Error()))
+		return
+	}
+
+	for _, caPolicyObj := range caPolicyList {
 
 		// Automatically add some information to the logs
 		logger = logger.WithValues("ClusterAdmissionPolicy", caPolicyObj.Name)
@@ -166,7 +177,7 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 		// Retrieve the sources declared per policy
 		for sourceIndex, sourceItem := range caPolicyObj.Spec.Sources {
 
-			unstructuredSourceObjList, err := getSourcesFromPool(
+			unstructuredSourceObjList, err := s.getSourcesFromPool(
 				sourceItem.Group,
 				sourceItem.Version,
 				sourceItem.Resource,
@@ -239,19 +250,19 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 }
 
 // getSourcesFromPool returns a list of unstructured resources selected by params from the sources cache
-func getSourcesFromPool(group, version, resource, namespace, name string) (
+func (s *HttpServer) getSourcesFromPool(group, version, resource, namespace, name string) (
 	resourceList []*unstructured.Unstructured, err error) {
 
 	sourceString := fmt.Sprintf("%s/%s/%s/%s/%s", group, version, resource, namespace, name)
 
-	return globals.Application.SourceController.GetWatcherResources(sourceString)
+	return s.dependencies.Sources.GetWatcherResources(sourceString)
 }
 
 // createKubeEvent creates a modern event in Kuvernetes with data given by params
 func createKubeEvent(ctx context.Context, namespace string, object map[string]interface{},
 	policy v1alpha1.ClusterAdmissionPolicy, action, message string) (err error) {
 
-	objectData, err := GetObjectBasicData(&object)
+	objectData, err := getObjectBasicData(&object)
 	if err != nil {
 		return err
 	}

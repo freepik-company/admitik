@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package clusteradmissionpolicy
 
 import (
 	"context"
 	"fmt"
+	"freepik.com/admitik/internal/controller/sources"
+	"sync"
 
 	//
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
@@ -32,7 +34,13 @@ import (
 
 	//
 	"freepik.com/admitik/api/v1alpha1"
+	"freepik.com/admitik/internal/controller"
 )
+
+// TODO
+type ClusterAdmissionPolicyControllerDependencies struct {
+	Sources *sources.SourcesController
+}
 
 // TODO
 type ClusterAdmissionPolicyControllerOptions struct {
@@ -40,13 +48,33 @@ type ClusterAdmissionPolicyControllerOptions struct {
 	WebhookTimeout      int
 }
 
-// ClusterAdmissionPolicyReconciler reconciles a ClusterAdmissionPolicy object
-type ClusterAdmissionPolicyReconciler struct {
+// ClusterAdmissionPolicyController
+type ClusterAdmissionPolicyController struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	//
-	Options ClusterAdmissionPolicyControllerOptions
+	// options to modify the behavior of this controller
+	options ClusterAdmissionPolicyControllerOptions
+
+	// Injected dependencies
+	dependencies ClusterAdmissionPolicyControllerDependencies
+
+	// Carried stuff
+	policyPool ClusterAdmissionPolicyPoolT
+}
+
+// TODO
+func NewClusterAdmissionPolicyController(options ClusterAdmissionPolicyControllerOptions,
+	dependencies ClusterAdmissionPolicyControllerDependencies) *ClusterAdmissionPolicyController {
+
+	return &ClusterAdmissionPolicyController{
+		options:      options,
+		dependencies: dependencies,
+		policyPool: ClusterAdmissionPolicyPoolT{
+			Mutex: &sync.Mutex{},
+			Pool:  map[string][]v1alpha1.ClusterAdmissionPolicy{},
+		},
+	}
 }
 
 // +kubebuilder:rbac:groups=admitik.freepik.com,resources=clusteradmissionpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -57,7 +85,7 @@ type ClusterAdmissionPolicyReconciler struct {
 
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.2/pkg/reconcile
-func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
+func (r *ClusterAdmissionPolicyController) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	logger := log.FromContext(ctx)
 	_ = logger
 
@@ -70,31 +98,31 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 
 		// 2.1 It does NOT exist: manage removal
 		if err = client.IgnoreNotFound(err); err == nil {
-			logger.Info(fmt.Sprintf(resourceNotFoundError, clusterAdmissionPolicyResourceType, req.Name))
+			logger.Info(fmt.Sprintf(controller.ResourceNotFoundError, controller.ClusterAdmissionPolicyResourceType, req.Name))
 			return result, err
 		}
 
 		// 2.2 Failed to get the resource, requeue the request
-		logger.Info(fmt.Sprintf(resourceRetrievalError, clusterAdmissionPolicyResourceType, req.Name, err.Error()))
+		logger.Info(fmt.Sprintf(controller.ResourceRetrievalError, controller.ClusterAdmissionPolicyResourceType, req.Name, err.Error()))
 		return result, err
 	}
 
 	// 3. Check if the object instance is marked to be deleted: indicated by the deletion timestamp being set
 	if !reqObject.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(reqObject, resourceFinalizer) {
+		if controllerutil.ContainsFinalizer(reqObject, controller.ResourceFinalizer) {
 
 			// Delete AdmissionPolicy from AdmissionPool
 			err = r.SyncAdmissionPool(ctx, watch.Deleted, reqObject)
 			if err != nil {
-				logger.Info(fmt.Sprintf(resourceReconcileError, clusterAdmissionPolicyResourceType, req.Name, err.Error()))
+				logger.Info(fmt.Sprintf(controller.ResourceReconcileError, controller.ClusterAdmissionPolicyResourceType, req.Name, err.Error()))
 				return result, err
 			}
 
 			// Remove the finalizers on CR
-			controllerutil.RemoveFinalizer(reqObject, resourceFinalizer)
+			controllerutil.RemoveFinalizer(reqObject, controller.ResourceFinalizer)
 			err = r.Update(ctx, reqObject)
 			if err != nil {
-				logger.Info(fmt.Sprintf(resourceFinalizersUpdateError, clusterAdmissionPolicyResourceType, req.Name, err.Error()))
+				logger.Info(fmt.Sprintf(controller.ResourceFinalizersUpdateError, controller.ClusterAdmissionPolicyResourceType, req.Name, err.Error()))
 			}
 		}
 		result = ctrl.Result{}
@@ -103,8 +131,8 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 	}
 
 	// 4. Add finalizer to the CR
-	if !controllerutil.ContainsFinalizer(reqObject, resourceFinalizer) {
-		controllerutil.AddFinalizer(reqObject, resourceFinalizer)
+	if !controllerutil.ContainsFinalizer(reqObject, controller.ResourceFinalizer) {
+		controllerutil.AddFinalizer(reqObject, controller.ResourceFinalizer)
 		err = r.Update(ctx, reqObject)
 		if err != nil {
 			return result, err
@@ -115,7 +143,7 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 	defer func() {
 		err = r.Status().Update(ctx, reqObject)
 		if err != nil {
-			logger.Info(fmt.Sprintf(resourceConditionUpdateError, clusterAdmissionPolicyResourceType, req.Name, err.Error()))
+			logger.Info(fmt.Sprintf(controller.ResourceConditionUpdateError, controller.ClusterAdmissionPolicyResourceType, req.Name, err.Error()))
 		}
 	}()
 
@@ -123,7 +151,7 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 	err = r.SyncAdmissionPool(ctx, watch.Modified, reqObject)
 	if err != nil {
 		r.UpdateConditionKubernetesApiCallFailure(reqObject)
-		logger.Info(fmt.Sprintf(resourceReconcileError, clusterAdmissionPolicyResourceType, req.Name, err.Error()))
+		logger.Info(fmt.Sprintf(controller.ResourceReconcileError, controller.ClusterAdmissionPolicyResourceType, req.Name, err.Error()))
 		return result, err
 	}
 
@@ -135,9 +163,30 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *ClusterAdmissionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ClusterAdmissionPolicyController) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.ClusterAdmissionPolicy{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Complete(r)
+}
+
+// TODO: Craft the resourcePattern to look for the ClusterAdmissionPolicy objects in the pool /group/version/resource/operation
+func (r *ClusterAdmissionPolicyController) GetPolicyResources(resourcePattern string) (resources []v1alpha1.ClusterAdmissionPolicy, err error) {
+
+	// 0. Check if WatcherPool is ready to work
+	if r.policyPool.Mutex == nil {
+		return resources, fmt.Errorf("policy pool is not ready")
+	}
+
+	// Lock the PolicyPool mutex for reading
+	r.policyPool.Mutex.Lock()
+	policyList, policyTypeFound := r.policyPool.Pool[resourcePattern]
+	r.policyPool.Mutex.Unlock()
+
+	if !policyTypeFound {
+		return nil, fmt.Errorf("policy pattern type '%s' not found. Is TODO?", resourcePattern)
+	}
+
+	// Return the pointer to the resources
+	return policyList, nil
 }

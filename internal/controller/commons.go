@@ -25,17 +25,17 @@ import (
 )
 
 const (
-	clusterAdmissionPolicyResourceType = "ClusterAdmissionPolicy"
+	ClusterAdmissionPolicyResourceType = "ClusterAdmissionPolicy"
 
 	//
-	resourceNotFoundError         = "%s '%s' resource not found. Ignoring since object must be deleted."
-	resourceRetrievalError        = "Error getting the %s '%s' from the cluster: %s"
-	resourceFinalizersUpdateError = "Failed to update finalizer of %s '%s': %s"
-	resourceConditionUpdateError  = "Failed to update the condition on %s '%s': %s"
-	resourceReconcileError        = "Can not reconcile %s '%s': %s"
+	ResourceNotFoundError         = "%s '%s' resource not found. Ignoring since object must be deleted."
+	ResourceRetrievalError        = "Error getting the %s '%s' from the cluster: %s"
+	ResourceFinalizersUpdateError = "Failed to update finalizer of %s '%s': %s"
+	ResourceConditionUpdateError  = "Failed to update the condition on %s '%s': %s"
+	ResourceReconcileError        = "Can not reconcile %s '%s': %s"
 
 	//
-	resourceFinalizer = "admitik.freepik.com/finalizer"
+	ResourceFinalizer = "admitik.freepik.com/finalizer"
 )
 
 // GetWebhookClientConfig return a WebhookClientConfig filled according to if the remote server

@@ -14,14 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package globals
+package clusteradmissionpolicy
 
 import (
-	"context"
+	"sync"
+
+	//
+	"freepik.com/admitik/api/v1alpha1"
 )
 
-var (
-	Application = applicationT{
-		Context: context.Background(),
-	}
-)
+// ClusterAdmissionPolicyPoolT represents TODO
+type ClusterAdmissionPolicyPoolT struct {
+	// Enforce concurrency safety
+	Mutex *sync.Mutex
+
+	Pool map[string][]v1alpha1.ClusterAdmissionPolicy
+}
