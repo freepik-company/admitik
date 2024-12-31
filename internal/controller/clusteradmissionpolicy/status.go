@@ -17,10 +17,11 @@ limitations under the License.
 package clusteradmissionpolicy
 
 import (
-	"freepik.com/admitik/internal/controller"
-
 	admitikv1alpha1 "freepik.com/admitik/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	//
+	"freepik.com/admitik/internal/controller"
 )
 
 func (r *ClusterAdmissionPolicyController) UpdateConditionSuccess(ClusterAdmissionPolicy *admitikv1alpha1.ClusterAdmissionPolicy) {

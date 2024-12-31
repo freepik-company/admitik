@@ -19,7 +19,6 @@ package clusteradmissionpolicy
 import (
 	"context"
 	"fmt"
-	"freepik.com/admitik/internal/controller/sources"
 	"sync"
 
 	//
@@ -35,6 +34,7 @@ import (
 	//
 	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/controller"
+	"freepik.com/admitik/internal/controller/sources"
 )
 
 // TODO

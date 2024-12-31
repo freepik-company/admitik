@@ -42,12 +42,12 @@ import (
 
 	//
 	"freepik.com/admitik/api/v1alpha1"
-	"freepik.com/admitik/internal/admission"
 	"freepik.com/admitik/internal/certificates"
 	"freepik.com/admitik/internal/controller"
 	"freepik.com/admitik/internal/controller/clusteradmissionpolicy"
 	"freepik.com/admitik/internal/controller/sources"
 	"freepik.com/admitik/internal/globals"
+	"freepik.com/admitik/internal/server/admission"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -192,8 +192,8 @@ func main() {
 	// This will synchronize goroutine death when the main controller is killed
 	globals.Application.Context = ctrl.SetupSignalHandler()
 
-	// Create ans store raw Kubernetes clients from client-go
-	// They are used by kubebuilder non-related processess and controllers
+	// Create and store raw Kubernetes clients from client-go
+	// They are used by non kubebuilder processess and controllers
 	globals.Application.KubeRawClient, globals.Application.KubeRawCoreClient, err = globals.NewKubernetesClient()
 	if err != nil {
 		setupLog.Error(err, "unable to set up kubernetes clients")
