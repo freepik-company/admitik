@@ -135,7 +135,7 @@ func (r *ClusterAdmissionPolicyController) SyncAdmissionPool(ctx context.Context
 	}
 
 	// Craft ValidatingWebhookConfiguration rules based on the previous existing one and current pool keys
-	metaWebhookObj, err := r.getMergedValidatingWebhookConfiguration(ctx)
+	metaWebhookObj, alreadyCreated, err := r.getMergedValidatingWebhookConfiguration(ctx)
 	if err != nil {
 		err = fmt.Errorf("error building ValidatingWebhookConfiguration '%s': %s",
 			ValidatingWebhookConfigurationName, err.Error())
@@ -143,7 +143,7 @@ func (r *ClusterAdmissionPolicyController) SyncAdmissionPool(ctx context.Context
 	}
 
 	// Sync changes to Kubernetes
-	if errors.IsNotFound(err) {
+	if !alreadyCreated {
 		err = r.Create(ctx, &metaWebhookObj)
 		if err != nil {
 			err = fmt.Errorf("error creating ValidatingWebhookConfiguration in Kubernetes'%s': %s",
@@ -174,7 +174,7 @@ func (r *ClusterAdmissionPolicyController) SyncAdmissionPool(ctx context.Context
 // getValidatingWebhookConfiguration return a ValidatingWebhookConfiguration object that is built based on
 // previous existing one in Kubernetes and the current pool keys extracted from ClusterAdmissionPolicy.spec.watchedResources
 func (r *ClusterAdmissionPolicyController) getMergedValidatingWebhookConfiguration(ctx context.Context) (
-	vwConfig admissionregv1.ValidatingWebhookConfiguration, err error) {
+	vwConfig admissionregv1.ValidatingWebhookConfiguration, alreadyCreated bool, err error) {
 
 	// Craft ValidatingWebhookConfiguration rules based on the pool keys
 	currentVwcRules := []admissionregv1.RuleWithOperations{}
@@ -213,6 +213,10 @@ func (r *ClusterAdmissionPolicyController) getMergedValidatingWebhookConfigurati
 		}
 	}
 
+	if !strings.EqualFold(string(metaWebhookObj.UID), "") {
+		alreadyCreated = true
+	}
+
 	// Create a bare new 'webhooks' section for the ValidatingWebhookConfiguration and fill it
 	tmpWebhookObj := admissionregv1.ValidatingWebhook{}
 	timeoutSecondsConverted := int32(r.options.WebhookTimeout)
@@ -229,7 +233,7 @@ func (r *ClusterAdmissionPolicyController) getMergedValidatingWebhookConfigurati
 	// Replace the webhooks section in the ValidatingWebhookConfiguration
 	metaWebhookObj.Webhooks = []admissionregv1.ValidatingWebhook{tmpWebhookObj}
 
-	return metaWebhookObj, nil
+	return metaWebhookObj, alreadyCreated, nil
 }
 
 // getAllSourcesReferences iterates over all the ClusterAdmissionPolicy objects and
