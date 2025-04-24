@@ -14,19 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clusteradmissionpolicy
+package clusteradmissionpolicies
 
 import (
 	"sync"
 
-	//
 	"freepik.com/admitik/api/v1alpha1"
 )
 
-// ClusterAdmissionPolicyPoolT represents TODO
-type ClusterAdmissionPolicyPoolT struct {
-	// Enforce concurrency safety
-	Mutex *sync.Mutex
+// ResourceTypeName represents TODO
+// The pattern will be: {group}/{version}/{resource}/{operation}
+type ResourceTypeName = string
 
-	Pool map[string][]v1alpha1.ClusterAdmissionPolicy
+type ClusterAdmissionPoliciesRegistry struct {
+	mu       sync.Mutex
+	registry map[ResourceTypeName][]*v1alpha1.ClusterAdmissionPolicy
 }

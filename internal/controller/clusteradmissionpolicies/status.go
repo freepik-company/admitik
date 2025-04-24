@@ -14,30 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clusteradmissionpolicy
+package clusteradmissionpolicies
 
 import (
-	admitikv1alpha1 "freepik.com/admitik/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	//
+	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/controller"
 )
 
-func (r *ClusterAdmissionPolicyController) UpdateConditionSuccess(ClusterAdmissionPolicy *admitikv1alpha1.ClusterAdmissionPolicy) {
+func (r *ClusterAdmissionPolicyReconciler) UpdateConditionSuccess(caPolicy *v1alpha1.ClusterAdmissionPolicy) {
 
 	//
 	condition := controller.NewCondition(controller.ConditionTypeResourceSynced, metav1.ConditionTrue,
 		controller.ConditionReasonTargetSynced, controller.ConditionReasonTargetSyncedMessage)
 
-	controller.UpdateCondition(&ClusterAdmissionPolicy.Status.Conditions, condition)
+	controller.UpdateCondition(&caPolicy.Status.Conditions, condition)
 }
 
-func (r *ClusterAdmissionPolicyController) UpdateConditionKubernetesApiCallFailure(ClusterAdmissionPolicy *admitikv1alpha1.ClusterAdmissionPolicy) {
+func (r *ClusterAdmissionPolicyReconciler) UpdateConditionKubernetesApiCallFailure(caPolicy *v1alpha1.ClusterAdmissionPolicy) {
 
 	//
 	condition := controller.NewCondition(controller.ConditionTypeResourceSynced, metav1.ConditionTrue,
 		controller.ConditionReasonKubernetesApiCallErrorType, controller.ConditionReasonKubernetesApiCallErrorMessage)
 
-	controller.UpdateCondition(&ClusterAdmissionPolicy.Status.Conditions, condition)
+	controller.UpdateCondition(&caPolicy.Status.Conditions, condition)
 }

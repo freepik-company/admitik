@@ -44,9 +44,11 @@ import (
 	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/certificates"
 	"freepik.com/admitik/internal/controller"
-	"freepik.com/admitik/internal/controller/clusteradmissionpolicy"
+	"freepik.com/admitik/internal/controller/clusteradmissionpolicies"
 	"freepik.com/admitik/internal/controller/sources"
 	"freepik.com/admitik/internal/globals"
+	clusterAdmissionPolicies "freepik.com/admitik/internal/registry/clusteradmissionpolicies"
+	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
 	"freepik.com/admitik/internal/server/admission"
 	// +kubebuilder:scaffold:imports
 )
@@ -74,8 +76,6 @@ func main() {
 
 	// Custom flags from here
 	var sourcesTimeToResyncInformers time.Duration
-	var sourcesTimeToReconcileWatchers time.Duration
-	var sourcesTimeToAckWatcher time.Duration
 
 	var webhooksClientHostname string
 	var webhooksClientPort int
@@ -104,10 +104,6 @@ func main() {
 	// Custom flags from here
 	flag.DurationVar(&sourcesTimeToResyncInformers, "sources-time-to-resync-informers", 60*time.Second,
 		"Interval to resynchronize all resources in the informers")
-	flag.DurationVar(&sourcesTimeToReconcileWatchers, "sources-time-to-reconcile-watchers", 10*time.Second,
-		"Time between each reconciliation loop of the watchers")
-	flag.DurationVar(&sourcesTimeToAckWatcher, "sources-time-to-ack-watcher", 2*time.Second,
-		"Wait time before marking a watcher as acknowledged (ACK) after it starts")
 
 	flag.StringVar(&webhooksClientHostname, "webhook-client-hostname", "webhooks.admitik.svc",
 		"The hostname used by Kubernetes when calling the webhooks server")
@@ -332,39 +328,47 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create registries managers that will be used by several controllers
+	clusterAdmissionPoliciesReg := clusterAdmissionPolicies.NewClusterAdmissionPoliciesRegistry()
+	sourcesReg := sourcesRegistry.NewSourcesRegistry()
+
 	// Init SourcesController.
 	// This controller is in charge of launching watchers to cache sources expressed in some CRs in background.
 	// This way we avoid retrieving them from Kubernetes on each request to the Admission/Mutation controllers.
-	sourcesController := sources.NewSourcesController(
-		sources.SourcesControllerOptions{
-			Client:                                globals.Application.KubeRawClient,
-			InformerDurationToResync:              sourcesTimeToResyncInformers,
-			WatchersDurationBetweenReconcileLoops: sourcesTimeToReconcileWatchers,
-			WatcherDurationToAck:                  sourcesTimeToAckWatcher,
-		})
+	sourcesController := sources.SourcesController{
+		Client: mgr.GetClient(),
+		Options: sources.SourcesControllerOptions{
+			InformerDurationToResync: sourcesTimeToResyncInformers,
+		},
+		Dependencies: sources.SourcesControllerDependencies{
+			Context:                          &globals.Application.Context,
+			ClusterAdmissionPoliciesRegistry: clusterAdmissionPoliciesReg,
+			SourcesRegistry:                  sourcesReg,
+		},
+	}
 
 	setupLog.Info("starting sources controller")
-	go sourcesController.Start(globals.Application.Context)
+	go sourcesController.Start()
 
 	// Init primary controller
 	// ATTENTION: This controller may be replaced by a custom one in the future doing the same tasks
 	// to simplify this project's dependencies and maintainability
-	clusterAdmissionPolicyController := clusteradmissionpolicy.NewClusterAdmissionPolicyController(
-		clusteradmissionpolicy.ClusterAdmissionPolicyControllerOptions{
+	if err = (&clusteradmissionpolicies.ClusterAdmissionPolicyReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+
+		Options: clusteradmissionpolicies.ClusterAdmissionPolicyControllerOptions{
 			WebhookClientConfig: *webhookClientConfig,
 			WebhookTimeout:      webhooksClientTimeout,
 		},
-		clusteradmissionpolicy.ClusterAdmissionPolicyControllerDependencies{
-			Sources: sourcesController,
-		})
-
-	clusterAdmissionPolicyController.Client = mgr.GetClient()
-	clusterAdmissionPolicyController.Scheme = mgr.GetScheme()
-
-	if err = clusterAdmissionPolicyController.SetupWithManager(mgr); err != nil {
+		Dependencies: clusteradmissionpolicies.ClusterAdmissionPolicyControllerDependencies{
+			ClusterAdmissionPoliciesRegistry: clusterAdmissionPoliciesReg,
+		},
+	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterAdmissionPolicy")
 		os.Exit(1)
 	}
+
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -389,8 +393,8 @@ func main() {
 			TLSPrivateKey:  webhooksServerPrivateKey,
 		},
 		admission.AdmissionServerDependencies{
-			Sources:                  sourcesController,
-			ClusterAdmissionPolicies: clusterAdmissionPolicyController,
+			SourcesRegistry:                  sourcesReg,
+			ClusterAdmissionPoliciesRegistry: clusterAdmissionPoliciesReg,
 		})
 
 	setupLog.Info("starting admission controller")

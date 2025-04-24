@@ -17,7 +17,7 @@ limitations under the License.
 package globals
 
 import (
-
+	"errors"
 	//
 	"os"
 
@@ -52,7 +52,7 @@ func NewKubernetesClient() (client *dynamic.DynamicClient, coreClient *kubernete
 	return client, coreClient, err
 }
 
-// TODO
+// GetCurrentNamespace return namespace where Admitik is running using different strategies
 func GetCurrentNamespace() (string, error) {
 	//
 	if _, err := rest.InClusterConfig(); err == nil {
@@ -74,4 +74,38 @@ func GetCurrentNamespace() (string, error) {
 	}
 
 	return namespace, nil
+}
+
+// GetObjectBasicData extracts basic data (apiVersion, kind, namespace and name) from the object
+func GetObjectBasicData(object *map[string]any) (objectData map[string]any, err error) {
+
+	metadata, ok := (*object)["metadata"].(map[string]any)
+	if !ok {
+		err = errors.New("metadata not found or not in expected format")
+		return
+	}
+
+	objectData = make(map[string]any)
+
+	objectData["apiVersion"] = ""
+	if value, ok := (*object)["apiVersion"]; ok {
+		objectData["apiVersion"] = value.(string)
+	}
+
+	objectData["kind"] = ""
+	if value, ok := (*object)["kind"]; ok {
+		objectData["kind"] = value.(string)
+	}
+
+	objectData["name"] = ""
+	if value, ok := metadata["name"]; ok {
+		objectData["name"] = value
+	}
+
+	objectData["namespace"] = ""
+	if value, ok := metadata["namespace"]; ok {
+		objectData["namespace"] = value
+	}
+
+	return objectData, nil
 }
