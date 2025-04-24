@@ -18,148 +18,170 @@ package sources
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
-	"sync"
 	"time"
-
-	//
 
 	//
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	//
+	"freepik.com/admitik/internal/globals"
+	clusterAdmissionPoliciesRegistry "freepik.com/admitik/internal/registry/clusteradmissionpolicies"
+	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
 )
 
-// SourcesControllerOptions TODO
+const (
+	// secondsToCheckInformerAck is the number of seconds before checking
+	// whether an informer is started or not during informers' reconciling process
+	secondsToCheckInformerAck = 10 * time.Second
+
+	// secondsToReconcileInformersAgain is the number of seconds to wait
+	// between the moment of launching informers, and repeating this process
+	// (avoid the spam, mate)
+	secondsToReconcileInformersAgain = 2 * time.Second
+
+	//
+	controllerContextFinishedMessage = "SourcesController finished by context"
+	controllerInformerStartedMessage = "Informer for '%s' has been started"
+	controllerInformerKilledMessage  = "Informer for resource type '%s' killed by StopSignal"
+
+	watchedObjectParseError         = "Impossible to process triggered object: %s"
+	resourceInformerLaunchingError  = "Impossible to start informer for resource type: %s"
+	resourceInformerGvrParsingError = "Failed to parse GVR from resourceType. Does it look like {group}/{version}/{resource}?"
+)
+
+// SourcesControllerOptions represents available options that can be passed to SourcesController on start
 type SourcesControllerOptions struct {
-
-	// Kubernetes clients
-	Client *dynamic.DynamicClient
-
 	// Duration to wait until resync all the objects
 	InformerDurationToResync time.Duration
-
-	// WatchersDurationBetweenReconcileLoops is the duration to wait between the moment
-	// of launching watchers, and repeating this process (avoid the spam, mate)
-	WatchersDurationBetweenReconcileLoops time.Duration
-
-	// WatcherDurationToAck is the duration before checking whether a watcher
-	// is started or not during watchers' reconciling process
-	WatcherDurationToAck time.Duration
 }
 
-// SourcesController represents the controller that triggers parallel watchers.
-// These watchers are in charge of maintaining the pool of sources asked by the user in Policy objects.
-// A source group is represented by GVRNN (Group + Version + Resource + Namespace + Name)
+type SourcesControllerDependencies struct {
+	Context *context.Context
+
+	//
+	ClusterAdmissionPoliciesRegistry *clusterAdmissionPoliciesRegistry.ClusterAdmissionPoliciesRegistry
+	SourcesRegistry                  *sourcesRegistry.SourcesRegistry
+}
+
+// SourcesController represents a controller that triggers parallel threads.
+// These threads watch resources defined in 'sources' section from ClusterAdmissionPolicy CRs
+// Each thread is an informer in charge of a group of resources GVRNN (Group + Version + Resource + Namespace + Name)
 type SourcesController struct {
-	// Kubernetes clients
-	//client *dynamic.DynamicClient
+	Client client.Client
 
-	// options to modify the behavior of this SourcesController
-	options SourcesControllerOptions
-
-	// Carried stuff
-	watcherPool WatcherPoolT
+	Options      SourcesControllerOptions
+	Dependencies SourcesControllerDependencies
 }
 
-func NewSourcesController(options SourcesControllerOptions) *SourcesController {
-
-	sourcesController := &SourcesController{
-		options: options,
-		watcherPool: WatcherPoolT{
-			Mutex: &sync.RWMutex{},
-			Pool:  map[resourceTypeName]*resourceTypeWatcherT{},
-		},
-	}
-
-	return sourcesController
-}
-
-// Start launches the SourcesController main loop, which continuously monitors and starts
-// eligible watchers until the context is cancelled.
-func (r *SourcesController) Start(ctx context.Context) {
-	logger := log.FromContext(ctx)
+// informersCleanerWorker review the sources types of ClusterAdmissionPolicies registry in the background.
+// It disables the informers that are not needed and delete them from sources registry
+// This function is intended to be used as goroutine
+func (r *SourcesController) informersCleanerWorker() {
+	logger := log.FromContext(*r.Dependencies.Context)
+	logger.Info("Starting informers cleaner worker")
 
 	for {
-		select {
-		case <-ctx.Done():
-			logger.Info("SourcesController finished by context")
-			return
-		default:
-			r.launchEligibleWatchers(ctx)
-		}
+		//
+		referentCandidates := r.Dependencies.ClusterAdmissionPoliciesRegistry.GetRegisteredSourcesTypes()
+		evaluableCandidates := r.Dependencies.SourcesRegistry.GetRegisteredResourceTypes()
 
-		time.Sleep(2 * time.Second)
-	}
-}
-
-// launchEligibleWatchers starts watchers for resource types defined into the WatcherPool.
-// It launches watchers that are neither blocked nor already running.
-// It launches each eligible watcher in a separate goroutine and waits for their acknowledgment.
-func (r *SourcesController) launchEligibleWatchers(ctx context.Context) {
-	logger := log.FromContext(ctx)
-
-	for resourceType, resourceTypeWatcher := range r.watcherPool.Pool {
-
-		// TODO: Is this really needed or useful?
-		// Check the existence of the resourceType into the WatcherPool.
-		// Remember the controller.ClusterAdmissionPolicyController can remove watchers on garbage collection
-		if _, resourceTypeFound := r.watcherPool.Pool[resourceType]; !resourceTypeFound {
-			continue
-		}
-
-		// Prevent blocked watchers from being started.
-		// Remember the controller.ClusterAdmissionPolicyController blocks them during garbage collection
-		if *resourceTypeWatcher.Blocked {
-			continue
-		}
-
-		if !*resourceTypeWatcher.Started {
-			go r.startResourceTypeWatcher(ctx, resourceType)
-
-			// Wait for the resourceType watcher to ACK itself into WatcherPool
-			time.Sleep(r.options.WatcherDurationToAck)
-			if !*(r.watcherPool.Pool[resourceType].Started) {
-				logger.Info(fmt.Sprintf("Impossible to start watcher for resource type: %s", resourceType))
+		for _, resourceType := range evaluableCandidates {
+			if !slices.Contains(referentCandidates, resourceType) {
+				err := r.Dependencies.SourcesRegistry.DisableInformer(resourceType)
+				if err != nil {
+					logger.WithValues("resourceType", resourceType).
+						Info("Failed disabling sources informer")
+				}
 			}
 		}
 
-		// Wait a bit to reduce the spam to machine resources
-		time.Sleep(r.options.WatchersDurationBetweenReconcileLoops)
+		time.Sleep(5 * time.Second)
 	}
 }
 
-// startResourceTypeWatcher starts a dynamic informer that watches a specific resource type identified by its GVR/namespace/name pattern.
-// It handles resource events (Add/Update/Delete) to maintain a synchronized list of resources in the watcher pool.
-// The watcher runs until either the context is cancelled or a stop signal is received.
-//
-// The watchedType parameter must follow the format: "group/version/resource/namespace/name"
-// where namespace and name are optional filters (use empty string for no filter).
-func (r *SourcesController) startResourceTypeWatcher(ctx context.Context, watchedType resourceTypeName) {
+// Start launches the SourcesController and keeps it alive
+// It kills the controller on application's context death, and rerun the process when failed
+func (r *SourcesController) Start() {
+	logger := log.FromContext(*r.Dependencies.Context)
 
-	logger := log.FromContext(ctx)
+	// Start cleaner for dead informers
+	go r.informersCleanerWorker()
 
-	logger.Info(fmt.Sprintf("Watcher for '%s' has been started", watchedType))
+	// Keep your controller alive
+	for {
+		select {
+		case <-(*r.Dependencies.Context).Done():
+			logger.Info(controllerContextFinishedMessage)
+			return
+		default:
+			r.reconcileInformers()
+			time.Sleep(secondsToReconcileInformersAgain)
+		}
+	}
+}
 
-	// Set ACK flag for watcher launching into the WatcherPool
-	*(r.watcherPool.Pool[watchedType].Started) = true
+// reconcileInformers checks each registered extra-resource type and triggers informers
+// for those that are not already started.
+func (r *SourcesController) reconcileInformers() {
+	logger := log.FromContext(*r.Dependencies.Context)
+
+	for _, resourceType := range r.Dependencies.ClusterAdmissionPoliciesRegistry.GetRegisteredSourcesTypes() {
+
+		_, informerExists := r.Dependencies.SourcesRegistry.GetInformer(resourceType)
+
+		// Avoid wasting CPU for nothing
+		if informerExists && r.Dependencies.SourcesRegistry.IsStarted(resourceType) {
+			continue
+		}
+
+		//
+		if !informerExists || !r.Dependencies.SourcesRegistry.IsStarted(resourceType) {
+			go r.launchInformerForType(resourceType)
+
+			// Wait for the just started informer to ACK itself
+			time.Sleep(secondsToCheckInformerAck)
+			if !r.Dependencies.SourcesRegistry.IsStarted(resourceType) {
+				logger.Info(fmt.Sprintf(resourceInformerLaunchingError, resourceType))
+			}
+		}
+	}
+}
+
+// launchInformerForType creates and runs a Kubernetes informer for the specified
+// resource type, and triggers processing for each event
+func (r *SourcesController) launchInformerForType(resourceType sourcesRegistry.ResourceTypeName) {
+	logger := log.FromContext(*r.Dependencies.Context)
+
+	informer, informerExists := r.Dependencies.SourcesRegistry.GetInformer(resourceType)
+	if !informerExists {
+		informer = r.Dependencies.SourcesRegistry.RegisterInformer(resourceType)
+	}
+
+	logger.Info(fmt.Sprintf(controllerInformerStartedMessage, resourceType))
+
+	// Trigger ACK flag for informer that is launching
+	// Hey, this informer is blocking, so ACK is only disabled if the informer becomes dead
+	_ = r.Dependencies.SourcesRegistry.SetStarted(resourceType, true)
 	defer func() {
-		*(r.watcherPool.Pool[watchedType].Started) = false
+		_ = r.Dependencies.SourcesRegistry.SetStarted(resourceType, false)
 	}()
 
 	// Extract GVR + Namespace + Name from watched type:
 	// {group}/{version}/{resource}/{namespace}/{name}
-	GVRNN := strings.Split(string(watchedType), "/")
+	GVRNN := strings.Split(resourceType, "/")
 	if len(GVRNN) != 5 {
-		logger.Info("Failed to parse GVR from resourceType. Does it look like {group}/{version}/{resource}?")
+		logger.Info(resourceInformerGvrParsingError)
 		return
 	}
 	resourceGVR := schema.GroupVersionResource{
@@ -184,199 +206,86 @@ func (r *SourcesController) startResourceTypeWatcher(ctx context.Context, watche
 		}
 	}
 
-	// Listen to stop signal to kill this watcher just in case it's needed
+	// Listen to stop signal to kill this informer just in case it's needed
 	stopCh := make(chan struct{})
 
 	go func() {
-		<-*(r.watcherPool.Pool[watchedType].StopSignal)
+		<-informer.StopSignal
 		close(stopCh)
-		logger.Info(fmt.Sprintf("Watcher for resource type '%s' killed by StopSignal", watchedType))
+		logger.Info(fmt.Sprintf(controllerInformerKilledMessage, resourceType))
 	}()
 
-	// Define our informer
-	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(r.options.Client,
-		r.options.InformerDurationToResync, namespace, listOptionsFunc)
+	// Define our informer TODO
+	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(globals.Application.KubeRawClient,
+		r.Options.InformerDurationToResync, namespace, listOptionsFunc)
 
-	// Create an informer. This is a special type of client-go watcher that includes
+	// Create an informer. This is a special type of client-go informer that includes
 	// mechanisms to hide disconnections, handle reconnections, and cache watched objects
-	informer := factory.ForResource(resourceGVR).Informer()
+	kubeInformer := factory.ForResource(resourceGVR).Informer()
 
 	// Register functions to handle different types of events
 	handlers := cache.ResourceEventHandlerFuncs{
 
 		AddFunc: func(eventObject interface{}) {
-			convertedObject := eventObject.(*unstructured.Unstructured)
+			convertedEventObject := eventObject.(*unstructured.Unstructured)
 
-			err := r.watcherPool.createWatcherResource(watchedType, convertedObject)
+			err := r.processEvent(resourceType, watch.Added, convertedEventObject.UnstructuredContent())
 			if err != nil {
-				logger.WithValues(
-					"watcher", watchedType,
-					"object", convertedObject.GetNamespace()+"/"+convertedObject.GetName(),
-				).Error(err, "Error creating resource in resource list")
-				return
+				logger.Error(err, fmt.Sprintf(watchedObjectParseError, err))
 			}
 		},
-		UpdateFunc: func(_, eventObject interface{}) {
-			convertedObject := eventObject.(*unstructured.Unstructured)
+		UpdateFunc: func(eventObjectOld, eventObject interface{}) {
+			convertedEventObjectOld := eventObjectOld.(*unstructured.Unstructured)
+			convertedEventObject := eventObject.(*unstructured.Unstructured)
 
-			objectIndex := r.watcherPool.getWatcherResourceIndex(watchedType, convertedObject)
-			if objectIndex > -1 {
-
-				err := r.watcherPool.updateWatcherResourceByIndex(watchedType, objectIndex, convertedObject)
-				if err != nil {
-					logger.WithValues(
-						"watcher", watchedType,
-						"object", convertedObject.GetNamespace()+"/"+convertedObject.GetName(),
-					).Error(err, "Error updating resource in resource list")
-					return
-				}
+			err := r.processEvent(resourceType, watch.Modified,
+				convertedEventObject.UnstructuredContent(), convertedEventObjectOld.UnstructuredContent())
+			if err != nil {
+				logger.Error(err, fmt.Sprintf(watchedObjectParseError, err))
 			}
 		},
 		DeleteFunc: func(eventObject interface{}) {
-			convertedObject := eventObject.(*unstructured.Unstructured)
-			objectIndex := r.watcherPool.getWatcherResourceIndex(watchedType, convertedObject)
+			convertedEventObject := eventObject.(*unstructured.Unstructured)
 
-			if objectIndex > -1 {
-				err := r.watcherPool.deleteWatcherResourceByIndex(watchedType, objectIndex)
-				if err != nil {
-					logger.WithValues(
-						"watcher", watchedType,
-						"object", convertedObject.GetNamespace()+"/"+convertedObject.GetName(),
-					).Error(err, "Error deleting resource from resource list")
-					return
-				}
+			err := r.processEvent(resourceType, watch.Deleted, convertedEventObject.UnstructuredContent())
+			if err != nil {
+				logger.Error(err, fmt.Sprintf(watchedObjectParseError, err))
 			}
 		},
 	}
 
-	_, err := informer.AddEventHandler(handlers)
+	_, err := kubeInformer.AddEventHandler(handlers)
 	if err != nil {
 		logger.Error(err, "Error adding handling functions for events to an informer")
 		return
 	}
 
-	informer.Run(stopCh)
+	kubeInformer.Run(stopCh)
 }
 
-// SyncWatchers ensures the WatcherPool matches the desired state.
-//
-// Given a list of desired watchers in GVRNN format (Group/Version/Resource/Namespace/Name),
-// this function creates missing watchers, ensures active ones are unblocked, and removes
-// any watchers that are no longer needed.
-// TODO: look for a better function name. ReconcileRequesterTypes? SyncRequesterTypes?
-func (r *SourcesController) SyncWatchers(watcherTypeList []string, requester string) (err error) {
+// processEvent process an event coming from a triggered extra-resource type.
+// It reconciles stored resources in an idempotent way
+func (r *SourcesController) processEvent(resourceType sourcesRegistry.ResourceTypeName, eventType watch.EventType, object ...map[string]interface{}) (err error) {
 
-	// 0. Check if WatcherPool is ready to work
-	if r.watcherPool.Mutex == nil {
-		return fmt.Errorf("watcher pool is not ready")
+	// Process only certain event types
+	if eventType != watch.Added && eventType != watch.Modified && eventType != watch.Deleted {
+		return nil
 	}
 
-	// 1. Small conversions to gain performance on huge watchers lists
-	desiredWatchers := make(map[resourceTypeName]struct{}, len(watcherTypeList))
-	for _, watcherType := range watcherTypeList {
-		desiredWatchers[resourceTypeName(watcherType)] = struct{}{}
+	if eventType == watch.Deleted {
+		err = r.Dependencies.SourcesRegistry.RemoveResource(resourceType, &object[0])
+		return err
 	}
 
-	// 2. Keep or create desired watchers
-	for watcherType := range desiredWatchers {
-
-		// Lock the WatcherPool mutex for reading
-		r.watcherPool.Mutex.RLock()
-		watcher, exists := r.watcherPool.Pool[watcherType]
-		r.watcherPool.Mutex.RUnlock()
-
-		// Create it when is not already created
-		if !exists {
-			r.watcherPool.Mutex.Lock()
-			r.watcherPool.prepareWatcher(watcherType)
-			r.watcherPool.Pool[watcherType].Requesters = append(r.watcherPool.Pool[watcherType].Requesters, requester)
-			r.watcherPool.Mutex.Unlock()
-			continue
-		}
-
-		// Ensure having requester's finalizer for already existing ones
-		watcher.Mutex.Lock()
-		if !slices.Contains(watcher.Requesters, requester) {
-			watcher.Requesters = append(watcher.Requesters, requester)
-		}
-		watcher.Mutex.Unlock()
-
-		// Ensure the watcher is NOT blocked
-		watcher.Mutex.Lock()
-		if !*watcher.Started {
-			*watcher.Blocked = false
-		}
-		watcher.Mutex.Unlock()
-	}
-
-	// 3. Clean undesired watchers
-	r.watcherPool.Mutex.RLock()
-	existingWatchers := make([]resourceTypeName, 0, len(r.watcherPool.Pool))
-	for watcherType := range r.watcherPool.Pool {
-		existingWatchers = append(existingWatchers, watcherType)
-	}
-	r.watcherPool.Mutex.RUnlock()
-
-	for _, watcherType := range existingWatchers {
-		if _, needed := desiredWatchers[watcherType]; !needed {
-			// Lock WatcherPool to access the watcher
-			r.watcherPool.Mutex.RLock()
-			watcher := r.watcherPool.Pool[watcherType]
-			r.watcherPool.Mutex.RUnlock()
-
-			// Delete the requester from watchers
-			watcher.Requesters = slices.DeleteFunc(watcher.Requesters, func(finalizer string) bool {
-				return finalizer == requester
-			})
-
-			// Ignore deletion for those watchers that are still requested by other controllers
-			if len(watcher.Requesters) > 0 {
-				continue
-			}
-
-			watcher.Mutex.Lock()
-			watcherDisabled := r.watcherPool.disableWatcher(watcherType)
-			watcher.Mutex.Unlock()
-
-			if !watcherDisabled {
-				err = errors.Join(err, fmt.Errorf("imposible to disable watcher for: %s", watcherType))
-			}
-
-			// Delete the watcher from the WatcherPool
-			r.watcherPool.Mutex.Lock()
-			delete(r.watcherPool.Pool, watcherType)
-			r.watcherPool.Mutex.Unlock()
+	// Create/Update events
+	if eventType == watch.Modified {
+		err = r.Dependencies.SourcesRegistry.RemoveResource(resourceType, &object[0])
+		if err != nil {
+			return err
 		}
 	}
+
+	r.Dependencies.SourcesRegistry.AddResource(resourceType, &object[0])
 
 	return err
-}
-
-// GetWatcherResources returns all resources being watched for a specific watcher type.
-// Takes a watcherType in format "group/version/resource/namespace/name".
-// Thread-safe using read locks for pool and resource list access.
-// Returns error if pool not initialized or watcher type not found.
-// TODO: look for a better function name. GetResourcesForType?
-func (r *SourcesController) GetWatcherResources(watcherType string) (resources []*unstructured.Unstructured, err error) {
-
-	// 0. Check if WatcherPool is ready to work
-	if r.watcherPool.Mutex == nil {
-		return resources, fmt.Errorf("watcher pool is not ready")
-	}
-
-	// Lock the WatcherPool mutex for reading
-	r.watcherPool.Mutex.RLock()
-	watcher, watcherTypeFound := r.watcherPool.Pool[resourceTypeName(watcherType)]
-	r.watcherPool.Mutex.RUnlock()
-
-	if !watcherTypeFound {
-		return nil, fmt.Errorf("watcher type '%s' not found. Is the watcher created?", watcherType)
-	}
-
-	// Lock the watcher's mutex for reading
-	watcher.Mutex.RLock()
-	defer watcher.Mutex.RUnlock()
-
-	// Return the pointer to the ResourceList
-	return watcher.ResourceList, nil
 }

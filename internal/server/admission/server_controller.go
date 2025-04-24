@@ -25,9 +25,8 @@ import (
 	//
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	//
-	"freepik.com/admitik/internal/controller/clusteradmissionpolicy"
-	"freepik.com/admitik/internal/controller/sources"
+	clusteradmissionpoliciesRegistry "freepik.com/admitik/internal/registry/clusteradmissionpolicies"
+	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
 )
 
 const (
@@ -38,8 +37,8 @@ const (
 
 // AdmissionServerDependencies represents the dependencies needed by the AdmissionServer to work
 type AdmissionServerDependencies struct {
-	Sources                  *sources.SourcesController
-	ClusterAdmissionPolicies *clusteradmissionpolicy.ClusterAdmissionPolicyController
+	SourcesRegistry                  *sourcesRegistry.SourcesRegistry
+	ClusterAdmissionPoliciesRegistry *clusteradmissionpoliciesRegistry.ClusterAdmissionPoliciesRegistry
 }
 
 // AdmissionServerOptions represents available options that can be passed

@@ -30,7 +30,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	//
@@ -159,12 +158,7 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 
 	// Loop over ClusterAdmissionPolicies performing actions
 	// At this point, some extra params will be added to the object that will be injected in template
-
-	caPolicyList, err := s.dependencies.ClusterAdmissionPolicies.GetPolicyResources(resourcePattern)
-	if err != nil {
-		logger.Info(fmt.Sprintf("failed getting policies for pattern '%s': %s", resourcePattern, err.Error()))
-		return
-	}
+	caPolicyList := s.dependencies.ClusterAdmissionPoliciesRegistry.GetResources(resourcePattern)
 
 	for _, caPolicyObj := range caPolicyList {
 
@@ -177,28 +171,22 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 		// Retrieve the sources declared per policy
 		for sourceIndex, sourceItem := range caPolicyObj.Spec.Sources {
 
-			unstructuredSourceObjList, err := s.getSourcesFromPool(
+			sourceObjList := s.getSourcesFromPool(
 				sourceItem.Group,
 				sourceItem.Version,
 				sourceItem.Resource,
 				sourceItem.Namespace,
 				sourceItem.Name)
 
-			if err != nil {
-				logger.Info(fmt.Sprintf("failed getting sources: %s", err.Error()))
-				return
-			}
-
-			// Store obtained sources as a map[int][]map[string]interface{}
-			tmpSources, ok := specificTemplateInjectedObject["sources"].(map[int][]map[string]interface{})
+			// Store obtained sources as a map[int][]map[string]any
+			tmpSources, ok := specificTemplateInjectedObject["sources"].(map[int][]map[string]any)
 			if !ok {
-				tmpSources = make(map[int][]map[string]interface{})
+				tmpSources = make(map[int][]map[string]any)
 			}
 
-			for _, unstructuredItem := range unstructuredSourceObjList {
-				tmpSources[sourceIndex] = append(tmpSources[sourceIndex], (*unstructuredItem).Object)
+			for _, itemObj := range sourceObjList {
+				tmpSources[sourceIndex] = append(tmpSources[sourceIndex], *itemObj)
 			}
-
 			specificTemplateInjectedObject["sources"] = tmpSources
 		}
 
@@ -237,7 +225,7 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 			}
 
 			// Create the Event in Kubernetes about involved object
-			err = createKubeEvent(request.Context(), "default", requestObject, caPolicyObj, kubeEventAction, parsedMessage)
+			err = createKubeEvent(request.Context(), "default", requestObject, *caPolicyObj, kubeEventAction, parsedMessage)
 			if err != nil {
 				logger.Info(fmt.Sprintf("failed creating kubernetes event: %s", err.Error()))
 			}
@@ -251,11 +239,11 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 
 // getSourcesFromPool returns a list of unstructured resources selected by params from the sources cache
 func (s *HttpServer) getSourcesFromPool(group, version, resource, namespace, name string) (
-	resourceList []*unstructured.Unstructured, err error) {
+	resourceList []*map[string]any) {
 
 	sourceString := fmt.Sprintf("%s/%s/%s/%s/%s", group, version, resource, namespace, name)
 
-	return s.dependencies.Sources.GetWatcherResources(sourceString)
+	return s.dependencies.SourcesRegistry.GetResources(sourceString)
 }
 
 // createKubeEvent creates a modern event in Kuvernetes with data given by params
