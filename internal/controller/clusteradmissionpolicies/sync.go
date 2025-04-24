@@ -76,12 +76,17 @@ func (r *ClusterAdmissionPolicyReconciler) ReconcileClusterAdmissionPolicy(ctx c
 		}
 
 		// Create the key-pattern and store it for later cleaning
+		// Duplicated operations will be skipped
 		watchedType := strings.Join([]string{
 			resourceManifest.Spec.WatchedResources.Group,
 			resourceManifest.Spec.WatchedResources.Version,
 			resourceManifest.Spec.WatchedResources.Resource,
 			string(operation),
 		}, "/")
+
+		if slices.Contains(desiredWatchedTypes, watchedType) {
+			continue
+		}
 		desiredWatchedTypes = append(desiredWatchedTypes, watchedType)
 
 		// Delete events

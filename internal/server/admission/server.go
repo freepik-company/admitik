@@ -125,7 +125,7 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 	}()
 
 	// Craft the resourcePattern to look for the ClusterAdmissionPolicy objects in the pool
-	resourcePattern := fmt.Sprintf("/%s/%s/%s/%s",
+	resourcePattern := fmt.Sprintf("%s/%s/%s/%s",
 		requestObj.Request.Resource.Group,
 		requestObj.Request.Resource.Version,
 		requestObj.Request.Resource.Resource,
@@ -250,7 +250,7 @@ func (s *HttpServer) getSourcesFromPool(group, version, resource, namespace, nam
 func createKubeEvent(ctx context.Context, namespace string, object map[string]interface{},
 	policy v1alpha1.ClusterAdmissionPolicy, action, message string) (err error) {
 
-	objectData, err := getObjectBasicData(&object)
+	objectData, err := globals.GetObjectBasicData(&object)
 	if err != nil {
 		return err
 	}
