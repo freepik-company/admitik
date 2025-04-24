@@ -55,7 +55,7 @@ func (m *ClusterAdmissionPoliciesRegistry) RemoveResource(rt ResourceTypeName, c
 		m.registry[rt] = append(clusterAdmissionPolicies[:index], clusterAdmissionPolicies[index+1:]...)
 	}
 
-	// Delete index from registry when any Notification resource is needing it
+	// Delete index from registry when no more ClusterAdmissionPolicy resource is needing it
 	if len(m.registry[rt]) == 0 {
 		delete(m.registry, rt)
 	}

@@ -67,6 +67,7 @@ func (r *ClusterAdmissionPolicyReconciler) ReconcileClusterAdmissionPolicy(ctx c
 	}
 
 	// Update the registry
+	var desiredWatchedTypes []string
 	for _, operation := range resourceManifest.Spec.WatchedResources.Operations {
 
 		// Skip unsupported operations
@@ -74,13 +75,14 @@ func (r *ClusterAdmissionPolicyReconciler) ReconcileClusterAdmissionPolicy(ctx c
 			continue
 		}
 
-		//
+		// Create the key-pattern and store it for later cleaning
 		watchedType := strings.Join([]string{
 			resourceManifest.Spec.WatchedResources.Group,
 			resourceManifest.Spec.WatchedResources.Version,
 			resourceManifest.Spec.WatchedResources.Resource,
 			string(operation),
 		}, "/")
+		desiredWatchedTypes = append(desiredWatchedTypes, watchedType)
 
 		// Delete events
 		if eventType == watch.Deleted {
@@ -94,11 +96,15 @@ func (r *ClusterAdmissionPolicyReconciler) ReconcileClusterAdmissionPolicy(ctx c
 		if eventType == watch.Modified {
 			logger.Info(resourceUpdatedMessage, "watcher", watchedType)
 
-			for _, registeredResourceType := range r.Dependencies.ClusterAdmissionPoliciesRegistry.GetRegisteredResourceTypes() {
-				r.Dependencies.ClusterAdmissionPoliciesRegistry.RemoveResource(registeredResourceType, resourceManifest)
-			}
-
+			r.Dependencies.ClusterAdmissionPoliciesRegistry.RemoveResource(watchedType, resourceManifest)
 			r.Dependencies.ClusterAdmissionPoliciesRegistry.AddResource(watchedType, resourceManifest)
+		}
+	}
+
+	// Clean non-desired watched types
+	for _, registeredResourceType := range r.Dependencies.ClusterAdmissionPoliciesRegistry.GetRegisteredResourceTypes() {
+		if !slices.Contains(desiredWatchedTypes, registeredResourceType) {
+			r.Dependencies.ClusterAdmissionPoliciesRegistry.RemoveResource(registeredResourceType, resourceManifest)
 		}
 	}
 
