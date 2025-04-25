@@ -24,6 +24,10 @@ import (
 const (
 	FailureActionPermissive string = "Permissive"
 	FailureActionEnforce    string = "Enforce"
+
+	//
+	ConditionEngineStarlark string = "starlark"
+	ConditionEngineGotmpl   string = "gotmpl"
 )
 
 // WatchedResourceT represents TODO
@@ -41,12 +45,14 @@ type SourceT struct {
 }
 
 type ConditionT struct {
-	Name  string `json:"name"`
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Name   string `json:"name"`
+	Engine string `json:"engine,omitempty"`
+	Key    string `json:"key"`
+	Value  string `json:"value"`
 }
 
 type MessageT struct {
+	Engine   string `json:"engine,omitempty"`
 	Template string `json:"template"`
 }
 

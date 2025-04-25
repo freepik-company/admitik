@@ -43,6 +43,8 @@ spec:
               conditions:
                 items:
                   properties:
+                    engine:
+                      type: string
                     key:
                       type: string
                     name:
@@ -59,6 +61,8 @@ spec:
                 type: string
               message:
                 properties:
+                  engine:
+                    type: string
                   template:
                     type: string
                 required:

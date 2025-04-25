@@ -31,7 +31,13 @@ spec:
 
   conditions:
     - name: confirm-non-existing-routes
-      # The 'key' field admits vitamin Golang templating (well known from Helm)
+
+      # The 'engine' field decides between:
+      # * gotmpl:   (default) Vitamin Golang templating (well known from Helm)
+      # * starlark: Starlark from Google
+      engine: gotmpl
+
+      # The 'key' field is the place to write your template or code
       # The result of this field will be compared with 'value' for equality
       key: |
         {{- $object := .object -}}
