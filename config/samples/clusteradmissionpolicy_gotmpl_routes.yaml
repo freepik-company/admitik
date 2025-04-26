@@ -4,7 +4,7 @@ metadata:
   labels:
     app.kubernetes.io/name: admitik
     app.kubernetes.io/managed-by: kustomize
-  name: avoid-colisioning-routes
+  name: gotmpl-avoid-colliding-routes
 spec:
 
   failureAction: Permissive

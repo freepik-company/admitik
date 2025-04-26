@@ -4,7 +4,7 @@ metadata:
   labels:
     app.kubernetes.io/name: admitik
     app.kubernetes.io/managed-by: kustomize
-  name: confirm-existing-namespace-labels
+  name: starlark-confirm-existing-namespace-labels
 spec:
 
   failureAction: Enforce
@@ -28,26 +28,35 @@ spec:
       # The 'engine' field decides between:
       # * gotmpl:   (default) Vitamin Golang templating (well known from Helm)
       # * starlark: Starlark from Google
-      engine: gotmpl
+      engine: starlark
 
       # The 'key' field is the place to write your template or code
       # The result of this field will be compared with 'value' for equality
       key: |
-        {{- $object := .object -}}
-        {{- $labels := $object.metadata.labels -}}
-        {{- $labelFound := false -}}
-
-        {{- range $labelKey, $labelValue := $labels -}}
-          {{- if eq $labelKey "admitik.freepik.com/label" -}}
-            {{- $labelFound := true -}}
-          {{- end -}}
-        {{- end -}}
-
-        {{- if $labelFound -}}
-          {{- printf "label-found" -}}
-        {{- else -}}
-          {{- printf "label-not-found" -}}
-        {{- end -}}
+        # Ref [Specifications]: https://starlark-lang.org/spec.html
+        # Ref [Playground]: https://starlark-lang.org/playground.html
+        # Ref [Extra Libs]: https://github.com/google/starlark-go/tree/master/lib
+        
+        # Injected data is located in following global variables:
+        # operation, oldObject, object, sources
+        
+        def isLabelPresent(label):
+          labels = object["metadata"].get("labels")
+          if labels == None:
+            return "labels-not-found"
+        
+          mostWanted = labels.get(label)
+          if mostWanted == None:
+            return "label-not-found"        
+          return "label-found"
+              
+        isPresent = isLabelPresent("admitik.freepik.com/label")
+        
+        # It's possible to throw messages to the logs
+        log.printf("Is the label present?: %v\n", isPresent)
+        
+        # Printing is the way to return the result for comparing to 'value'
+        print(isPresent)
 
       value: "label-found"
 
