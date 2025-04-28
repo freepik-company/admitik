@@ -26,6 +26,7 @@ import (
 	//
 	starlarklog "freepik.com/admitik/internal/template/starlarkmods/log"
 	starlarkjson "go.starlark.net/lib/json"
+	starlarkmath "go.starlark.net/lib/math"
 	starlarktime "go.starlark.net/lib/time"
 	"go.starlark.net/starlark"
 	starlarksyntax "go.starlark.net/syntax"
@@ -79,6 +80,7 @@ sources = json.decode(__rawSources)
 	predeclared := starlark.StringDict{
 		// TODO: Implement modules for YAML, TOML, Logging, etc
 		// Injected functions
+		"math": starlarkmath.Module,
 		"json": starlarkjson.Module,
 		"time": starlarktime.Module,
 		"log":  starlarklog.Module,
