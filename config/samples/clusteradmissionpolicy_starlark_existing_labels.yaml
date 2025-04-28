@@ -63,4 +63,4 @@ spec:
   message:
     engine: starlark
     template: |
-      print("Resource '{}' was rejected as some required label is missing".format(object["metadata"].["name"]))
+      print("Resource '{}' was rejected as some required label is missing".format(object["metadata"]["name"]))
