@@ -61,6 +61,6 @@ spec:
       value: "label-found"
 
   message:
+    engine: starlark
     template: |
-      {{- $object := .object -}}
-      {{- printf "Resource '%s' was rejected as some required label is missing" $object.metadata.name -}}
+      print("Resource '{}' was rejected as some required label is missing".format(object["metadata"].["name"]))
