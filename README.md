@@ -86,13 +86,16 @@ They are described in the following table:
 
 After deploying this operator, you will have new resources available. Let's talk about them.
 
+> [!IMPORTANT]
+> We are already creating a documentation page to explain all the features better
+
+> > [!TIP]
+> You can find examples for all the features of the resource in the [examples directory](./config/samples)
+
 ### How to create kubernetes dynamic admission policies
 
 To create a dynamic admission policy in your cluster, you will need to create a `ClusterAdmissionPolicy` resource.
 You may prefer to learn directly from an example, so let's explain it creating a ClusterAdmissionPolicy:
-
-> [!TIP]
-> You can find the spec samples for all the versions of the resource in the [examples directory](./config/samples)
 
 > [!IMPORTANT]
 > When you have multiple ClusterAdmissionPolicy resources with the same watchedResources parameters,
@@ -105,72 +108,106 @@ You may prefer to learn directly from an example, so let's explain it creating a
 apiVersion: admitik.freepik.com/v1alpha1
 kind: ClusterAdmissionPolicy
 metadata:
-  labels:
-    app.kubernetes.io/name: admitik
-    app.kubernetes.io/managed-by: kustomize
-  name: avoid-colisioning-routes
+   name: watch-resources
 spec:
+   # (Optional) Action to perform with the conditions are not met
+   # Posible values: Enforce, Permissive
+   # Enforce: (default) Reject the object.
+   # Permissive: Accept the object
+   # Both results create an event in Kubernetes
+   failureAction: Enforce
 
-  # (Optional) Action to perform with the conditions are not met
-  # Posible values: Enforce, Permissive
-  # Enforce: (default) Reject the object.
-  # Permissive: Accept the object
-  # Both results create an event in Kubernetes
-  failureAction: Enforce
-
-  # Resources to be validated against the webhooks server.
-  # Those matching any combination of following params will be sent.
-  # As a hint: don't set operations you don't need for a resource type
-  watchedResources:
-    group: gateway.networking.k8s.io
-    version: v1
-    resource: httproutes
-    operations:
-      - CREATE
-      - UPDATE
-
-  # Other resources to be retrieved for later templates.
-  # They will be included under .sources scope for conditions and message
-  sources:
-    - group: gateway.networking.k8s.io
+   # Resources to be validated against the webhooks server.
+   # Those matching any combination of following params will be sent.
+   # As a hint: don't set operations you don't need for a resource type
+   watchedResources:
+      group: gateway.networking.k8s.io
       version: v1
       resource: httproutes
+      operations:
+         - CREATE
+         - UPDATE
 
-      # (Optional) It's possible to retrieve specific resources
-      # name: secondary-route
-      # namespace: default
+   # ALL the conditions must be valid to allow the resource entrance.
+   conditions:
+      - name: the-name-of-the-condition
+        
+        # The 'key' field is the place to write your template or code
+        # The result of this field will be compared with 'value' for equality
+        key: |
+           # YOUR TEMPLATE HERE
+           
+        value: "your-value-here"
 
+   message:
+      template: |
+         {{- printf "Reason behind rejection of the resource. This will be shown to the user" -}}
+```
 
-  # ALL the conditions must be valid to allow the resource entrance.
+The mission is to create conditions whose templates, under _key_ field, output something. For each condition, 
+the output of the template will be compared to the _value_ field. 
+If they match, condition is met and the next one will be evaluated.
+
+When a condition is NOT met, the object trying to enter in Kubernetes is rejected, and the _message_ is thrown to the user.
+
+Let's focus on templates capabilities for conditions and message.
+Templates can be written using several engines, such as _gotmpl_ or _starlark_ (maybe more in the future). We decided
+to support several syntax options to give freedom to cluster operators. To select between them, setting `engine: gotmpl` 
+or `engine: starlark` is the only thing you need.
+
+> [!IMPORTANT]
+> Policies without information are useless, right? To solve that, the controller injects data that are super
+> useful to craft your policies:
+>
+> * `operation`: The operation that is being performed: create, update, etc
+> * `object`: The object trying to enter to Kubernetes
+> * `oldObject`: The previous existing object for those that are being updated
+> * `sources`: The sources reclaimed by you in policy's `spec.sources` field. This field is a list of lists of objects 😵‍💫
+> 
+> For each template engine will be injected in their native way
+
+#### Gotmpl
+
+Gotmpl engine is Golang template with vitamins: basically, Golang template with several super useful functions added. 
+This kind of template is better known as Helm template, so **all the functions available in Helm are available here too.**
+This way you start creating wonderful policies from first minute.
+
+```yaml
+apiVersion: admitik.freepik.com/v1alpha1
+kind: ClusterAdmissionPolicy
+metadata:
+  name: gotmpl-conditions
+spec:
+
+  # ... 
+  
   conditions:
-    - name: confirm-non-existing-routes
-
-      # The 'key' field admits vitamin Golang templating (well known from Helm)
-      # The result of this field will be compared with 'value' for equality
+    - name: first-condition
+      engine: gotmpl
       key: |
-        {{- $operation := .operation -}}
-        {{- $object := .object -}}
-        {{- $oldObject := .oldObject -}}
-        {{- $sources := .sources -}}
+        {{- $someDataFromSomewhere := dict "name" "example-name" "namespace" "example-namespace" -}}
+         
+        {{- if eq $someDataFromSomewhere.name "example-name" -}}
+          {{- printf "condition-is-met" -}} 
+        {{- end -}} 
+      value: "condition-is-met"
+      
+      
+    - name: second-condition
+      engine: gotmpl
+      key: |
+         {{- /* Some data are injected as previously mentioned */ -}}
+         {{- /* Let's store them into variables */ -}}
+         {{- $operation := .operation -}}
+         {{- $oldObject := .oldObject -}}
+         {{- $object := .object -}}
+         {{- $sources := .sources -}}
 
+         {{- if eq $object.metadata.name "example-name" -}}
+           {{- printf "condition-is-met" -}} 
+         {{- end -}} 
+      value: "condition-is-NOT-met"
 
-        {{- $routeFound := false -}}
-
-        {{- $routes := (index .sources 0) -}}
-        {{- range $routeObjIndex, $routeObj := $routes -}}
-
-          {{/* Here some logic to confirm you found the route already existing */}}
-          {{- $routeFound := true -}}
-
-        {{- end -}}
-
-        {{- if $routeFound -}}
-          {{- printf "route-already-created" -}}
-        {{- else -}}
-          {{- printf "route-not-found" -}}
-        {{- end -}}
-
-      value: "route-not-found"
 
   message:
     template: |
@@ -179,31 +216,27 @@ spec:
 
 ```
 
-As you probably noticed in the previous example, conditions are made using vitamin Golang template
-(better known as Helm template), so **all the functions available in Helm are available here too.**
-This way you start creating wonderful policies from first minute.
+Not only Helm-provided vitamins are available in `gotmpl` engine, on top of it we added some useful functions 
+such as `setEnv` and `logPrintf`, let's explain a bit. 
 
-**Sometimes you need to store information** during conditions' evaluation that will be useful in later messages shown to the team.
-This will help your mates having meaningful messages that save time during debug.
+**Sometimes you need to store information** during `gotmpl` conditions' evaluation. This is useful to keep and populate 
+some data that were generated in a `gotmpl` condition to another. In that situations, it's possible to use `setEnv`
 
-Because of that, there is a special function available in templates called `setVar`. It can be used as follows:
 
 ```yaml
 apiVersion: admitik.freepik.com/v1alpha1
 kind: ClusterAdmissionPolicy
 spec:
 
-  ...
+  # ...
 
   conditions:
     - name: store-vars-for-later-usage
       key: |
         {{- $someDataForLater := dict "name" "example-name" "namespace" "example-namespace" -}}
 
-
         {{/* Store your data under your desired key. You can use as many keys as needed */}}
         {{- setVar "some_key" $someDataForLater -}}
-
 
         {{- printf "force-condition-not-being-met" -}}
       value: "condition-key-result"
@@ -219,8 +252,67 @@ spec:
 
 > [!TIP]
 > Another useful function that can be used in templates is `logPrintf`. It accepts the same params as printf
-> but throw the result in controller's logs instead of returning it
+> but throw the result in controller's logs instead of returning it 
 
+#### Starlark
+
+Oh, so you prefer Starlark instead of Gotmpl? you are betraying Go's community wanting something different. Anyway,
+we have you covered with wonderful Starlark conditions:
+
+```yaml
+apiVersion: admitik.freepik.com/v1alpha1
+kind: ClusterAdmissionPolicy
+metadata:
+  name: starlark-conditions
+spec:
+
+  # ... 
+  
+  conditions:
+    - name: first-condition
+      engine: starlark
+      key: |
+        # Injected data is located in following global variables:
+        # operation, oldObject, object, sources
+         
+        print(operation)
+      value: "UPDATE"
+      
+      
+    - name: second-condition
+      engine: starlark
+      key: |
+        print(object["kind"])
+      value: "Deployment"
+      
+      
+    - name: third-condition
+      engine: starlark
+      key: |
+         
+        # You can even define functions
+        def findObjectInSources (sources):
+          for subList in sources:
+            for obj in subList:
+              if obj["kind"] == "Deployment" && obj["metadata"]["name"]:
+                print("ObjectFound")
+              else:
+                print("ObjectNotFound")
+
+        findObjectInSources(sources)
+      value: "ObjectFound"
+
+  message:
+    engine: starlark 
+    template: |
+      print("Resource '{}' was rejected as some condition is not met".format(object["metadata"]["name"]))
+```
+
+You can see all you need in these helpful links: 
+* [Syntax and Functions](https://starlark-lang.org/spec.html)
+* [Extra official supported libs](https://github.com/google/starlark-go/tree/master/lib)
+* [Extra unofficial supported libs](https://github.com/freepik-company/admitik/tree/master/internal/template/starlarkmods)
+* [Playground](https://starlark-lang.org/playground.html)
 
 ## How to develop
 

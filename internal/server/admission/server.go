@@ -134,26 +134,17 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 	// Create an object that will be injected in conditions/message
 	// in later Golang's template evaluation stage
 	commonTemplateInjectedObject := map[string]interface{}{}
-	commonTemplateInjectedObject["operation"] = string(requestObj.Request.Operation)
-
-	//
-	requestObject := map[string]interface{}{}
-	err = json.Unmarshal(requestObj.Request.Object.Raw, &requestObject)
+	commonTemplateInjectedObject, err = s.extractAdmissionRequestData(&requestObj)
 	if err != nil {
-		logger.Info(fmt.Sprintf("failed decoding JSON from AdmissionReview field 'request.object': %s", err.Error()))
+		logger.Info(fmt.Sprintf("failed extracting data from AdmissionReview: %s", err.Error()))
 		return
 	}
-	commonTemplateInjectedObject["object"] = requestObject
 
 	//
-	if requestObj.Request.Operation == admissionv1.Update {
-		requestOldObject := map[string]interface{}{}
-		err = json.Unmarshal(requestObj.Request.OldObject.Raw, &requestOldObject)
-		if err != nil {
-			logger.Info(fmt.Sprintf("failed decoding JSON from AdmissionReview field 'request.oldObject': %s", err.Error()))
-			return
-		}
-		commonTemplateInjectedObject["oldObject"] = requestOldObject
+	requestObject, ok := commonTemplateInjectedObject["object"].(map[string]interface{})
+	if !ok {
+		logger.Info("failed converting types for presented resource")
+		return
 	}
 
 	// Loop over ClusterAdmissionPolicies performing actions
@@ -165,52 +156,48 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 		// Automatically add some information to the logs
 		logger = logger.WithValues("ClusterAdmissionPolicy", caPolicyObj.Name)
 
-		//
-		specificTemplateInjectedObject := commonTemplateInjectedObject
-
 		// Retrieve the sources declared per policy
-		for sourceIndex, sourceItem := range caPolicyObj.Spec.Sources {
-
-			sourceObjList := s.getSourcesFromPool(
-				sourceItem.Group,
-				sourceItem.Version,
-				sourceItem.Resource,
-				sourceItem.Namespace,
-				sourceItem.Name)
-
-			// Store obtained sources as a map[int][]map[string]any
-			tmpSources, ok := specificTemplateInjectedObject["sources"].(map[int][]map[string]any)
-			if !ok {
-				tmpSources = make(map[int][]map[string]any)
-			}
-
-			for _, itemObj := range sourceObjList {
-				tmpSources[sourceIndex] = append(tmpSources[sourceIndex], *itemObj)
-			}
-			specificTemplateInjectedObject["sources"] = tmpSources
-		}
+		specificTemplateInjectedObject := commonTemplateInjectedObject
+		specificTemplateInjectedObject["sources"] = s.fetchPolicySources(caPolicyObj)
 
 		// Evaluate template conditions
-		var conditionPassed []bool
+		var conditionsPassedList []bool
 		for _, condition := range caPolicyObj.Spec.Conditions {
-			parsedKey, err := template.EvaluateTemplate(condition.Key, &specificTemplateInjectedObject)
-			if err != nil {
-				logger.Info(fmt.Sprintf("failed evaluating condition '%s': %s", condition.Name, err.Error()))
-				conditionPassed = append(conditionPassed, false)
+
+			var conditionPassed bool
+			var condErr error
+
+			// Choose between gotmpl or starlark
+			if condition.Engine == v1alpha1.ConditionEngineStarlark {
+				conditionPassed, condErr = s.isPassingStarlarkCondition(condition.Key, condition.Value, &specificTemplateInjectedObject)
+			} else {
+				conditionPassed, condErr = s.isPassingGotmplCondition(condition.Key, condition.Value, &specificTemplateInjectedObject)
+			}
+
+			if condErr != nil {
+				logger.Info(fmt.Sprintf("failed evaluating condition '%s': %s", condition.Name, condErr.Error()))
+				conditionsPassedList = append(conditionsPassedList, false)
 				continue
 			}
 
-			conditionPassed = append(conditionPassed, parsedKey == condition.Value)
+			conditionsPassedList = append(conditionsPassedList, conditionPassed)
 		}
 
 		// When some condition is not met, evaluate message's template and emit a response
-		if slices.Contains(conditionPassed, false) {
+		if slices.Contains(conditionsPassedList, false) {
 
-			parsedMessage, err := template.EvaluateTemplate(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
+			var parsedMessage string
+			if caPolicyObj.Spec.Message.Engine == v1alpha1.ConditionEngineStarlark {
+				parsedMessage, err = template.EvaluateTemplateStarlark(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
+			} else {
+				parsedMessage, err = template.EvaluateTemplate(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
+			}
+
 			if err != nil {
 				logger.Info(fmt.Sprintf("failed parsing message template: %s", err.Error()))
 				return
 			}
+
 			reviewResponse.Response.Result.Message = parsedMessage
 
 			// When the policy is in Permissive mode, allow it anyway
@@ -237,13 +224,82 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 	reviewResponse.Response.Result = &metav1.Status{}
 }
 
-// getSourcesFromPool returns a list of unstructured resources selected by params from the sources cache
-func (s *HttpServer) getSourcesFromPool(group, version, resource, namespace, name string) (
-	resourceList []*map[string]any) {
+// extractAdmissionRequestData TODO
+func (s *HttpServer) extractAdmissionRequestData(adReview *admissionv1.AdmissionReview) (results map[string]interface{}, err error) {
 
-	sourceString := fmt.Sprintf("%s/%s/%s/%s/%s", group, version, resource, namespace, name)
+	results = make(map[string]interface{})
 
-	return s.dependencies.SourcesRegistry.GetResources(sourceString)
+	// Store desired operation
+	results["operation"] = string(adReview.Request.Operation)
+
+	// Store the previous object on updates
+	if adReview.Request.Operation == admissionv1.Update {
+		requestOldObject := map[string]interface{}{}
+		err = json.Unmarshal(adReview.Request.OldObject.Raw, &requestOldObject)
+		if err != nil {
+			return results, fmt.Errorf("failed decoding JSON field 'request.oldObject': %s", err.Error())
+		}
+		results["oldObject"] = requestOldObject
+	}
+
+	// Store the object that is being touched
+	requestObject := map[string]interface{}{}
+	err = json.Unmarshal(adReview.Request.Object.Raw, &requestObject)
+	if err != nil {
+		return results, fmt.Errorf("failed decoding JSON field 'request.object': %s", err.Error())
+	}
+	results["object"] = requestObject
+
+	return results, nil
+}
+
+// getObjectSources TODO
+func (s *HttpServer) fetchPolicySources(caPolicyObj *v1alpha1.ClusterAdmissionPolicy) (results map[int][]map[string]any) {
+
+	results = make(map[int][]map[string]any)
+
+	for sourceIndex, sourceItem := range caPolicyObj.Spec.Sources {
+
+		sourceString := fmt.Sprintf("%s/%s/%s/%s/%s",
+			sourceItem.Group,
+			sourceItem.Version,
+			sourceItem.Resource,
+			sourceItem.Namespace,
+			sourceItem.Name)
+
+		sourceObjList := s.dependencies.SourcesRegistry.GetResources(sourceString)
+
+		// Store obtained sources in the results map
+		for _, itemObj := range sourceObjList {
+			results[sourceIndex] = append(results[sourceIndex], *itemObj)
+		}
+	}
+
+	return results
+}
+
+// isPassingStarlarkCondition returns equality between the result given by the 'key' Starlak template and the 'value'
+// For template evaluation, it injects extra information available to the user
+func (s *HttpServer) isPassingStarlarkCondition(key, value string, injectedValues *map[string]interface{}) (result bool, err error) {
+
+	parsedKey, err := template.EvaluateTemplateStarlark(key, injectedValues)
+	if err != nil {
+		return false, err
+	}
+
+	return parsedKey == value, nil
+}
+
+// isPassingGotmplCondition returns equality between the result given by the 'key' Gotmpl template and the 'value'
+// For template evaluation, it injects extra information available to the user
+func (s *HttpServer) isPassingGotmplCondition(key, value string, injectedValues *map[string]interface{}) (bool, error) {
+
+	parsedKey, err := template.EvaluateTemplate(key, injectedValues)
+	if err != nil {
+		return false, err
+	}
+
+	return parsedKey == value, nil
 }
 
 // createKubeEvent creates a modern event in Kuvernetes with data given by params
