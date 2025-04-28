@@ -162,7 +162,9 @@ or `engine: starlark` is the only thing you need.
 > * `operation`: The operation that is being performed: create, update, etc
 > * `object`: The object trying to enter to Kubernetes
 > * `oldObject`: The previous existing object for those that are being updated
-> * `sources`: The sources reclaimed by you in policy's `spec.sources` field. This field is a list of lists of objects 😵‍💫
+> * `sources`: The sources reclaimed by you in policy's `spec.sources` field. 
+>   - For Gophers, this field is a `map[int][]any` 
+>   - For Starlarkers this fields is a `dict(list(object))` 😵‍💫
 > 
 > For each template engine will be injected in their native way
 
@@ -292,7 +294,8 @@ spec:
          
         # You can even define functions
         def findObjectInSources (sources):
-          for subList in sources:
+          for key in sources:
+            subList = sources[key]
             for obj in subList:
               if obj["kind"] == "Deployment" && obj["metadata"]["name"]:
                 print("ObjectFound")
