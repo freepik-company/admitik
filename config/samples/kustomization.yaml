@@ -1,5 +1,10 @@
 ## Append samples of your project ##
 resources:
-- admitik_v1alpha1_clusteradmissionpolicy.yaml
-- admitik_v1alpha1_clusteradmissionpolicy_other.yaml
+# Gotmpl examples
+- clusteradmissionpolicy_gotmpl_existing_labels.yaml
+- clusteradmissionpolicy_gotmpl_routes.yaml
+
+# Starlark xamples
+- clusteradmissionpolicy_starlark_existing_labels.yaml
+
 # +kubebuilder:scaffold:manifestskustomizesamples
