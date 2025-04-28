@@ -96,13 +96,13 @@ sources = json.decode(__rawSources)
 	// Printed stuff will be captured as the result
 	var starlarkPrints []string
 	thread := &starlark.Thread{
-		Name: "condition",
+		Name: "template",
 		Print: func(_ *starlark.Thread, msg string) {
 			starlarkPrints = append(starlarkPrints, msg)
 		},
 	}
 
-	_, err = starlark.ExecFileOptions(&starlarksyntax.FileOptions{}, thread, "condition.star", template, predeclared)
+	_, err = starlark.ExecFileOptions(&starlarksyntax.FileOptions{}, thread, "template.star", template, predeclared)
 	if err != nil {
 		var evalErr *starlark.EvalError
 
