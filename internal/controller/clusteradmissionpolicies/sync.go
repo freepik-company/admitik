@@ -89,15 +89,14 @@ func (r *ClusterAdmissionPolicyReconciler) ReconcileClusterAdmissionPolicy(ctx c
 		}
 		desiredWatchedTypes = append(desiredWatchedTypes, watchedType)
 
-		// Delete events
+		// Handle deletion requests
 		if eventType == watch.Deleted {
 			logger.Info(resourceDeletionMessage, "watcher", watchedType)
 
 			r.Dependencies.ClusterAdmissionPoliciesRegistry.RemoveResource(watchedType, resourceManifest)
-			return nil
 		}
 
-		// Create/Update events
+		// Handle creation/update requests
 		if eventType == watch.Modified {
 			logger.Info(resourceUpdatedMessage, "watcher", watchedType)
 
@@ -106,7 +105,8 @@ func (r *ClusterAdmissionPolicyReconciler) ReconcileClusterAdmissionPolicy(ctx c
 		}
 	}
 
-	// Clean non-desired watched types
+	// Clean non-desired watched types. This is needed for updates where the user
+	// reduces the amount of watched operations on watched resources
 	for _, registeredResourceType := range r.Dependencies.ClusterAdmissionPoliciesRegistry.GetRegisteredResourceTypes() {
 		if !slices.Contains(desiredWatchedTypes, registeredResourceType) {
 			r.Dependencies.ClusterAdmissionPoliciesRegistry.RemoveResource(registeredResourceType, resourceManifest)

@@ -51,6 +51,9 @@ const (
 	secondsToReconcileInformersAgain = 2 * time.Second
 
 	//
+	controllerName = "sources"
+
+	//
 	controllerContextFinishedMessage = "SourcesController finished by context"
 	controllerInformerStartedMessage = "Informer for '%s' has been started"
 	controllerInformerKilledMessage  = "Informer for resource type '%s' killed by StopSignal"
@@ -89,6 +92,8 @@ type SourcesController struct {
 // This function is intended to be used as goroutine
 func (r *SourcesController) informersCleanerWorker() {
 	logger := log.FromContext(*r.Dependencies.Context)
+	logger = logger.WithValues("controller", controllerName)
+
 	logger.Info("Starting informers cleaner worker")
 
 	for {
@@ -114,6 +119,7 @@ func (r *SourcesController) informersCleanerWorker() {
 // It kills the controller on application's context death, and rerun the process when failed
 func (r *SourcesController) Start() {
 	logger := log.FromContext(*r.Dependencies.Context)
+	logger = logger.WithValues("controller", controllerName)
 
 	// Start cleaner for dead informers
 	go r.informersCleanerWorker()
@@ -135,6 +141,7 @@ func (r *SourcesController) Start() {
 // for those that are not already started.
 func (r *SourcesController) reconcileInformers() {
 	logger := log.FromContext(*r.Dependencies.Context)
+	logger = logger.WithValues("controller", controllerName)
 
 	for _, resourceType := range r.Dependencies.ClusterAdmissionPoliciesRegistry.GetRegisteredSourcesTypes() {
 
@@ -162,6 +169,7 @@ func (r *SourcesController) reconcileInformers() {
 // resource type, and triggers processing for each event
 func (r *SourcesController) launchInformerForType(resourceType sourcesRegistry.ResourceTypeName) {
 	logger := log.FromContext(*r.Dependencies.Context)
+	logger = logger.WithValues("controller", controllerName)
 
 	informer, informerExists := r.Dependencies.SourcesRegistry.GetInformer(resourceType)
 	if !informerExists {

@@ -143,6 +143,5 @@ func (r *ClusterAdmissionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) er
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.ClusterAdmissionPolicy{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
-		Named("clusteradmissionpolicy"). // TODO: Needed?
 		Complete(r)
 }
