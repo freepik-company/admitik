@@ -18,10 +18,9 @@ package log
 
 import (
 	"fmt"
-	"os"
-
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
+	"log"
 )
 
 // Module log is a Starlark module with simple logging functions.
@@ -63,7 +62,7 @@ func printf(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, k
 		goArgs[i] = starlarkValueToString(arg)
 	}
 
-	fmt.Fprintf(os.Stdout, format, goArgs...)
+	log.Printf(format, goArgs...)
 	return starlark.None, nil
 }
 
