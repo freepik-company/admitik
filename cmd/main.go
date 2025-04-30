@@ -19,6 +19,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"k8s.io/client-go/rest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -90,6 +91,9 @@ func main() {
 	var webhooksServerAutogenerateCerts bool
 	var webhooksServerCertsSecretName string
 
+	var kubeClientQps float64
+	var kubeClientBurst int
+
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metric endpoint binds to. "+
 		"Use the port :8080. If not set, it will be 0 in order to disable the metrics server")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -127,6 +131,11 @@ func main() {
 		"Enable autogeneration of certificates for webhooks server")
 	flag.StringVar(&webhooksServerCertsSecretName, "webhook-server-certs-secret-name", "",
 		"Kubernetes Secret object name to get certificates from. Keys are: ca.crt, tls.crt, tls.key")
+
+	flag.Float64Var(&kubeClientQps, "kube-client-qps", 5.0,
+		"The QPS rate of communication between controller and the API Server")
+	flag.IntVar(&kubeClientBurst, "kube-client-burst", 10,
+		"The burst capacity of communication between the controller and the API Server")
 
 	opts := zap.Options{
 		Development: true,
@@ -190,7 +199,10 @@ func main() {
 
 	// Create and store raw Kubernetes clients from client-go
 	// They are used by non kubebuilder processess and controllers
-	globals.Application.KubeRawClient, globals.Application.KubeRawCoreClient, err = globals.NewKubernetesClient()
+	globals.Application.KubeRawClient, globals.Application.KubeRawCoreClient, err = globals.NewKubernetesClient(&rest.Config{
+		QPS:   float32(kubeClientQps),
+		Burst: kubeClientBurst,
+	})
 	if err != nil {
 		setupLog.Error(err, "unable to set up kubernetes clients")
 		os.Exit(1)

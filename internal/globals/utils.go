@@ -30,11 +30,14 @@ import (
 )
 
 // NewKubernetesClient return a new Kubernetes Dynamic client from client-go SDK
-func NewKubernetesClient() (client *dynamic.DynamicClient, coreClient *kubernetes.Clientset, err error) {
+func NewKubernetesClient(options *rest.Config) (client *dynamic.DynamicClient, coreClient *kubernetes.Clientset, err error) {
 	config, err := ctrl.GetConfig()
 	if err != nil {
 		return client, coreClient, err
 	}
+
+	config.QPS = options.QPS
+	config.Burst = options.Burst
 
 	// Create the clients to do requests to our friend: Kubernetes
 	// Dynamic client

@@ -5,6 +5,7 @@ go 1.22.0
 toolchain go1.22.4
 
 require (
+	github.com/1set/starlet v0.1.3
 	github.com/BurntSushi/toml v1.4.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/onsi/ginkgo/v2 v2.19.0
@@ -20,6 +21,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.1 // indirect
+	github.com/1set/starlight v0.1.2 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -43,6 +45,7 @@ require (
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20240525223248-4bfdf5a9a2af // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/h2so5/here v0.0.0-20200815043652-5e14eb691fae // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/josharian/intern v1.0.0 // indirect

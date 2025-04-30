@@ -17,40 +17,56 @@ limitations under the License.
 package template
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	admissionv1 "k8s.io/api/admission/v1"
+	"runtime"
+	"runtime/debug"
 	"strings"
+
+	//
+	admissionv1 "k8s.io/api/admission/v1"
+	//
+	starletconv "github.com/1set/starlet/dataconv"
+	"go.starlark.net/starlark"
+	starlarksyntax "go.starlark.net/syntax"
 
 	//
 	starlarklog "freepik.com/admitik/internal/template/starlarkmods/log"
 	starlarkjson "go.starlark.net/lib/json"
 	starlarkmath "go.starlark.net/lib/math"
 	starlarktime "go.starlark.net/lib/time"
-	"go.starlark.net/starlark"
-	starlarksyntax "go.starlark.net/syntax"
 )
 
+//var varsConverted starlark.Value = starlark.StringDict{}
+
 func EvaluateTemplateStarlark(template string, injectedValues *map[string]interface{}) (result string, err error) {
+
+	// As Starlark interpreter is super resource intensive in some injection-related scenarios
+	// a garbage collection is triggered to free memory as fast as possible after evaluation
+	defer func() {
+		runtime.GC()
+		debug.FreeOSMemory()
+	}()
 
 	// Following code is injected before user's declared code.
 	// It's used to perform convenient actions such as conversions
 	template = `
 # -- Perform some actions in the beginning
+
 # Ref [Specifications]: https://starlark-lang.org/spec.html
 # Ref [Playground]: https://starlark-lang.org/playground.html
 # Ref [Extra Libs]: https://github.com/google/starlark-go/tree/master/lib
 
-def safe_decode(raw):
-    if len(raw) == 0:
-        return None
-    return json.decode(raw)
+# def safe_decode(raw):
+#     if len(raw) == 0:
+#         return None
+#     return json.decode(raw)
 
 operation = __rawOperation
-oldObject = safe_decode(__rawOldObject)
-object = json.decode(__rawObject)
-sources = json.decode(__rawSources)
+oldObject = __rawOldObject
+object = __rawObject
+sources = __rawSources
+vars = __rawVars
 
 # -- End of previous actions
 ` + template
@@ -58,27 +74,39 @@ sources = json.decode(__rawSources)
 	//
 	operation := (*injectedValues)["operation"].(string)
 
-	var oldObjectJsonBytes []byte
+	var oldObjectStarlark starlark.Value = new(starlark.Dict)
 	if admissionv1.Operation(operation) == admissionv1.Update {
-		oldObjectJsonBytes, err = json.Marshal((*injectedValues)["oldObject"])
+		oldObjectStarlark, err = starletconv.GoToStarlarkViaJSON((*injectedValues)["oldObject"])
 		if err != nil {
-			return result, fmt.Errorf("error converting old object to JSON: %v", err)
+			return result, fmt.Errorf("error converting 'oldObject' into Starlak: %v", err)
 		}
 	}
 
-	objectJsonBytes, err := json.Marshal((*injectedValues)["object"])
+	objectStarlark, err := starletconv.GoToStarlarkViaJSON((*injectedValues)["object"])
 	if err != nil {
-		return result, fmt.Errorf("error converting object to JSON: %v", err)
+		return result, fmt.Errorf("error converting 'object' into Starlark: %v", err)
 	}
 
-	sourcesJsonBytes, err := json.Marshal((*injectedValues)["sources"])
+	sourcesStarlark, err := starletconv.GoToStarlarkViaJSON((*injectedValues)["sources"])
 	if err != nil {
-		return result, fmt.Errorf("error converting sources to JSON: %v", err)
+		return result, fmt.Errorf("error converting 'sources' into Starlark: %v", err)
+	}
+
+	// Convert user-defined vars into Starlark types
+	var convErr error
+	var varsStarlark starlark.Value = new(starlark.Dict)
+	if _, varsPresent := (*injectedValues)["vars"]; varsPresent {
+		varsStarlark, convErr = starletconv.Marshal((*injectedValues)["vars"])
+		if convErr != nil {
+			return result, fmt.Errorf("failed converting injected 'vars' into Starlak: %v", convErr.Error())
+		}
 	}
 
 	// This dictionary defines the pre-declared environment.
 	predeclared := starlark.StringDict{
 		// TODO: Implement modules for YAML, TOML, Logging, etc
+		// Another potential approach is to load them using Starlet instead
+
 		// Injected functions
 		"math": starlarkmath.Module,
 		"json": starlarkjson.Module,
@@ -87,9 +115,10 @@ sources = json.decode(__rawSources)
 
 		// Injected data
 		"__rawOperation": starlark.String(operation),
-		"__rawOldObject": starlark.String(oldObjectJsonBytes),
-		"__rawObject":    starlark.String(objectJsonBytes),
-		"__rawSources":   starlark.String(sourcesJsonBytes),
+		"__rawOldObject": oldObjectStarlark,
+		"__rawObject":    objectStarlark,
+		"__rawSources":   sourcesStarlark,
+		"__rawVars":      varsStarlark,
 	}
 
 	// Execute Starlark program in a file.
@@ -102,7 +131,7 @@ sources = json.decode(__rawSources)
 		},
 	}
 
-	_, err = starlark.ExecFileOptions(&starlarksyntax.FileOptions{}, thread, "template.star", template, predeclared)
+	executionGlobals, err := starlark.ExecFileOptions(&starlarksyntax.FileOptions{}, thread, "template.star", template, predeclared)
 	if err != nil {
 		var evalErr *starlark.EvalError
 
@@ -112,10 +141,16 @@ sources = json.decode(__rawSources)
 		return result, fmt.Errorf("failed executing starlark code: %v", err.Error())
 	}
 
-	// TODO: Future feature: Populate user-specified vars through executions in a safe way
-	//if executionGlobals.Has("vars") {
-	//	_ = executionGlobals["vars"]
-	//}
+	// Convert Starlark's global 'vars' back to Go types when present to store it in injectedValues
+	if executionGlobals.Has("vars") {
+
+		var varsConvertedBack interface{}
+		varsConvertedBack, convErr = starletconv.Unmarshal(executionGlobals["vars"])
+		if convErr != nil {
+			return result, fmt.Errorf("failed converting Starlark 'vars' global into Golang types: %v", convErr.Error())
+		}
+		(*injectedValues)["vars"] = varsConvertedBack
+	}
 
 	executionOutput := strings.Join(starlarkPrints, "")
 	return executionOutput, nil
