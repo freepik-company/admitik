@@ -80,6 +80,8 @@ They are described in the following table:
 | `--webhook-server-ca`                  | The CA bundle to use for the webhooks server                                   |          `-`           |
 | `--webhook-server-certificate`         | The Certificate used by webhooks server                                        |          `-`           |
 | `--webhook-server-private-key`         | The Private Key used by webhooks server                                        |          `-`           |
+| `--kube-client-qps`                    | The QPS rate of communication between controller and the API Server            |          `5`           |
+| `--kube-client-burst`                  | The burst capacity of communication between the controller and the API Server  |          `10`          |
 
 
 ## Examples
