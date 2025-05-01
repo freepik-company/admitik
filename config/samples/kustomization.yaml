@@ -1,16 +1,17 @@
-
 labels:
   - pairs:
       app.kubernetes.io/name: admitik
       app.kubernetes.io/managed-by: kustomize
 
 resources:
+
+# +kubebuilder:scaffold:manifestskustomizesamples
+
 # Gotmpl examples
 - clusteradmissionpolicy_gotmpl_existing_labels.yaml
-- clusteradmissionpolicy_gotmpl_routes.yaml
+- clusteradmissionpolicy_gotmpl_avoid_colliding_routes.yaml
 
 # Starlark xamples
 - clusteradmissionpolicy_starlark_existing_labels.yaml
+- clusteradmissionpolicy_starlark_avoid_colliding_routes.yaml
 - clusteradmissionpolicy_starlark_populate_vars.yaml
-
-# +kubebuilder:scaffold:manifestskustomizesamples

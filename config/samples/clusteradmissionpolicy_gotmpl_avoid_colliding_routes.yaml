@@ -3,7 +3,6 @@ kind: ClusterAdmissionPolicy
 metadata:
   name: gotmpl-avoid-colliding-routes
 spec:
-
   failureAction: Permissive
 
   # Resources to be watched
