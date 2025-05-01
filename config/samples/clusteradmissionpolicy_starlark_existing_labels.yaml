@@ -1,9 +1,6 @@
 apiVersion: admitik.freepik.com/v1alpha1
 kind: ClusterAdmissionPolicy
 metadata:
-  labels:
-    app.kubernetes.io/name: admitik
-    app.kubernetes.io/managed-by: kustomize
   name: starlark-confirm-existing-namespace-labels
 spec:
 

@@ -1,4 +1,9 @@
-## Append samples of your project ##
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: admitik
+      app.kubernetes.io/managed-by: kustomize
+
 resources:
 # Gotmpl examples
 - clusteradmissionpolicy_gotmpl_existing_labels.yaml
@@ -6,5 +11,6 @@ resources:
 
 # Starlark xamples
 - clusteradmissionpolicy_starlark_existing_labels.yaml
+- clusteradmissionpolicy_starlark_populate_vars.yaml
 
 # +kubebuilder:scaffold:manifestskustomizesamples
