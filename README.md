@@ -319,7 +319,7 @@ It's even possible to transmit information between your conditions and message u
 apiVersion: admitik.freepik.com/v1alpha1
 kind: ClusterAdmissionPolicy
 metadata:
-  name: starlark-conditions
+  name: starlark-populate-vars
 spec:
 
   # ... 
@@ -331,23 +331,27 @@ spec:
         vars.update({"your-key": "your-value"})
         vars.update({"your-other-key": ["what", "ever", "you", "need"]})
          
-        print(operation)
-      value: "UPDATE"
+        print("pass")
+      value: "pass"
       
     - name: second-condition
       engine: starlark
       key: |
+         # 'vars' have all the things stored by the user, even through the template engines when possible
+         # Let's show all of them in logs
+         log.printf("Available variables: {}".format( vars ))
+
          # vars["your-key"] has 'your-value' inside
-         # Let's show all of them by logs
-         log.printf("Available variables: {}".format(vars))
+         # Let's show it in logs
+         log.printf("Specific variable: {}".format( vars["your-key"] ))
          
-         print(vars["your-key"])
-      value: "your-value"
+         print("pass")
+      value: "pass"
 
   message:
     engine: starlark 
     template: |
-      print("Resource '{}' was rejected as some condition is not met".format(object["metadata"]["name"]))
+       print("Resource '{}' is bypassing all conditions".format( object["metadata"]["name"] ))
 ```
 
 You can see all you need in these helpful links: 
