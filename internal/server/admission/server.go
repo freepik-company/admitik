@@ -153,6 +153,9 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 
 	for _, caPolicyObj := range caPolicyList {
 
+		// Assume rejection for each policy individually
+		reviewResponse.Response.Allowed = false
+
 		// Automatically add some information to the logs
 		logger = logger.WithValues("ClusterAdmissionPolicy", caPolicyObj.Name)
 
@@ -185,7 +188,6 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 
 		// When some condition is not met, evaluate message's template and emit a response
 		if slices.Contains(conditionsPassedList, false) {
-
 			var parsedMessage string
 			if caPolicyObj.Spec.Message.Engine == v1alpha1.ConditionEngineStarlark {
 				parsedMessage, err = template.EvaluateTemplateStarlark(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
@@ -216,7 +218,11 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 			if err != nil {
 				logger.Info(fmt.Sprintf("failed creating kubernetes event: %s", err.Error()))
 			}
-			return
+
+			// On conditions not being met, first required policy causes early full rejection
+			if caPolicyObj.Spec.FailureAction == v1alpha1.FailureActionEnforce {
+				return
+			}
 		}
 	}
 
