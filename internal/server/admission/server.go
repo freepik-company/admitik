@@ -195,7 +195,7 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 
 			if err != nil {
 				logger.Info(fmt.Sprintf("failed parsing message template: %s", err.Error()))
-				return
+				parsedMessage = "Reason unavailable: message template failed. More info in controller logs."
 			}
 
 			reviewResponse.Response.Result.Message = parsedMessage
