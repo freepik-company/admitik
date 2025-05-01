@@ -25,6 +25,7 @@ import (
 
 	//
 	admissionv1 "k8s.io/api/admission/v1"
+
 	//
 	starletconv "github.com/1set/starlet/dataconv"
 	"go.starlark.net/starlark"
@@ -36,8 +37,6 @@ import (
 	starlarkmath "go.starlark.net/lib/math"
 	starlarktime "go.starlark.net/lib/time"
 )
-
-//var varsConverted starlark.Value = starlark.StringDict{}
 
 func EvaluateTemplateStarlark(template string, injectedValues *map[string]interface{}) (result string, err error) {
 
@@ -57,11 +56,6 @@ func EvaluateTemplateStarlark(template string, injectedValues *map[string]interf
 # Ref [Playground]: https://starlark-lang.org/playground.html
 # Ref [Extra Libs]: https://github.com/google/starlark-go/tree/master/lib
 
-# def safe_decode(raw):
-#     if len(raw) == 0:
-#         return None
-#     return json.decode(raw)
-
 operation = __rawOperation
 oldObject = __rawOldObject
 object = __rawObject
@@ -73,32 +67,38 @@ vars = __rawVars
 
 	//
 	operation := (*injectedValues)["operation"].(string)
+	operationStarlark := starlark.String(operation)
+	operationStarlark.Freeze()
 
-	var oldObjectStarlark starlark.Value = new(starlark.Dict)
+	//var oldObjectStarlark starlark.Value = starlark.None
+	var oldObjectStarlark starlark.Value = starlark.NewDict(0)
 	if admissionv1.Operation(operation) == admissionv1.Update {
 		oldObjectStarlark, err = starletconv.GoToStarlarkViaJSON((*injectedValues)["oldObject"])
 		if err != nil {
-			return result, fmt.Errorf("error converting 'oldObject' into Starlak: %v", err)
+			return result, fmt.Errorf("error converting 'oldObject' into Starlark: %v", err)
 		}
+		oldObjectStarlark.Freeze()
 	}
 
 	objectStarlark, err := starletconv.GoToStarlarkViaJSON((*injectedValues)["object"])
 	if err != nil {
 		return result, fmt.Errorf("error converting 'object' into Starlark: %v", err)
 	}
+	objectStarlark.Freeze()
 
 	sourcesStarlark, err := starletconv.GoToStarlarkViaJSON((*injectedValues)["sources"])
 	if err != nil {
 		return result, fmt.Errorf("error converting 'sources' into Starlark: %v", err)
 	}
+	sourcesStarlark.Freeze()
 
 	// Convert user-defined vars into Starlark types
 	var convErr error
-	var varsStarlark starlark.Value = new(starlark.Dict)
+	var varsStarlark starlark.Value = starlark.NewDict(0)
 	if _, varsPresent := (*injectedValues)["vars"]; varsPresent {
 		varsStarlark, convErr = starletconv.Marshal((*injectedValues)["vars"])
 		if convErr != nil {
-			return result, fmt.Errorf("failed converting injected 'vars' into Starlak: %v", convErr.Error())
+			return result, fmt.Errorf("failed converting injected 'vars' into Starlark: %v", convErr.Error())
 		}
 	}
 
@@ -114,10 +114,10 @@ vars = __rawVars
 		"log":  starlarklog.Module,
 
 		// Injected data
-		"__rawOperation": starlark.String(operation),
-		"__rawOldObject": oldObjectStarlark,
-		"__rawObject":    objectStarlark,
-		"__rawSources":   sourcesStarlark,
+		"__rawOperation": operationStarlark, // Frozen
+		"__rawOldObject": oldObjectStarlark, // Frozen
+		"__rawObject":    objectStarlark,    // Frozen
+		"__rawSources":   sourcesStarlark,   // Frozen
 		"__rawVars":      varsStarlark,
 	}
 
