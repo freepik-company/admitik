@@ -277,7 +277,7 @@ spec:
       engine: starlark
       key: |
         # Injected data is located in following global variables:
-        # operation, oldObject, object, sources
+        # operation, oldObject, object, sources, vars
          
         print(operation)
       value: "UPDATE"
@@ -306,6 +306,43 @@ spec:
 
         findObjectInSources(sources)
       value: "ObjectFound"
+
+  message:
+    engine: starlark 
+    template: |
+      print("Resource '{}' was rejected as some condition is not met".format(object["metadata"]["name"]))
+```
+
+It's even possible to transmit information between your conditions and message using `vars` global variable:
+
+```yaml
+apiVersion: admitik.freepik.com/v1alpha1
+kind: ClusterAdmissionPolicy
+metadata:
+  name: starlark-conditions
+spec:
+
+  # ... 
+  
+  conditions:
+    - name: first-condition
+      engine: starlark
+      key: |        
+        vars.update({"your-key": "your-value"})
+        vars.update({"your-other-key": ["what", "ever", "you", "need"]})
+         
+        print(operation)
+      value: "UPDATE"
+      
+    - name: second-condition
+      engine: starlark
+      key: |
+         # vars["your-key"] has 'your-value' inside
+         # Let's show all of them by logs
+         log.printf("Available variables: {}".format(vars))
+         
+         print(vars["your-key"])
+      value: "your-value"
 
   message:
     engine: starlark 
