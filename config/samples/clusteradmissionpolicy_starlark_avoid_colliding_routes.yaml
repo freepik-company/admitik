@@ -3,7 +3,7 @@
 apiVersion: admitik.freepik.com/v1alpha1
 kind: ClusterAdmissionPolicy
 metadata:
-  name: deny-duplicated-routes-starlark
+  name: starlark-avoid-colliding-routes
 spec:
   failureAction: Permissive
 
