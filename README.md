@@ -89,7 +89,7 @@ After deploying this operator, you will have new resources available. Let's talk
 > [!IMPORTANT]
 > We are already creating a documentation page to explain all the features better
 
-> > [!TIP]
+> [!TIP]
 > You can find examples for all the features of the resource in the [examples directory](./config/samples)
 
 ### How to create kubernetes dynamic admission policies
@@ -141,7 +141,7 @@ spec:
 
    message:
       template: |
-         {{- printf "Reason behind rejection of the resource. This will be shown to the user" -}}
+         # YOUR TEMPLATE HERE
 ```
 
 The mission is to create conditions whose templates, under _key_ field, output something. For each condition, 
@@ -166,9 +166,12 @@ or `engine: starlark` is the only thing you need.
 >   - For Gophers, this field is a `map[int][]any` 
 >   - For Starlarkers this fields is a `dict(list(object))` 😵‍💫
 > 
+> * `vars`: A place where to store data to be passed into the next template.
+>   - This is writable by you
+> 
 > For each template engine will be injected in their native way
 
-#### Gotmpl
+#### Gotmpl 🦫
 
 Gotmpl engine is Golang template with vitamins: basically, Golang template with several super useful functions added. 
 This kind of template is better known as Helm template, so **all the functions available in Helm are available here too.**
@@ -256,7 +259,11 @@ spec:
 > Another useful function that can be used in templates is `logPrintf`. It accepts the same params as printf
 > but throw the result in controller's logs instead of returning it 
 
-#### Starlark
+#### Starlark ✨
+
+> [!IMPORTANT]
+> Starlark performance is lower. It is an interpreted language that doesn't support pointers internally.
+> This can affect you for policies with a huge amount of sources in `spec.sources`. For those use cases, use `gotmpl`
 
 Oh, so you prefer Starlark instead of Gotmpl? you are betraying Go's community wanting something different. Anyway,
 we have you covered with wonderful Starlark conditions:
