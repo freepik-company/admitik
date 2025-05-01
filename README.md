@@ -70,8 +70,6 @@ They are described in the following table:
 | `--metrics-secure`                     | If set the metrics endpoint is served securely                                 |        `false`         |
 | `--enable-http2`                       | If set, HTTP/2 will be enabled for the metrirs                                 |        `false`         |
 | `--sources-time-to-resync-informers`   | Interval to resynchronize all resources in the informers                       |         `60s`          |
-| `--sources-time-to-reconcile-watchers` | Time between each reconciliation loop of the watchers                          |         `10s`          |
-| `--sources-time-to-ack-watcher`        | Wait time before marking a watcher as acknowledged (ACK) after it starts       |          `2s`          |
 | `--webhook-client-hostname`            | The hostname used by Kubernetes when calling the webhooks server               | `webhooks.admitik.svc` |
 | `--webhook-client-port`                | The port used by Kubernetes when calling the webhooks server                   |        `10250`         |
 | `--webhook-client-timeout`             | The seconds until timout waited by Kubernetes when calling the webhooks server |          `10`          |
