@@ -3,6 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/admitik.freepik.com_clusteradmissionpolicies.yaml
+- bases/admitik.freepik.com_clustermutationpolicies.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

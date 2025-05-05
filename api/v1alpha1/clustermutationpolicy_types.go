@@ -20,18 +20,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	FailureActionPermissive string = "Permissive"
-	FailureActionEnforce    string = "Enforce"
-)
-
-type MessageT struct {
-	Engine   string `json:"engine,omitempty"`
-	Template string `json:"template"`
-}
-
-// ClusterAdmissionPolicySpec defines the desired state of ClusterAdmissionPolicy
-type ClusterAdmissionPolicySpec struct {
+// ClusterMutationPolicySpec defines the desired state of ClusterMutationPolicy
+type ClusterMutationPolicySpec struct {
 	FailureAction string `json:"failureAction,omitempty"`
 
 	//
@@ -43,34 +33,34 @@ type ClusterAdmissionPolicySpec struct {
 	Message    MessageT     `json:"message"`
 }
 
-// ClusterAdmissionPolicyStatus defines the observed state of ClusterAdmissionPolicy
-type ClusterAdmissionPolicyStatus struct {
+// ClusterMutationPolicyStatus defines the observed state of ClusterMutationPolicy
+type ClusterMutationPolicyStatus struct {
 	// Conditions represent the latest available observations of an object's state
 	Conditions []metav1.Condition `json:"conditions"`
 }
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=clusteradmissionpolicies,scope=Cluster
+// +kubebuilder:resource:path=clustermutationpolicies,scope=Cluster
 // +kubebuilder:subresource:status
 
-// ClusterAdmissionPolicy is the Schema for the clusteradmissionpolicies API
-type ClusterAdmissionPolicy struct {
+// ClusterMutationPolicy is the Schema for the clustermutationpolicies API
+type ClusterMutationPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ClusterAdmissionPolicySpec   `json:"spec,omitempty"`
-	Status ClusterAdmissionPolicyStatus `json:"status,omitempty"`
+	Spec   ClusterMutationPolicySpec   `json:"spec,omitempty"`
+	Status ClusterMutationPolicyStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// ClusterAdmissionPolicyList contains a list of ClusterAdmissionPolicy
-type ClusterAdmissionPolicyList struct {
+// ClusterMutationPolicyList contains a list of ClusterMutationPolicy
+type ClusterMutationPolicyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterAdmissionPolicy `json:"items"`
+	Items           []ClusterMutationPolicy `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ClusterAdmissionPolicy{}, &ClusterAdmissionPolicyList{})
+	SchemeBuilder.Register(&ClusterMutationPolicy{}, &ClusterMutationPolicyList{})
 }

@@ -7,11 +7,19 @@ resources:
 
 # +kubebuilder:scaffold:manifestskustomizesamples
 
-# Gotmpl examples
-- clusteradmissionpolicy_gotmpl_existing_labels.yaml
-- clusteradmissionpolicy_gotmpl_avoid_colliding_routes.yaml
+#####################################
+## ClusterAdmissionPolicy
+#####################################
 
-# Starlark xamples
-- clusteradmissionpolicy_starlark_existing_labels.yaml
-- clusteradmissionpolicy_starlark_avoid_colliding_routes.yaml
-- clusteradmissionpolicy_starlark_populate_vars.yaml
+# Gotmpl examples
+- clusteradmissionpolicies/clusteradmissionpolicy_gotmpl_existing_labels.yaml
+- clusteradmissionpolicies/clusteradmissionpolicy_gotmpl_avoid_colliding_routes.yaml
+
+# Starlark examples
+- clusteradmissionpolicies/clusteradmissionpolicy_starlark_existing_labels.yaml
+- clusteradmissionpolicies/clusteradmissionpolicy_starlark_avoid_colliding_routes.yaml
+- clusteradmissionpolicies/clusteradmissionpolicy_starlark_populate_vars.yaml
+
+#####################################
+## ClusterMutationPolicy
+#####################################

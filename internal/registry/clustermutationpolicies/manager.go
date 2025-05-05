@@ -1,0 +1,120 @@
+/*
+Copyright 2024.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package clustermutationpolicies
+
+import (
+	"freepik.com/admitik/api/v1alpha1"
+	"golang.org/x/exp/maps"
+	"reflect"
+	"slices"
+	"strings"
+)
+
+func NewClusterMutationPoliciesRegistry() *ClusterMutationPoliciesRegistry {
+	return &ClusterMutationPoliciesRegistry{
+		registry: make(map[ResourceTypeName][]*v1alpha1.ClusterMutationPolicy),
+	}
+}
+
+// AddResource add a ClusterAdmissionPolicy of provided type into registry
+func (m *ClusterMutationPoliciesRegistry) AddResource(rt ResourceTypeName, clusterMutationPolicy *v1alpha1.ClusterMutationPolicy) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.registry[rt] = append(m.registry[rt], clusterMutationPolicy)
+}
+
+// RemoveResource delete a RemoveClusterAdmissionPolicy of provided type
+func (m *ClusterMutationPoliciesRegistry) RemoveResource(rt ResourceTypeName, clusterMutationPolicy *v1alpha1.ClusterMutationPolicy) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	clusterMutationPolicies := m.registry[rt]
+	index := -1
+	for itemIndex, itemObject := range clusterMutationPolicies {
+		if itemObject.Name == clusterMutationPolicy.Name {
+			index = itemIndex
+			break
+		}
+	}
+	if index != -1 {
+		m.registry[rt] = append(clusterMutationPolicies[:index], clusterMutationPolicies[index+1:]...)
+	}
+
+	// Delete index from registry when no more ClusterAdmissionPolicy resource is needing it
+	if len(m.registry[rt]) == 0 {
+		delete(m.registry, rt)
+	}
+}
+
+// GetResources return all the ClusterAdmissionPolicy objects of provided type
+func (m *ClusterMutationPoliciesRegistry) GetResources(rt ResourceTypeName) []*v1alpha1.ClusterMutationPolicy {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	//
+	if list, listFound := m.registry[rt]; listFound {
+		return list
+	}
+
+	return []*v1alpha1.ClusterMutationPolicy{}
+}
+
+// GetRegisteredResourceTypes returns TODO
+// FIXME: Is this still needed?
+func (m *ClusterMutationPoliciesRegistry) GetRegisteredResourceTypes() []ResourceTypeName {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return maps.Keys(m.registry)
+}
+
+// GetRegisteredSourcesTypes returns TODO
+func (m *ClusterMutationPoliciesRegistry) GetRegisteredSourcesTypes() []ResourceTypeName {
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	sourceTypes := []ResourceTypeName{}
+
+	// Loop over all notifications collecting extra resources
+	for _, resourceList := range m.registry {
+		for _, resourceObj := range resourceList {
+			for _, source := range resourceObj.Spec.Sources {
+
+				// Prevents potential explosions due to
+				// 'sources' comes empty from time to time
+				if reflect.ValueOf(source).IsZero() {
+					continue
+				}
+
+				sourceName := strings.Join([]string{
+					source.Group, source.Version, source.Resource,
+					source.Namespace, source.Name,
+				}, "/")
+
+				sourceTypes = append(sourceTypes, sourceName)
+			}
+		}
+	}
+
+	// Clean duplicated
+	slices.Sort(sourceTypes)
+	sourceTypes = slices.Compact(sourceTypes)
+
+	return sourceTypes
+}
