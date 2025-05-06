@@ -17,11 +17,15 @@ limitations under the License.
 package clusteradmissionpolicies
 
 import (
-	"freepik.com/admitik/api/v1alpha1"
-	"golang.org/x/exp/maps"
 	"reflect"
 	"slices"
 	"strings"
+
+	//
+	"golang.org/x/exp/maps"
+
+	//
+	"freepik.com/admitik/api/v1alpha1"
 )
 
 func NewClusterAdmissionPoliciesRegistry() *ClusterAdmissionPoliciesRegistry {
@@ -74,8 +78,7 @@ func (m *ClusterAdmissionPoliciesRegistry) GetResources(rt ResourceTypeName) []*
 	return []*v1alpha1.ClusterAdmissionPolicy{}
 }
 
-// GetRegisteredResourceTypes returns TODO
-// FIXME: Is this still needed?
+// GetRegisteredResourceTypes returns a list of resource groups that will be evaluated by the admissions server
 func (m *ClusterAdmissionPoliciesRegistry) GetRegisteredResourceTypes() []ResourceTypeName {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -83,7 +86,8 @@ func (m *ClusterAdmissionPoliciesRegistry) GetRegisteredResourceTypes() []Resour
 	return maps.Keys(m.registry)
 }
 
-// GetRegisteredSourcesTypes returns TODO
+// GetRegisteredSourcesTypes returns a list of resource groups that the user desires to watch for later
+// injection in templates that will be evaluated by controllers
 func (m *ClusterAdmissionPoliciesRegistry) GetRegisteredSourcesTypes() []ResourceTypeName {
 
 	m.mu.Lock()

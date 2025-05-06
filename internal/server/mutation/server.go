@@ -171,7 +171,7 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 			var condErr error
 
 			// Choose between gotmpl or starlark
-			if condition.Engine == v1alpha1.ConditionEngineStarlark {
+			if condition.Engine == v1alpha1.TemplateEngineStarlark {
 				conditionPassed, condErr = s.isPassingStarlarkCondition(condition.Key, condition.Value, &specificTemplateInjectedObject)
 			} else {
 				conditionPassed, condErr = s.isPassingGotmplCondition(condition.Key, condition.Value, &specificTemplateInjectedObject)
@@ -189,10 +189,10 @@ func (s *HttpServer) handleRequest(response http.ResponseWriter, request *http.R
 		// When some condition is not met, evaluate message's template and emit a response
 		if slices.Contains(conditionsPassedList, false) {
 			var parsedMessage string
-			if cmPolicyObj.Spec.Message.Engine == v1alpha1.ConditionEngineStarlark {
-				parsedMessage, err = template.EvaluateTemplateStarlark(cmPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
+			if cmPolicyObj.Spec.Patch.Engine == v1alpha1.TemplateEngineStarlark {
+				parsedMessage, err = template.EvaluateTemplateStarlark(cmPolicyObj.Spec.Patch.Template, &specificTemplateInjectedObject)
 			} else {
-				parsedMessage, err = template.EvaluateTemplate(cmPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
+				parsedMessage, err = template.EvaluateTemplate(cmPolicyObj.Spec.Patch.Template, &specificTemplateInjectedObject)
 			}
 
 			if err != nil {

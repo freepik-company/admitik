@@ -20,11 +20,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	FailureActionPermissive string = "Permissive"
-	FailureActionEnforce    string = "Enforce"
-)
-
 type MessageT struct {
 	Engine   string `json:"engine,omitempty"`
 	Template string `json:"template"`

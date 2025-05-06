@@ -37,6 +37,7 @@ import (
 	//
 	"freepik.com/admitik/internal/globals"
 	clusterAdmissionPoliciesRegistry "freepik.com/admitik/internal/registry/clusteradmissionpolicies"
+	clusterMutationPoliciesRegistry "freepik.com/admitik/internal/registry/clustermutationpolicies"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
 )
 
@@ -74,6 +75,7 @@ type SourcesControllerDependencies struct {
 
 	//
 	ClusterAdmissionPoliciesRegistry *clusterAdmissionPoliciesRegistry.ClusterAdmissionPoliciesRegistry
+	ClusterMutationPoliciesRegistry  *clusterMutationPoliciesRegistry.ClusterMutationPoliciesRegistry
 	SourcesRegistry                  *sourcesRegistry.SourcesRegistry
 }
 
@@ -87,6 +89,22 @@ type SourcesController struct {
 	Dependencies SourcesControllerDependencies
 }
 
+// getSourcesFromRegistries returns a list of sources with all the types registered in suitable registries
+func (r *SourcesController) getSourcesFromRegistries() []string {
+
+	var referentCandidates []string
+
+	candidatesFromAdmission := r.Dependencies.ClusterAdmissionPoliciesRegistry.GetRegisteredSourcesTypes()
+	candidatesFromMutation := r.Dependencies.ClusterMutationPoliciesRegistry.GetRegisteredSourcesTypes()
+	referentCandidates = slices.Concat(candidatesFromAdmission, candidatesFromMutation)
+
+	// Filter duplicated items
+	slices.Sort(referentCandidates)
+	referentCandidates = slices.Compact(referentCandidates)
+
+	return referentCandidates
+}
+
 // informersCleanerWorker review the sources types of ClusterAdmissionPolicies registry in the background.
 // It disables the informers that are not needed and delete them from sources registry
 // This function is intended to be used as goroutine
@@ -98,10 +116,10 @@ func (r *SourcesController) informersCleanerWorker() {
 
 	for {
 		//
-		referentCandidates := r.Dependencies.ClusterAdmissionPoliciesRegistry.GetRegisteredSourcesTypes()
-		evaluableCandidates := r.Dependencies.SourcesRegistry.GetRegisteredResourceTypes()
+		referentCandidates := r.getSourcesFromRegistries()
+		reviewedCandidates := r.Dependencies.SourcesRegistry.GetRegisteredResourceTypes()
 
-		for _, resourceType := range evaluableCandidates {
+		for _, resourceType := range reviewedCandidates {
 			if !slices.Contains(referentCandidates, resourceType) {
 				err := r.Dependencies.SourcesRegistry.DisableInformer(resourceType)
 				if err != nil {
@@ -143,7 +161,9 @@ func (r *SourcesController) reconcileInformers() {
 	logger := log.FromContext(*r.Dependencies.Context)
 	logger = logger.WithValues("controller", controllerName)
 
-	for _, resourceType := range r.Dependencies.ClusterAdmissionPoliciesRegistry.GetRegisteredSourcesTypes() {
+	sourcesCandidates := r.getSourcesFromRegistries()
+
+	for _, resourceType := range sourcesCandidates {
 
 		_, informerExists := r.Dependencies.SourcesRegistry.GetInformer(resourceType)
 

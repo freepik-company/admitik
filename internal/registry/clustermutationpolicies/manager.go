@@ -17,11 +17,15 @@ limitations under the License.
 package clustermutationpolicies
 
 import (
-	"freepik.com/admitik/api/v1alpha1"
-	"golang.org/x/exp/maps"
 	"reflect"
 	"slices"
 	"strings"
+
+	//
+	"golang.org/x/exp/maps"
+
+	//
+	"freepik.com/admitik/api/v1alpha1"
 )
 
 func NewClusterMutationPoliciesRegistry() *ClusterMutationPoliciesRegistry {
@@ -30,7 +34,7 @@ func NewClusterMutationPoliciesRegistry() *ClusterMutationPoliciesRegistry {
 	}
 }
 
-// AddResource add a ClusterAdmissionPolicy of provided type into registry
+// AddResource add a ClusterMutationPolicy of provided type into registry
 func (m *ClusterMutationPoliciesRegistry) AddResource(rt ResourceTypeName, clusterMutationPolicy *v1alpha1.ClusterMutationPolicy) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -38,7 +42,7 @@ func (m *ClusterMutationPoliciesRegistry) AddResource(rt ResourceTypeName, clust
 	m.registry[rt] = append(m.registry[rt], clusterMutationPolicy)
 }
 
-// RemoveResource delete a RemoveClusterAdmissionPolicy of provided type
+// RemoveResource delete a ClusterMutationPolicy of provided type
 func (m *ClusterMutationPoliciesRegistry) RemoveResource(rt ResourceTypeName, clusterMutationPolicy *v1alpha1.ClusterMutationPolicy) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -55,13 +59,13 @@ func (m *ClusterMutationPoliciesRegistry) RemoveResource(rt ResourceTypeName, cl
 		m.registry[rt] = append(clusterMutationPolicies[:index], clusterMutationPolicies[index+1:]...)
 	}
 
-	// Delete index from registry when no more ClusterAdmissionPolicy resource is needing it
+	// Delete index from registry when no more ClusterMutationPolicy resource is needing it
 	if len(m.registry[rt]) == 0 {
 		delete(m.registry, rt)
 	}
 }
 
-// GetResources return all the ClusterAdmissionPolicy objects of provided type
+// GetResources return all the ClusterMutationPolicy objects of provided type
 func (m *ClusterMutationPoliciesRegistry) GetResources(rt ResourceTypeName) []*v1alpha1.ClusterMutationPolicy {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -74,8 +78,7 @@ func (m *ClusterMutationPoliciesRegistry) GetResources(rt ResourceTypeName) []*v
 	return []*v1alpha1.ClusterMutationPolicy{}
 }
 
-// GetRegisteredResourceTypes returns TODO
-// FIXME: Is this still needed?
+// GetRegisteredResourceTypes returns a list of resource groups that will be evaluated by the mutations server
 func (m *ClusterMutationPoliciesRegistry) GetRegisteredResourceTypes() []ResourceTypeName {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -83,7 +86,8 @@ func (m *ClusterMutationPoliciesRegistry) GetRegisteredResourceTypes() []Resourc
 	return maps.Keys(m.registry)
 }
 
-// GetRegisteredSourcesTypes returns TODO
+// GetRegisteredSourcesTypes returns a list of resource groups that the user desires to watch for later
+// injection in templates that will be evaluated by controllers
 func (m *ClusterMutationPoliciesRegistry) GetRegisteredSourcesTypes() []ResourceTypeName {
 
 	m.mu.Lock()

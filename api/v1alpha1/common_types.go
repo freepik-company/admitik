@@ -22,19 +22,25 @@ import (
 )
 
 const (
+	FailureActionPermissive string = "Permissive"
+	FailureActionEnforce    string = "Enforce"
 
 	//
-	ConditionEngineStarlark string = "starlark"
-	ConditionEngineGotmpl   string = "gotmpl"
+	TemplateEnginePlain    string = "plain"
+	TemplateEngineStarlark string = "starlark"
+	TemplateEngineGotmpl   string = "gotmpl"
 )
 
-// WatchedResourceT represents TODO
+// WatchedResourceT represents a group of resources being watched
+// for admission operations
 type WatchedResourceT struct {
 	metav1.GroupVersionResource `json:",inline"`
 
 	Operations []admissionV1.OperationType `json:"operations"`
 }
 
+// SourceT represents a group of sources being watched
+// for later injection
 type SourceT struct {
 	metav1.GroupVersionResource `json:",inline"`
 
@@ -42,6 +48,7 @@ type SourceT struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
+// ConditionT represents a canonical Kubernetes status condition for a resource
 type ConditionT struct {
 	Name   string `json:"name"`
 	Engine string `json:"engine,omitempty"`
