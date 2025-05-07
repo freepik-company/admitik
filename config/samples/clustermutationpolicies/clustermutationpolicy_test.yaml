@@ -26,20 +26,12 @@ spec:
         print("pass")
       value: "pass"
 
-    - name: second-condition
-      engine: starlark
-      key: |
-        print("pass")
-      value: "pass"
-
   patch:
-    type: JsonPatch # JsonPatch | StrategicMerge | ServerSideApply
+    type: jsonpatch # JsonPatch | StrategicMerge
     engine: starlark # plain | gotmpl | starlark
     template: |
-      if object.get("metadata", {}).get("labels", {}).get("apply-patch") == "true":
-      
-        patch = [
-            {"op": "add", "path": "/spec/newField", "value": "newValue"},
-            {"op": "replace", "path": "/metadata/annotations/updated", "value": "yes"},
-            {"op": "remove", "path": "/status/oldField"}
-        ]
+      patch = [
+          {"op": "add", "path": "/metadata/annotations/undostrecuatro", "value": "newValue"},
+          {"op": "replace", "path": "/metadata/annotations/superupdated", "value": "yes"},
+      ]
+      print(json.encode(patch))

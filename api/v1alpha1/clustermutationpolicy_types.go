@@ -20,6 +20,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	MutationPatchTypeJson  string = "jsonpatch"
+	MutationPatchTypeMerge string = "strategicmerge"
+)
+
 type PatchT struct {
 	Type     string `json:"type"`
 	Engine   string `json:"engine,omitempty"`
@@ -28,8 +33,6 @@ type PatchT struct {
 
 // ClusterMutationPolicySpec defines the desired state of ClusterMutationPolicy
 type ClusterMutationPolicySpec struct {
-	FailureAction string `json:"failureAction,omitempty"`
-
 	//
 	WatchedResources WatchedResourceT `json:"watchedResources"`
 	Sources          []SourceT        `json:"sources"`

@@ -42,6 +42,8 @@ spec:
             properties:
               conditions:
                 items:
+                  description: ConditionT represents a canonical Kubernetes status
+                    condition for a resource
                   properties:
                     engine:
                       type: string
@@ -70,6 +72,9 @@ spec:
                 type: object
               sources:
                 items:
+                  description: |-
+                    SourceT represents a group of sources being watched
+                    for later injection
                   properties:
                     group:
                       type: string
@@ -88,7 +93,9 @@ spec:
                   type: object
                 type: array
               watchedResources:
-                description: WatchedResourceT represents TODO
+                description: |-
+                  WatchedResourceT represents a group of resources being watched
+                  for admission operations
                 properties:
                   group:
                     type: string
