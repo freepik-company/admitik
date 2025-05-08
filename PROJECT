@@ -14,7 +14,16 @@ resources:
   controller: true
   domain: freepik.com
   group: admitik
-  kind: ClusterAdmissionPolicy
+  kind: ClusterValidationPolicy
   path: freepik.com/admitik/api/v1alpha1
   version: v1alpha1
+ - api:
+     crdVersion: v1
+     namespaced: false
+   controller: true
+   domain: freepik.com
+   group: admitik
+   kind: ClusterMutationPolicy
+   path: freepik.com/admitik/api/v1alpha1
+   version: v1alpha1
 version: "3"

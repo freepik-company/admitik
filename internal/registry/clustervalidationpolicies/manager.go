@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clusteradmissionpolicies
+package clustervalidationpolicies
 
 import (
 	"reflect"
@@ -28,45 +28,45 @@ import (
 	"freepik.com/admitik/api/v1alpha1"
 )
 
-func NewClusterAdmissionPoliciesRegistry() *ClusterAdmissionPoliciesRegistry {
-	return &ClusterAdmissionPoliciesRegistry{
-		registry: make(map[ResourceTypeName][]*v1alpha1.ClusterAdmissionPolicy),
+func NewClusterValidationPoliciesRegistry() *ClusterValidationPoliciesRegistry {
+	return &ClusterValidationPoliciesRegistry{
+		registry: make(map[ResourceTypeName][]*v1alpha1.ClusterValidationPolicy),
 	}
 }
 
-// AddResource add a ClusterAdmissionPolicy of provided type into registry
-func (m *ClusterAdmissionPoliciesRegistry) AddResource(rt ResourceTypeName, clusterAdmissionPolicy *v1alpha1.ClusterAdmissionPolicy) {
+// AddResource add a ClusterValidationPolicy of provided type into registry
+func (m *ClusterValidationPoliciesRegistry) AddResource(rt ResourceTypeName, clusterValidationPolicy *v1alpha1.ClusterValidationPolicy) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.registry[rt] = append(m.registry[rt], clusterAdmissionPolicy)
+	m.registry[rt] = append(m.registry[rt], clusterValidationPolicy)
 }
 
-// RemoveResource delete a RemoveClusterAdmissionPolicy of provided type
-func (m *ClusterAdmissionPoliciesRegistry) RemoveResource(rt ResourceTypeName, clusterAdmissionPolicy *v1alpha1.ClusterAdmissionPolicy) {
+// RemoveResource delete a ClusterValidationPolicy of provided type
+func (m *ClusterValidationPoliciesRegistry) RemoveResource(rt ResourceTypeName, clusterValidationPolicy *v1alpha1.ClusterValidationPolicy) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	clusterAdmissionPolicies := m.registry[rt]
+	clusterValidationPolicies := m.registry[rt]
 	index := -1
-	for itemIndex, itemObject := range clusterAdmissionPolicies {
-		if itemObject.Name == clusterAdmissionPolicy.Name {
+	for itemIndex, itemObject := range clusterValidationPolicies {
+		if itemObject.Name == clusterValidationPolicy.Name {
 			index = itemIndex
 			break
 		}
 	}
 	if index != -1 {
-		m.registry[rt] = append(clusterAdmissionPolicies[:index], clusterAdmissionPolicies[index+1:]...)
+		m.registry[rt] = append(clusterValidationPolicies[:index], clusterValidationPolicies[index+1:]...)
 	}
 
-	// Delete index from registry when no more ClusterAdmissionPolicy resource is needing it
+	// Delete index from registry when no more ClusterValidationPolicy resource is needing it
 	if len(m.registry[rt]) == 0 {
 		delete(m.registry, rt)
 	}
 }
 
-// GetResources return all the ClusterAdmissionPolicy objects of provided type
-func (m *ClusterAdmissionPoliciesRegistry) GetResources(rt ResourceTypeName) []*v1alpha1.ClusterAdmissionPolicy {
+// GetResources return all the ClusterValidationPolicy objects of provided type
+func (m *ClusterValidationPoliciesRegistry) GetResources(rt ResourceTypeName) []*v1alpha1.ClusterValidationPolicy {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -75,11 +75,11 @@ func (m *ClusterAdmissionPoliciesRegistry) GetResources(rt ResourceTypeName) []*
 		return list
 	}
 
-	return []*v1alpha1.ClusterAdmissionPolicy{}
+	return []*v1alpha1.ClusterValidationPolicy{}
 }
 
 // GetRegisteredResourceTypes returns a list of resource groups that will be evaluated by the admissions server
-func (m *ClusterAdmissionPoliciesRegistry) GetRegisteredResourceTypes() []ResourceTypeName {
+func (m *ClusterValidationPoliciesRegistry) GetRegisteredResourceTypes() []ResourceTypeName {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -88,7 +88,7 @@ func (m *ClusterAdmissionPoliciesRegistry) GetRegisteredResourceTypes() []Resour
 
 // GetRegisteredSourcesTypes returns a list of resource groups that the user desires to watch for later
 // injection in templates that will be evaluated by controllers
-func (m *ClusterAdmissionPoliciesRegistry) GetRegisteredSourcesTypes() []ResourceTypeName {
+func (m *ClusterValidationPoliciesRegistry) GetRegisteredSourcesTypes() []ResourceTypeName {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()

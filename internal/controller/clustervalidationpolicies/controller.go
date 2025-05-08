@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clusteradmissionpolicies
+package clustervalidationpolicies
 
 import (
 	"context"
@@ -32,31 +32,31 @@ import (
 	//
 	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/controller"
-	clusterAdmissionPoliciesRegistry "freepik.com/admitik/internal/registry/clusteradmissionpolicies"
+	clusterValidationPoliciesRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicies"
 )
 
-type ClusterAdmissionPolicyControllerOptions struct {
+type ClusterValidationPolicyControllerOptions struct {
 	WebhookClientConfig admissionregv1.WebhookClientConfig
 	WebhookTimeout      int
 }
 
-type ClusterAdmissionPolicyControllerDependencies struct {
-	ClusterAdmissionPoliciesRegistry *clusterAdmissionPoliciesRegistry.ClusterAdmissionPoliciesRegistry
+type ClusterValidationPolicyControllerDependencies struct {
+	ClusterValidationPoliciesRegistry *clusterValidationPoliciesRegistry.ClusterValidationPoliciesRegistry
 }
 
-// ClusterAdmissionPolicyReconciler reconciles a ClusterAdmissionPolicy object
-type ClusterAdmissionPolicyReconciler struct {
+// ClusterValidationPolicyReconciler reconciles a ClusterValidationPolicy object
+type ClusterValidationPolicyReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
 	//
-	Options      ClusterAdmissionPolicyControllerOptions
-	Dependencies ClusterAdmissionPolicyControllerDependencies
+	Options      ClusterValidationPolicyControllerOptions
+	Dependencies ClusterValidationPolicyControllerDependencies
 }
 
-// +kubebuilder:rbac:groups=admitik.freepik.com,resources=clusteradmissionpolicies,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=admitik.freepik.com,resources=clusteradmissionpolicies/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=admitik.freepik.com,resources=clusteradmissionpolicies/finalizers,verbs=update
+// +kubebuilder:rbac:groups=admitik.freepik.com,resources=clustervalidationpolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=admitik.freepik.com,resources=clustervalidationpolicies/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=admitik.freepik.com,resources=clustervalidationpolicies/finalizers,verbs=update
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;create;update;patch;delete;watch
 // +kubebuilder:rbac:groups="*",resources="*",verbs="*"
 
@@ -64,11 +64,11 @@ type ClusterAdmissionPolicyReconciler struct {
 // move the current state of the cluster closer to the desired state.
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.2/pkg/reconcile
-func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
+func (r *ClusterValidationPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	logger := log.FromContext(ctx)
 
 	// 1. Get the content of the resource
-	objectManifest := &v1alpha1.ClusterAdmissionPolicy{}
+	objectManifest := &v1alpha1.ClusterValidationPolicy{}
 	err = r.Get(ctx, req.NamespacedName, objectManifest)
 
 	// 2. Check the existence inside the cluster
@@ -76,12 +76,12 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 
 		// 2.1 It does NOT exist: manage removal
 		if err = client.IgnoreNotFound(err); err == nil {
-			logger.Info(fmt.Sprintf(controller.ResourceNotFoundError, controller.ClusterAdmissionPolicyResourceType, req.Name))
+			logger.Info(fmt.Sprintf(controller.ResourceNotFoundError, controller.ClusterValidationPolicyResourceType, req.Name))
 			return result, err
 		}
 
 		// 2.2 Failed to get the resource, requeue the request
-		logger.Info(fmt.Sprintf(controller.ResourceRetrievalError, controller.ClusterAdmissionPolicyResourceType, req.Name, err.Error()))
+		logger.Info(fmt.Sprintf(controller.ResourceRetrievalError, controller.ClusterValidationPolicyResourceType, req.Name, err.Error()))
 		return result, err
 	}
 
@@ -89,9 +89,9 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 	if !objectManifest.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(objectManifest, controller.ResourceFinalizer) {
 			// Delete Notification from WatcherPool
-			err = r.ReconcileClusterAdmissionPolicy(ctx, watch.Deleted, objectManifest)
+			err = r.ReconcileClusterValidationPolicy(ctx, watch.Deleted, objectManifest)
 			if err != nil {
-				logger.Info(fmt.Sprintf(controller.ResourceReconcileError, controller.ClusterAdmissionPolicyResourceType, req.Name, err.Error()))
+				logger.Info(fmt.Sprintf(controller.ResourceReconcileError, controller.ClusterValidationPolicyResourceType, req.Name, err.Error()))
 				return result, err
 			}
 
@@ -99,7 +99,7 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 			controllerutil.RemoveFinalizer(objectManifest, controller.ResourceFinalizer)
 			err = r.Update(ctx, objectManifest)
 			if err != nil {
-				logger.Info(fmt.Sprintf(controller.ResourceFinalizersUpdateError, controller.ClusterAdmissionPolicyResourceType, req.Name, err.Error()))
+				logger.Info(fmt.Sprintf(controller.ResourceFinalizersUpdateError, controller.ClusterValidationPolicyResourceType, req.Name, err.Error()))
 			}
 		}
 		result = ctrl.Result{}
@@ -120,15 +120,15 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 	defer func() {
 		err = r.Status().Update(ctx, objectManifest)
 		if err != nil {
-			logger.Info(fmt.Sprintf(controller.ResourceConditionUpdateError, controller.ClusterAdmissionPolicyResourceType, req.Name, err.Error()))
+			logger.Info(fmt.Sprintf(controller.ResourceConditionUpdateError, controller.ClusterValidationPolicyResourceType, req.Name, err.Error()))
 		}
 	}()
 
 	// 6. The resource already exists: manage the update
-	err = r.ReconcileClusterAdmissionPolicy(ctx, watch.Modified, objectManifest)
+	err = r.ReconcileClusterValidationPolicy(ctx, watch.Modified, objectManifest)
 	if err != nil {
 		r.UpdateConditionKubernetesApiCallFailure(objectManifest)
-		logger.Info(fmt.Sprintf(controller.ResourceReconcileError, controller.ClusterAdmissionPolicyResourceType, req.Name, err.Error()))
+		logger.Info(fmt.Sprintf(controller.ResourceReconcileError, controller.ClusterValidationPolicyResourceType, req.Name, err.Error()))
 		return result, err
 	}
 
@@ -139,9 +139,9 @@ func (r *ClusterAdmissionPolicyReconciler) Reconcile(ctx context.Context, req ct
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *ClusterAdmissionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ClusterValidationPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.ClusterAdmissionPolicy{}).
+		For(&v1alpha1.ClusterValidationPolicy{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Complete(r)
 }

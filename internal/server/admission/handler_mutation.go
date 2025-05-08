@@ -90,8 +90,6 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 		return
 	}
 
-	//
-
 	// Loop over ClusterMutationPolicy objects collecting the patches to apply
 	// At this point, some extra params will be added to the object that will be injected in template
 	jsonPatchOperations := jsondiff.Patch{}
@@ -179,8 +177,8 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 	jsonPatchOperationBytes, err := json.Marshal(jsonPatchOperations)
 
 	reviewResponse.Response.Patch = jsonPatchOperationBytes
-	pepe := admissionv1.PatchTypeJSONPatch
-	reviewResponse.Response.PatchType = &pepe
+	patchType := admissionv1.PatchTypeJSONPatch
+	reviewResponse.Response.PatchType = &patchType
 }
 
 // generateJsonPatchOperations return a group of JsonPatch operations to mutate an object from its original

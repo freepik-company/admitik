@@ -26,8 +26,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	//
-	clusteradmissionpoliciesRegistry "freepik.com/admitik/internal/registry/clusteradmissionpolicies"
 	clustermutationpoliciesRegistry "freepik.com/admitik/internal/registry/clustermutationpolicies"
+	clustervalidationpoliciesRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicies"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
 )
 
@@ -41,9 +41,9 @@ const (
 
 // AdmissionServerDependencies represents the dependencies needed by the AdmissionServer to work
 type AdmissionServerDependencies struct {
-	ClusterAdmissionPoliciesRegistry *clusteradmissionpoliciesRegistry.ClusterAdmissionPoliciesRegistry
-	ClusterMutationPoliciesRegistry  *clustermutationpoliciesRegistry.ClusterMutationPoliciesRegistry
-	SourcesRegistry                  *sourcesRegistry.SourcesRegistry
+	ClusterValidationPoliciesRegistry *clustervalidationpoliciesRegistry.ClusterValidationPoliciesRegistry
+	ClusterMutationPoliciesRegistry   *clustermutationpoliciesRegistry.ClusterMutationPoliciesRegistry
+	SourcesRegistry                   *sourcesRegistry.SourcesRegistry
 }
 
 // AdmissionServerOptions represents available options that can be passed
@@ -60,7 +60,7 @@ type AdmissionServerOptions struct {
 }
 
 // AdmissionServer represents the server that process coming events against
-// the conditions defined in Cluster/AdmissionPolicy CRs
+// the conditions defined in Cluster{Validation|Mutation}Policy CRs
 type AdmissionServer struct {
 	//
 	options AdmissionServerOptions

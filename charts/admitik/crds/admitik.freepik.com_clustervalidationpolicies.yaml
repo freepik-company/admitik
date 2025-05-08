@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.15.0
-  name: clusteradmissionpolicies.admitik.freepik.com
+  name: clustervalidationpolicies.admitik.freepik.com
 spec:
   group: admitik.freepik.com
   names:
-    kind: ClusterAdmissionPolicy
-    listKind: ClusterAdmissionPolicyList
-    plural: clusteradmissionpolicies
-    singular: clusteradmissionpolicy
+    kind: ClusterValidationPolicy
+    listKind: ClusterValidationPolicyList
+    plural: clustervalidationpolicies
+    singular: clustervalidationpolicy
   scope: Cluster
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ClusterAdmissionPolicy is the Schema for the clusteradmissionpolicies
+        description: ClusterValidationPolicy is the Schema for the clustervalidationpolicies
           API
         properties:
           apiVersion:
@@ -38,7 +38,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: ClusterAdmissionPolicySpec defines the desired state of ClusterAdmissionPolicy
+            description: ClusterValidationPolicySpec defines the desired state of
+              ClusterValidationPolicy
             properties:
               conditions:
                 items:
@@ -121,8 +122,8 @@ spec:
             - watchedResources
             type: object
           status:
-            description: ClusterAdmissionPolicyStatus defines the observed state of
-              ClusterAdmissionPolicy
+            description: ClusterValidationPolicyStatus defines the observed state
+              of ClusterValidationPolicy
             properties:
               conditions:
                 description: Conditions represent the latest available observations

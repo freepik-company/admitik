@@ -4,7 +4,8 @@ metadata:
   name: test
 spec:
 
-  failureAction: Permissive
+  # TODO: Implement failureAction for mutations
+  # failureAction: Permissive
 
   # Resources to be watched
   watchedResources:
@@ -28,10 +29,10 @@ spec:
 
   patch:
     type: jsonpatch # JsonPatch | StrategicMerge
-    engine: starlark # plain | gotmpl | starlark
+    engine: starlark
     template: |
       patch = [
-          {"op": "add", "path": "/metadata/annotations/undostrecuatro", "value": "newValue"},
-          {"op": "replace", "path": "/metadata/annotations/superupdated", "value": "yes"},
+          {"op": "add", "path": "/metadata/annotations/first", "value": "firstValue"},
+          {"op": "replace", "path": "/metadata/annotations/second", "value": "secondValue"},
       ]
       print(json.encode(patch))

@@ -25,8 +25,8 @@ type MessageT struct {
 	Template string `json:"template"`
 }
 
-// ClusterAdmissionPolicySpec defines the desired state of ClusterAdmissionPolicy
-type ClusterAdmissionPolicySpec struct {
+// ClusterValidationPolicySpec defines the desired state of ClusterValidationPolicy
+type ClusterValidationPolicySpec struct {
 	FailureAction string `json:"failureAction,omitempty"`
 
 	//
@@ -38,34 +38,34 @@ type ClusterAdmissionPolicySpec struct {
 	Message    MessageT     `json:"message"`
 }
 
-// ClusterAdmissionPolicyStatus defines the observed state of ClusterAdmissionPolicy
-type ClusterAdmissionPolicyStatus struct {
+// ClusterValidationPolicyStatus defines the observed state of ClusterValidationPolicy
+type ClusterValidationPolicyStatus struct {
 	// Conditions represent the latest available observations of an object's state
 	Conditions []metav1.Condition `json:"conditions"`
 }
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=clusteradmissionpolicies,scope=Cluster
+// +kubebuilder:resource:path=clustervalidationpolicies,scope=Cluster
 // +kubebuilder:subresource:status
 
-// ClusterAdmissionPolicy is the Schema for the clusteradmissionpolicies API
-type ClusterAdmissionPolicy struct {
+// ClusterValidationPolicy is the Schema for the clustervalidationpolicies API
+type ClusterValidationPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ClusterAdmissionPolicySpec   `json:"spec,omitempty"`
-	Status ClusterAdmissionPolicyStatus `json:"status,omitempty"`
+	Spec   ClusterValidationPolicySpec   `json:"spec,omitempty"`
+	Status ClusterValidationPolicyStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// ClusterAdmissionPolicyList contains a list of ClusterAdmissionPolicy
-type ClusterAdmissionPolicyList struct {
+// ClusterValidationPolicyList contains a list of ClusterValidationPolicy
+type ClusterValidationPolicyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterAdmissionPolicy `json:"items"`
+	Items           []ClusterValidationPolicy `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ClusterAdmissionPolicy{}, &ClusterAdmissionPolicyList{})
+	SchemeBuilder.Register(&ClusterValidationPolicy{}, &ClusterValidationPolicyList{})
 }

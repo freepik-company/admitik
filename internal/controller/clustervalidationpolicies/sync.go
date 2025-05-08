@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clusteradmissionpolicies
+package clustervalidationpolicies
 
 import (
 	"context"
@@ -36,14 +36,14 @@ import (
 const (
 
 	//
-	resourceUpdatedMessage  = "A ClusterAdmissionPolicy was modified: will be updated into the internal registry"
-	resourceDeletionMessage = "A ClusterAdmissionPolicy was deleted: will be deleted from internal registry"
+	resourceUpdatedMessage  = "A ClusterValidationPolicy was modified: will be updated into the internal registry"
+	resourceDeletionMessage = "A ClusterValidationPolicy was deleted: will be deleted from internal registry"
 )
 
 const (
 	// ValidatingWebhookConfigurationName represents the name of the ValidatingWebhookConfiguration resource
-	// that will be created or updated in Kubernetes to forward requests to the admissions webserver
-	ValidatingWebhookConfigurationName = "admitik-cluster-admission-policy"
+	// that will be created or updated in Kubernetes to forward validation requests to the admissions webserver
+	ValidatingWebhookConfigurationName = "admitik-cluster-validation-policy"
 )
 
 var (
@@ -57,8 +57,8 @@ var (
 	ValidatingWebhookConfigurationRuleScopeAll = admissionregv1.ScopeType("*")
 )
 
-// ReconcileClusterAdmissionPolicy keeps internal ClusterAdmissionPolicy resources' registry up-to-date
-func (r *ClusterAdmissionPolicyReconciler) ReconcileClusterAdmissionPolicy(ctx context.Context, eventType watch.EventType, resourceManifest *v1alpha1.ClusterAdmissionPolicy) (err error) {
+// ReconcileClusterValidationPolicy keeps internal ClusterValidationPolicy resources' registry up-to-date
+func (r *ClusterValidationPolicyReconciler) ReconcileClusterValidationPolicy(ctx context.Context, eventType watch.EventType, resourceManifest *v1alpha1.ClusterValidationPolicy) (err error) {
 	logger := log.FromContext(ctx)
 
 	// Replace wildcards in operations
@@ -77,6 +77,7 @@ func (r *ClusterAdmissionPolicyReconciler) ReconcileClusterAdmissionPolicy(ctx c
 
 		// Create the key-pattern and store it for later cleaning
 		// Duplicated operations will be skipped
+		// Duplicated operations will be skipped
 		watchedType := strings.Join([]string{
 			resourceManifest.Spec.WatchedResources.Group,
 			resourceManifest.Spec.WatchedResources.Version,
@@ -93,23 +94,23 @@ func (r *ClusterAdmissionPolicyReconciler) ReconcileClusterAdmissionPolicy(ctx c
 		if eventType == watch.Deleted {
 			logger.Info(resourceDeletionMessage, "watcher", watchedType)
 
-			r.Dependencies.ClusterAdmissionPoliciesRegistry.RemoveResource(watchedType, resourceManifest)
+			r.Dependencies.ClusterValidationPoliciesRegistry.RemoveResource(watchedType, resourceManifest)
 		}
 
 		// Handle creation/update requests
 		if eventType == watch.Modified {
 			logger.Info(resourceUpdatedMessage, "watcher", watchedType)
 
-			r.Dependencies.ClusterAdmissionPoliciesRegistry.RemoveResource(watchedType, resourceManifest)
-			r.Dependencies.ClusterAdmissionPoliciesRegistry.AddResource(watchedType, resourceManifest)
+			r.Dependencies.ClusterValidationPoliciesRegistry.RemoveResource(watchedType, resourceManifest)
+			r.Dependencies.ClusterValidationPoliciesRegistry.AddResource(watchedType, resourceManifest)
 		}
 	}
 
 	// Clean non-desired watched types. This is needed for updates where the user
 	// reduces the amount of watched operations on watched resources
-	for _, registeredResourceType := range r.Dependencies.ClusterAdmissionPoliciesRegistry.GetRegisteredResourceTypes() {
+	for _, registeredResourceType := range r.Dependencies.ClusterValidationPoliciesRegistry.GetRegisteredResourceTypes() {
 		if !slices.Contains(desiredWatchedTypes, registeredResourceType) {
-			r.Dependencies.ClusterAdmissionPoliciesRegistry.RemoveResource(registeredResourceType, resourceManifest)
+			r.Dependencies.ClusterValidationPoliciesRegistry.RemoveResource(registeredResourceType, resourceManifest)
 		}
 	}
 
@@ -142,19 +143,19 @@ func (r *ClusterAdmissionPolicyReconciler) ReconcileClusterAdmissionPolicy(ctx c
 }
 
 // getValidatingWebhookConfiguration return a ValidatingWebhookConfiguration object that is built based on
-// previous existing one in Kubernetes and the current pool keys extracted from ClusterAdmissionPolicy.spec.watchedResources
-func (r *ClusterAdmissionPolicyReconciler) getMergedValidatingWebhookConfiguration(ctx context.Context) (
+// previous existing one in Kubernetes and the current pool keys extracted from ClusterValidationPolicy.spec.watchedResources
+func (r *ClusterValidationPolicyReconciler) getMergedValidatingWebhookConfiguration(ctx context.Context) (
 	vwConfig admissionregv1.ValidatingWebhookConfiguration, alreadyCreated bool, err error) {
 
 	// Craft ValidatingWebhookConfiguration rules based on the pool keys
 	currentVwcRules := []admissionregv1.RuleWithOperations{}
-	watchedResourcesPatterns := r.Dependencies.ClusterAdmissionPoliciesRegistry.GetRegisteredResourceTypes()
+	watchedResourcesPatterns := r.Dependencies.ClusterValidationPoliciesRegistry.GetRegisteredResourceTypes()
 
 	for _, resourcePattern := range watchedResourcesPatterns {
 
 		resourcePatternParts := strings.Split(resourcePattern, "/")
 		if len(resourcePatternParts) != 4 {
-			err = fmt.Errorf("some key-pattern is invalid on ClusterAdmissionPolicyPool. Open an issue to fix it")
+			err = fmt.Errorf("some key-pattern is invalid on ClusterValidationPolicy registry. Open an issue to fix it")
 			return
 		}
 

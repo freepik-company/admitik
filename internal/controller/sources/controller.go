@@ -36,8 +36,8 @@ import (
 
 	//
 	"freepik.com/admitik/internal/globals"
-	clusterAdmissionPoliciesRegistry "freepik.com/admitik/internal/registry/clusteradmissionpolicies"
 	clusterMutationPoliciesRegistry "freepik.com/admitik/internal/registry/clustermutationpolicies"
+	clusterValidationPoliciesRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicies"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
 )
 
@@ -74,13 +74,13 @@ type SourcesControllerDependencies struct {
 	Context *context.Context
 
 	//
-	ClusterAdmissionPoliciesRegistry *clusterAdmissionPoliciesRegistry.ClusterAdmissionPoliciesRegistry
-	ClusterMutationPoliciesRegistry  *clusterMutationPoliciesRegistry.ClusterMutationPoliciesRegistry
-	SourcesRegistry                  *sourcesRegistry.SourcesRegistry
+	ClusterValidationPoliciesRegistry *clusterValidationPoliciesRegistry.ClusterValidationPoliciesRegistry
+	ClusterMutationPoliciesRegistry   *clusterMutationPoliciesRegistry.ClusterMutationPoliciesRegistry
+	SourcesRegistry                   *sourcesRegistry.SourcesRegistry
 }
 
 // SourcesController represents a controller that triggers parallel threads.
-// These threads watch resources defined in 'sources' section from ClusterAdmissionPolicy CRs
+// These threads watch resources defined in 'sources' section of several object types stored in registries.
 // Each thread is an informer in charge of a group of resources GVRNN (Group + Version + Resource + Namespace + Name)
 type SourcesController struct {
 	Client client.Client
@@ -94,9 +94,9 @@ func (r *SourcesController) getSourcesFromRegistries() []string {
 
 	var referentCandidates []string
 
-	candidatesFromAdmission := r.Dependencies.ClusterAdmissionPoliciesRegistry.GetRegisteredSourcesTypes()
+	candidatesFromValidation := r.Dependencies.ClusterValidationPoliciesRegistry.GetRegisteredSourcesTypes()
 	candidatesFromMutation := r.Dependencies.ClusterMutationPoliciesRegistry.GetRegisteredSourcesTypes()
-	referentCandidates = slices.Concat(candidatesFromAdmission, candidatesFromMutation)
+	referentCandidates = slices.Concat(candidatesFromValidation, candidatesFromMutation)
 
 	// Filter duplicated items
 	slices.Sort(referentCandidates)
@@ -105,7 +105,7 @@ func (r *SourcesController) getSourcesFromRegistries() []string {
 	return referentCandidates
 }
 
-// informersCleanerWorker review the sources types of ClusterAdmissionPolicies registry in the background.
+// informersCleanerWorker review the 'sources' section of several object types stored in registries in the background.
 // It disables the informers that are not needed and delete them from sources registry
 // This function is intended to be used as goroutine
 func (r *SourcesController) informersCleanerWorker() {

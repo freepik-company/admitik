@@ -6,46 +6,85 @@ metadata:
     {{- include "admitik.labels" . | nindent 4 }}
 rules:
 - apiGroups:
-  - '*'
+    - '*'
   resources:
-  - '*'
+    - '*'
   verbs:
-  - '*'
+    - '*'
 - apiGroups:
-  - admissionregistration.k8s.io
+    - admissionregistration.k8s.io
   resources:
-  - validatingwebhookconfigurations
+    - mutatingwebhookconfigurations
   verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
 - apiGroups:
-  - admitik.freepik.com
+    - admissionregistration.k8s.io
   resources:
-  - clusteradmissionpolicies
+    - validatingwebhookconfigurations
   verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
 - apiGroups:
-  - admitik.freepik.com
+    - admitik.freepik.com
   resources:
-  - clusteradmissionpolicies/finalizers
+    - clustermutationpolicies
   verbs:
-  - update
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
 - apiGroups:
-  - admitik.freepik.com
+    - admitik.freepik.com
   resources:
-  - clusteradmissionpolicies/status
+    - clustermutationpolicies/finalizers
   verbs:
-  - get
-  - patch
-  - update
+    - update
+- apiGroups:
+    - admitik.freepik.com
+  resources:
+    - clustermutationpolicies/status
+  verbs:
+    - get
+    - patch
+    - update
+- apiGroups:
+    - admitik.freepik.com
+  resources:
+    - clustervalidationpolicies
+  verbs:
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
+- apiGroups:
+    - admitik.freepik.com
+  resources:
+    - clustervalidationpolicies/finalizers
+  verbs:
+    - update
+- apiGroups:
+    - admitik.freepik.com
+  resources:
+    - clustervalidationpolicies/status
+  verbs:
+    - get
+    - patch
+    - update
+

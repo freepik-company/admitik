@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	ClusterAdmissionPolicyResourceType = "ClusterAdmissionPolicy"
-	ClusterMutationPolicyResourceType  = "ClusterMutationPolicy"
+	ClusterValidationPolicyResourceType = "ClusterValidationPolicy"
+	ClusterMutationPolicyResourceType   = "ClusterMutationPolicy"
 
 	//
 	ResourceNotFoundError         = "%s '%s' resource not found. Ignoring since object must be deleted."

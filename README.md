@@ -92,21 +92,21 @@ After deploying this operator, you will have new resources available. Let's talk
 > [!TIP]
 > You can find examples for all the features of the resource in the [examples directory](./config/samples)
 
-### How to create kubernetes dynamic admission policies
+### How to create kubernetes dynamic validation policies
 
-To create a dynamic admission policy in your cluster, you will need to create a `ClusterAdmissionPolicy` resource.
-You may prefer to learn directly from an example, so let's explain it creating a ClusterAdmissionPolicy:
+To create a dynamic validation policy in your cluster, you will need to create a `ClusterValidationPolicy` resource.
+You may prefer to learn directly from an example, so let's explain it creating a ClusterValidationPolicy:
 
 > [!IMPORTANT]
-> When you have multiple ClusterAdmissionPolicy resources with the same watchedResources parameters,
+> When you have multiple ClusterValidationPolicy resources with the same watchedResources parameters,
 > a resource can be rejected due to conditions specified in any of these policies.
 >
 > However, because conditions are evaluated one after the other, the rejection message displayed
-> will be the one defined in the specific ClusterAdmissionPolicy where the rejecting condition is located.
+> will be the one defined in the specific ClusterValidationPolicy where the rejecting condition is located.
 
 ```yaml
 apiVersion: admitik.freepik.com/v1alpha1
-kind: ClusterAdmissionPolicy
+kind: ClusterValidationPolicy
 metadata:
    name: watch-resources
 spec:
@@ -179,7 +179,7 @@ This way you start creating wonderful policies from first minute.
 
 ```yaml
 apiVersion: admitik.freepik.com/v1alpha1
-kind: ClusterAdmissionPolicy
+kind: ClusterValidationPolicy
 metadata:
   name: gotmpl-conditions
 spec:
@@ -230,7 +230,7 @@ some data that were generated in a `gotmpl` condition to another. In that situat
 
 ```yaml
 apiVersion: admitik.freepik.com/v1alpha1
-kind: ClusterAdmissionPolicy
+kind: ClusterValidationPolicy
 spec:
 
   # ...
@@ -270,7 +270,7 @@ we have you covered with wonderful Starlark conditions:
 
 ```yaml
 apiVersion: admitik.freepik.com/v1alpha1
-kind: ClusterAdmissionPolicy
+kind: ClusterValidationPolicy
 metadata:
   name: starlark-conditions
 spec:
@@ -322,7 +322,7 @@ It's even possible to transmit information between your conditions and message u
 
 ```yaml
 apiVersion: admitik.freepik.com/v1alpha1
-kind: ClusterAdmissionPolicy
+kind: ClusterValidationPolicy
 metadata:
   name: starlark-populate-vars
 spec:

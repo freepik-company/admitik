@@ -37,32 +37,6 @@ rules:
 - apiGroups:
   - admitik.freepik.com
   resources:
-  - clusteradmissionpolicies
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - admitik.freepik.com
-  resources:
-  - clusteradmissionpolicies/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - admitik.freepik.com
-  resources:
-  - clusteradmissionpolicies/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - admitik.freepik.com
-  resources:
   - clustermutationpolicies
   verbs:
   - create
@@ -82,6 +56,32 @@ rules:
   - admitik.freepik.com
   resources:
   - clustermutationpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - admitik.freepik.com
+  resources:
+  - clustervalidationpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - admitik.freepik.com
+  resources:
+  - clustervalidationpolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - admitik.freepik.com
+  resources:
+  - clustervalidationpolicies/status
   verbs:
   - get
   - patch

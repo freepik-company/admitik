@@ -75,7 +75,7 @@ func (s *HttpServer) fetchPolicySources(cmPolicyObj any) (results map[int][]map[
 	var policySources []v1alpha1.SourceT
 
 	switch p := (cmPolicyObj).(type) {
-	case *v1alpha1.ClusterAdmissionPolicy:
+	case *v1alpha1.ClusterValidationPolicy:
 		policySources = p.Spec.Sources
 	case *v1alpha1.ClusterMutationPolicy:
 		policySources = p.Spec.Sources
@@ -104,7 +104,7 @@ func (s *HttpServer) fetchPolicySources(cmPolicyObj any) (results map[int][]map[
 }
 
 // createKubeEvent creates a modern event in Kubernetes with data given by params
-func createKubeEvent[PolicyType v1alpha1.ClusterAdmissionPolicy | v1alpha1.ClusterMutationPolicy](ctx context.Context, namespace string, object map[string]interface{},
+func createKubeEvent[PolicyType v1alpha1.ClusterValidationPolicy | v1alpha1.ClusterMutationPolicy](ctx context.Context, namespace string, object map[string]interface{},
 	policy PolicyType, action, message string) (err error) {
 
 	objectData, err := globals.GetObjectBasicData(&object)
@@ -115,7 +115,7 @@ func createKubeEvent[PolicyType v1alpha1.ClusterAdmissionPolicy | v1alpha1.Clust
 	var policyApiVersion, policyKind, policyName string
 
 	switch p := any(policy).(type) {
-	case v1alpha1.ClusterAdmissionPolicy:
+	case v1alpha1.ClusterValidationPolicy:
 		policyApiVersion = p.APIVersion
 		policyKind = p.Kind
 		policyName = p.Name

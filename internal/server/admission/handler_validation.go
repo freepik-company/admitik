@@ -73,7 +73,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 		}
 	}()
 
-	// Craft the resourcePattern to look for the ClusterAdmissionPolicy objects in the pool
+	// Craft the resourcePattern to look for the ClusterValidationPolicy objects in the pool
 	resourcePattern := fmt.Sprintf("%s/%s/%s/%s",
 		requestObj.Request.Resource.Group,
 		requestObj.Request.Resource.Version,
@@ -96,9 +96,9 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 		return
 	}
 
-	// Loop over ClusterAdmissionPolicies performing actions
+	// Loop over ClusterValidationPolicy resources performing actions
 	// At this point, some extra params will be added to the object that will be injected in template
-	caPolicyList := s.dependencies.ClusterAdmissionPoliciesRegistry.GetResources(resourcePattern)
+	caPolicyList := s.dependencies.ClusterValidationPoliciesRegistry.GetResources(resourcePattern)
 
 	for _, caPolicyObj := range caPolicyList {
 
@@ -106,7 +106,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 		reviewResponse.Response.Allowed = false
 
 		// Automatically add some information to the logs
-		logger = logger.WithValues("ClusterAdmissionPolicy", caPolicyObj.Name)
+		logger = logger.WithValues("ClusterValidationPolicy", caPolicyObj.Name)
 
 		// Retrieve the sources declared per policy
 		specificTemplateInjectedObject := commonTemplateInjectedObject

@@ -1,10 +1,8 @@
 apiVersion: admitik.freepik.com/v1alpha1
-kind: ClusterAdmissionPolicy
+kind: ClusterValidationPolicy
 metadata:
   name: starlark-populate-vars
 spec:
-
-  failureAction: Permissive
 
   # Resources to be watched
   watchedResources:
@@ -43,6 +41,7 @@ spec:
         print("pass")
       value: "pass"
 
+  failureAction: Permissive
   message:
     engine: starlark
     template: |
