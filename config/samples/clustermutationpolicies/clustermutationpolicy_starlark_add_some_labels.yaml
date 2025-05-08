@@ -1,9 +1,8 @@
 apiVersion: admitik.freepik.com/v1alpha1
 kind: ClusterMutationPolicy
 metadata:
-  name: test
+  name: starlark-add-some-labels
 spec:
-
   # TODO: Implement failureAction for mutations
   # failureAction: Permissive
 

@@ -23,3 +23,8 @@ resources:
 #####################################
 ## ClusterMutationPolicy
 #####################################
+
+# Gotmpl examples
+
+# Starlark examples
+- clustermutationpolicies/clustermutationpolicy_starlark_add_some_labels.yaml
