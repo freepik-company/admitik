@@ -10,7 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"slices"
 )
 
 // handleValidationRequest handles the incoming validation requests
@@ -113,65 +112,51 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 		specificTemplateInjectedObject["sources"] = s.fetchPolicySources(caPolicyObj)
 
 		// Evaluate template conditions
-		var conditionsPassedList []bool
-		for _, condition := range caPolicyObj.Spec.Conditions {
+		conditionsPassed, condErr := s.isPassingConditions(caPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
+		if condErr != nil {
+			logger.Info(fmt.Sprintf("failed evaluating conditions: %s", condErr.Error()))
+		}
 
-			var conditionPassed bool
-			var condErr error
-
-			// Choose between gotmpl or starlark
-			if condition.Engine == v1alpha1.TemplateEngineStarlark {
-				conditionPassed, condErr = s.isPassingStarlarkCondition(condition.Key, condition.Value, &specificTemplateInjectedObject)
-			} else {
-				conditionPassed, condErr = s.isPassingGotmplCondition(condition.Key, condition.Value, &specificTemplateInjectedObject)
-			}
-
-			if condErr != nil {
-				logger.Info(fmt.Sprintf("failed evaluating condition '%s': %s", condition.Name, condErr.Error()))
-				conditionsPassedList = append(conditionsPassedList, false)
-				continue
-			}
-
-			conditionsPassedList = append(conditionsPassedList, conditionPassed)
+		// Conditions are met, skip rejection
+		if conditionsPassed {
+			continue
 		}
 
 		// When some condition is not met, evaluate message's template and emit a response
-		if slices.Contains(conditionsPassedList, false) {
-			var parsedMessage string
-			if caPolicyObj.Spec.Message.Engine == v1alpha1.TemplateEngineStarlark {
-				parsedMessage, err = template.EvaluateTemplateStarlark(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
-			} else {
-				parsedMessage, err = template.EvaluateTemplate(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
-			}
+		var parsedMessage string
+		if caPolicyObj.Spec.Message.Engine == v1alpha1.TemplateEngineStarlark {
+			parsedMessage, err = template.EvaluateTemplateStarlark(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
+		} else {
+			parsedMessage, err = template.EvaluateTemplate(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
+		}
 
-			if err != nil {
-				logger.Info(fmt.Sprintf("failed parsing message template: %s", err.Error()))
-				parsedMessage = "Reason unavailable: message template failed. More info in controller logs."
-			}
+		if err != nil {
+			logger.Info(fmt.Sprintf("failed parsing message template: %s", err.Error()))
+			parsedMessage = "Reason unavailable: message template failed. More info in controller logs."
+		}
 
-			reviewResponse.Response.Result.Message = parsedMessage
+		reviewResponse.Response.Result.Message = parsedMessage
 
-			// When the policy is in Permissive mode, allow it anyway
-			var kubeEventAction string
-			if caPolicyObj.Spec.FailureAction == v1alpha1.FailureActionPermissive {
-				reviewResponse.Response.Allowed = true
-				kubeEventAction = "AllowedWithViolations"
-				logger.Info(fmt.Sprintf("object accepted with unmet conditions: %s", parsedMessage))
-			} else {
-				kubeEventAction = "Rejected"
-				logger.Info(fmt.Sprintf("object rejected due to unmet conditions: %s", parsedMessage))
-			}
+		// When the policy is in Permissive mode, allow it anyway
+		var kubeEventAction string
+		if caPolicyObj.Spec.FailureAction == v1alpha1.FailureActionPermissive {
+			reviewResponse.Response.Allowed = true
+			kubeEventAction = "AllowedWithViolations"
+			logger.Info(fmt.Sprintf("object accepted with unmet conditions: %s", parsedMessage))
+		} else {
+			kubeEventAction = "Rejected"
+			logger.Info(fmt.Sprintf("object rejected due to unmet conditions: %s", parsedMessage))
+		}
 
-			// Create the Event in Kubernetes about involved object
-			err = createKubeEvent(request.Context(), "default", requestObject, *caPolicyObj, kubeEventAction, parsedMessage)
-			if err != nil {
-				logger.Info(fmt.Sprintf("failed creating kubernetes event: %s", err.Error()))
-			}
+		// Create the Event in Kubernetes about involved object
+		err = createKubeEvent(request.Context(), "default", requestObject, *caPolicyObj, kubeEventAction, parsedMessage)
+		if err != nil {
+			logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
+		}
 
-			// On conditions not being met, first required policy causes early full rejection
-			if caPolicyObj.Spec.FailureAction == v1alpha1.FailureActionEnforce {
-				return
-			}
+		// On conditions not being met, first required policy causes early full rejection
+		if caPolicyObj.Spec.FailureAction == v1alpha1.FailureActionEnforce {
+			return
 		}
 	}
 

@@ -43,6 +43,33 @@ func (s *HttpServer) extractAdmissionRequestData(adReview *admissionv1.Admission
 	return results, nil
 }
 
+// isPassingConditions iterate over a list of templated conditions and return whether they are passing or not
+func (s *HttpServer) isPassingConditions(conditionList []v1alpha1.ConditionT, injectedValues *map[string]interface{}) (result bool, err error) {
+	for _, condition := range conditionList {
+
+		var conditionPassed bool
+		var condErr error
+
+		// Choose templating engine. Maybe more will be added in the future
+		switch condition.Engine {
+		case v1alpha1.TemplateEngineStarlark:
+			conditionPassed, condErr = s.isPassingStarlarkCondition(condition.Key, condition.Value, injectedValues)
+		default:
+			conditionPassed, condErr = s.isPassingGotmplCondition(condition.Key, condition.Value, injectedValues)
+		}
+
+		if condErr != nil {
+			return false, fmt.Errorf("failed condition '%s': %s", condition.Name, condErr.Error())
+		}
+
+		if !conditionPassed {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
 // isPassingStarlarkCondition returns equality between the result given by the 'key' Starlak template and the 'value'
 // For template evaluation, it injects extra information available to the user
 func (s *HttpServer) isPassingStarlarkCondition(key, value string, injectedValues *map[string]interface{}) (result bool, err error) {
@@ -104,25 +131,30 @@ func (s *HttpServer) fetchPolicySources(cmPolicyObj any) (results map[int][]map[
 }
 
 // createKubeEvent creates a modern event in Kubernetes with data given by params
-func createKubeEvent[PolicyType v1alpha1.ClusterValidationPolicy | v1alpha1.ClusterMutationPolicy](ctx context.Context, namespace string, object map[string]interface{},
-	policy PolicyType, action, message string) (err error) {
+func createKubeEvent(ctx context.Context, namespace string, object map[string]interface{},
+	policy any, action, message string) error {
 
 	objectData, err := globals.GetObjectBasicData(&object)
 	if err != nil {
 		return err
 	}
 
+	var eventReason string
 	var policyApiVersion, policyKind, policyName string
 
-	switch p := any(policy).(type) {
+	switch p := policy.(type) {
 	case v1alpha1.ClusterValidationPolicy:
 		policyApiVersion = p.APIVersion
 		policyKind = p.Kind
 		policyName = p.Name
+
+		eventReason = "ClusterValidationPolicyAudit"
 	case v1alpha1.ClusterMutationPolicy:
 		policyApiVersion = p.APIVersion
 		policyKind = p.Kind
 		policyName = p.Name
+
+		eventReason = "ClusterMutationPolicyAudit"
 	default:
 		return fmt.Errorf("unsupported policy type")
 	}
@@ -136,7 +168,7 @@ func createKubeEvent[PolicyType v1alpha1.ClusterValidationPolicy | v1alpha1.Clus
 		ReportingController: "admitik",
 		ReportingInstance:   "admission-server",
 		Action:              action,
-		Reason:              "ClusterMutationPolicyAudit",
+		Reason:              eventReason,
 
 		Regarding: corev1.ObjectReference{
 			APIVersion: objectData["apiVersion"].(string),

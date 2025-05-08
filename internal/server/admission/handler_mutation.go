@@ -12,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"slices"
 )
 
 // handleRequest handles the incoming requests
@@ -90,6 +89,11 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 		return
 	}
 
+	requestObject, ok := commonTemplateInjectedObject["object"].(map[string]interface{})
+	if !ok {
+		logger.Info("failed converting types for presented resource. Kubernetes Event creation skipped")
+	}
+
 	// Loop over ClusterMutationPolicy objects collecting the patches to apply
 	// At this point, some extra params will be added to the object that will be injected in template
 	jsonPatchOperations := jsondiff.Patch{}
@@ -105,75 +109,54 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 		specificTemplateInjectedObject["sources"] = s.fetchPolicySources(cmPolicyObj)
 
 		// Evaluate template conditions
-		var conditionsPassedList []bool
-		for _, condition := range cmPolicyObj.Spec.Conditions {
+		conditionsPassed, condErr := s.isPassingConditions(cmPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
+		if condErr != nil {
+			logger.Info(fmt.Sprintf("failed evaluating conditions: %s", condErr.Error()))
+		}
 
-			var conditionPassed bool
-			var condErr error
-
-			// Choose templating engine. Maybe more will be added in the future
-			switch condition.Engine {
-			case v1alpha1.TemplateEngineStarlark:
-				conditionPassed, condErr = s.isPassingStarlarkCondition(condition.Key, condition.Value, &specificTemplateInjectedObject)
-			default:
-				conditionPassed, condErr = s.isPassingGotmplCondition(condition.Key, condition.Value, &specificTemplateInjectedObject)
-			}
-
-			if condErr != nil {
-				logger.Info(fmt.Sprintf("failed evaluating condition '%s': %s", condition.Name, condErr.Error()))
-				conditionsPassedList = append(conditionsPassedList, false)
-				continue
-			}
-
-			conditionsPassedList = append(conditionsPassedList, conditionPassed)
+		// Conditions are not met, skip patching the resource
+		if !conditionsPassed {
+			continue
 		}
 
 		// When some condition is not met, evaluate patch's template and emit a response
-		var kubeEventAction string = "MutationSkipped"
+		var kubeEventAction string = "MutationAborted"
 		var kubeEventMessage string
 
-		if slices.Contains(conditionsPassedList, false) {
-			var parsedPatch string
-			var tmpJsonPatchOperations jsondiff.Patch
+		var parsedPatch string
+		var tmpJsonPatchOperations jsondiff.Patch
 
-			switch cmPolicyObj.Spec.Patch.Engine {
-			case v1alpha1.TemplateEngineStarlark:
-				parsedPatch, err = template.EvaluateTemplateStarlark(cmPolicyObj.Spec.Patch.Template, &specificTemplateInjectedObject)
-			default:
-				parsedPatch, err = template.EvaluateTemplate(cmPolicyObj.Spec.Patch.Template, &specificTemplateInjectedObject)
-			}
+		switch cmPolicyObj.Spec.Patch.Engine {
+		case v1alpha1.TemplateEngineStarlark:
+			parsedPatch, err = template.EvaluateTemplateStarlark(cmPolicyObj.Spec.Patch.Template, &specificTemplateInjectedObject)
+		default:
+			parsedPatch, err = template.EvaluateTemplate(cmPolicyObj.Spec.Patch.Template, &specificTemplateInjectedObject)
+		}
 
-			if err != nil {
-				logger.Info(fmt.Sprintf("failed parsing patch template: %s", err.Error()))
-				kubeEventMessage = "Patch template failed. More info in controller logs."
-				goto createKubeEvent
-			}
+		if err != nil {
+			logger.Info(fmt.Sprintf("failed parsing patch template: %s", err.Error()))
+			kubeEventMessage = "Patch template failed. More info in controller logs."
+			goto createKubeEvent
+		}
 
-			tmpJsonPatchOperations, err = generateJsonPatchOperations(requestObj.Request.Object.Raw, cmPolicyObj.Spec.Patch.Type, []byte(parsedPatch))
-			if err != nil {
-				logger.Info(fmt.Sprintf("failed generating canonical jsonPatch operations for Kube API server: %s", err.Error()))
-				kubeEventMessage = "Generated patch is invalid. More info in controller logs."
-				goto createKubeEvent
-			}
+		tmpJsonPatchOperations, err = generateJsonPatchOperations(requestObj.Request.Object.Raw, cmPolicyObj.Spec.Patch.Type, []byte(parsedPatch))
+		if err != nil {
+			logger.Info(fmt.Sprintf("failed generating canonical jsonPatch operations for Kube API server: %s", err.Error()))
+			kubeEventMessage = "Generated patch is invalid. More info in controller logs."
+			goto createKubeEvent
+		}
 
-			jsonPatchOperations = append(jsonPatchOperations, tmpJsonPatchOperations...)
-			continue
+		jsonPatchOperations = append(jsonPatchOperations, tmpJsonPatchOperations...)
+		continue
 
-			// Create the Event in Kubernetes about involved object
-		createKubeEvent:
-			requestObject, ok := commonTemplateInjectedObject["object"].(map[string]interface{})
-			if !ok {
-				logger.Info("failed converting types for presented resource. Kubernetes Event creation skipped")
-				continue
-			}
-
-			err = createKubeEvent(request.Context(), "default", requestObject, *cmPolicyObj, kubeEventAction, kubeEventMessage)
-			if err != nil {
-				logger.Info(fmt.Sprintf("failed creating kubernetes event: %s", err.Error()))
-			}
+	createKubeEvent:
+		err = createKubeEvent(request.Context(), "default", requestObject, *cmPolicyObj, kubeEventAction, kubeEventMessage)
+		if err != nil {
+			logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
 		}
 	}
 
+	// All working mutation patches are collected from policies, send them to Kubernetes
 	jsonPatchOperationBytes, err := json.Marshal(jsonPatchOperations)
 
 	reviewResponse.Response.Patch = jsonPatchOperationBytes
