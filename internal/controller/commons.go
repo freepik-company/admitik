@@ -26,7 +26,8 @@ import (
 )
 
 const (
-	ClusterAdmissionPolicyResourceType = "ClusterAdmissionPolicy"
+	ClusterValidationPolicyResourceType = "ClusterValidationPolicy"
+	ClusterMutationPolicyResourceType   = "ClusterMutationPolicy"
 
 	//
 	ResourceNotFoundError         = "%s '%s' resource not found. Ignoring since object must be deleted."
@@ -40,7 +41,7 @@ const (
 )
 
 // GetWebhookClientConfig return a WebhookClientConfig filled according to if the remote server
-// is trully remote or inside Kubernetes
+// is truly remote or inside Kubernetes
 func GetWebhookClientConfig(CABundle []byte, serverHostname string, serverPort int, serverPath string) (wcConfig *admissionregv1.WebhookClientConfig, err error) {
 
 	wcConfig = &admissionregv1.WebhookClientConfig{}

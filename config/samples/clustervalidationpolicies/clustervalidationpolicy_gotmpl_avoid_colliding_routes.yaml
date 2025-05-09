@@ -1,5 +1,5 @@
 apiVersion: admitik.freepik.com/v1alpha1
-kind: ClusterAdmissionPolicy
+kind: ClusterValidationPolicy
 metadata:
   name: gotmpl-avoid-colliding-routes
 spec:

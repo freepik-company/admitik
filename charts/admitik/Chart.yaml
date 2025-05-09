@@ -4,8 +4,8 @@ type: application
 description: >-
   A Helm chart for Admitik, an admission controller for Kubernetes
   that allow resources entrance if conditions are met (realtime)
-version: 0.8.1
-appVersion: "0.8.1" # application version
+version: 1.0.0
+appVersion: "1.0.0" # application version
 kubeVersion: ">=1.22.0-0" # kubernetes version
 home: https://github.com/freepik-company/admitik
 sources:
@@ -18,12 +18,6 @@ keywords:
 maintainers:
   - name: Alby Hernández
     email: ahernandez@freepik.com
-    url: https://github.com/freepik-company/admitik
-  - name: Daniel Fradejas
-    email: dfradejas@freepik.com
-    url: https://github.com/freepik-company/admitik
-  - name: Sebastián Vargas
-    email: svargas@freepik.com
     url: https://github.com/freepik-company/admitik
   - name: prosimcorp
     url: https://github.com/prosimcorp

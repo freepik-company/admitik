@@ -36,7 +36,8 @@ import (
 
 	//
 	"freepik.com/admitik/internal/globals"
-	clusterAdmissionPoliciesRegistry "freepik.com/admitik/internal/registry/clusteradmissionpolicies"
+	clusterMutationPoliciesRegistry "freepik.com/admitik/internal/registry/clustermutationpolicies"
+	clusterValidationPoliciesRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicies"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
 )
 
@@ -73,12 +74,13 @@ type SourcesControllerDependencies struct {
 	Context *context.Context
 
 	//
-	ClusterAdmissionPoliciesRegistry *clusterAdmissionPoliciesRegistry.ClusterAdmissionPoliciesRegistry
-	SourcesRegistry                  *sourcesRegistry.SourcesRegistry
+	ClusterValidationPoliciesRegistry *clusterValidationPoliciesRegistry.ClusterValidationPoliciesRegistry
+	ClusterMutationPoliciesRegistry   *clusterMutationPoliciesRegistry.ClusterMutationPoliciesRegistry
+	SourcesRegistry                   *sourcesRegistry.SourcesRegistry
 }
 
 // SourcesController represents a controller that triggers parallel threads.
-// These threads watch resources defined in 'sources' section from ClusterAdmissionPolicy CRs
+// These threads watch resources defined in 'sources' section of several object types stored in registries.
 // Each thread is an informer in charge of a group of resources GVRNN (Group + Version + Resource + Namespace + Name)
 type SourcesController struct {
 	Client client.Client
@@ -87,7 +89,23 @@ type SourcesController struct {
 	Dependencies SourcesControllerDependencies
 }
 
-// informersCleanerWorker review the sources types of ClusterAdmissionPolicies registry in the background.
+// getSourcesFromRegistries returns a list of sources with all the types registered in suitable registries
+func (r *SourcesController) getSourcesFromRegistries() []string {
+
+	var referentCandidates []string
+
+	candidatesFromValidation := r.Dependencies.ClusterValidationPoliciesRegistry.GetRegisteredSourcesTypes()
+	candidatesFromMutation := r.Dependencies.ClusterMutationPoliciesRegistry.GetRegisteredSourcesTypes()
+	referentCandidates = slices.Concat(candidatesFromValidation, candidatesFromMutation)
+
+	// Filter duplicated items
+	slices.Sort(referentCandidates)
+	referentCandidates = slices.Compact(referentCandidates)
+
+	return referentCandidates
+}
+
+// informersCleanerWorker review the 'sources' section of several object types stored in registries in the background.
 // It disables the informers that are not needed and delete them from sources registry
 // This function is intended to be used as goroutine
 func (r *SourcesController) informersCleanerWorker() {
@@ -98,10 +116,10 @@ func (r *SourcesController) informersCleanerWorker() {
 
 	for {
 		//
-		referentCandidates := r.Dependencies.ClusterAdmissionPoliciesRegistry.GetRegisteredSourcesTypes()
-		evaluableCandidates := r.Dependencies.SourcesRegistry.GetRegisteredResourceTypes()
+		referentCandidates := r.getSourcesFromRegistries()
+		reviewedCandidates := r.Dependencies.SourcesRegistry.GetRegisteredResourceTypes()
 
-		for _, resourceType := range evaluableCandidates {
+		for _, resourceType := range reviewedCandidates {
 			if !slices.Contains(referentCandidates, resourceType) {
 				err := r.Dependencies.SourcesRegistry.DisableInformer(resourceType)
 				if err != nil {
@@ -143,7 +161,9 @@ func (r *SourcesController) reconcileInformers() {
 	logger := log.FromContext(*r.Dependencies.Context)
 	logger = logger.WithValues("controller", controllerName)
 
-	for _, resourceType := range r.Dependencies.ClusterAdmissionPoliciesRegistry.GetRegisteredSourcesTypes() {
+	sourcesCandidates := r.getSourcesFromRegistries()
+
+	for _, resourceType := range sourcesCandidates {
 
 		_, informerExists := r.Dependencies.SourcesRegistry.GetInformer(resourceType)
 

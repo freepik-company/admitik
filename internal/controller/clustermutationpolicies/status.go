@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clusteradmissionpolicies
+package clustermutationpolicies
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,20 +24,20 @@ import (
 	"freepik.com/admitik/internal/controller"
 )
 
-func (r *ClusterAdmissionPolicyReconciler) UpdateConditionSuccess(caPolicy *v1alpha1.ClusterAdmissionPolicy) {
+func (r *ClusterMutationPolicyReconciler) UpdateConditionSuccess(cmPolicy *v1alpha1.ClusterMutationPolicy) {
 
 	//
 	condition := controller.NewCondition(controller.ConditionTypeResourceSynced, metav1.ConditionTrue,
 		controller.ConditionReasonTargetSynced, controller.ConditionReasonTargetSyncedMessage)
 
-	controller.UpdateCondition(&caPolicy.Status.Conditions, condition)
+	controller.UpdateCondition(&cmPolicy.Status.Conditions, condition)
 }
 
-func (r *ClusterAdmissionPolicyReconciler) UpdateConditionKubernetesApiCallFailure(caPolicy *v1alpha1.ClusterAdmissionPolicy) {
+func (r *ClusterMutationPolicyReconciler) UpdateConditionKubernetesApiCallFailure(cmPolicy *v1alpha1.ClusterMutationPolicy) {
 
 	//
 	condition := controller.NewCondition(controller.ConditionTypeResourceSynced, metav1.ConditionTrue,
 		controller.ConditionReasonKubernetesApiCallErrorType, controller.ConditionReasonKubernetesApiCallErrorMessage)
 
-	controller.UpdateCondition(&caPolicy.Status.Conditions, condition)
+	controller.UpdateCondition(&cmPolicy.Status.Conditions, condition)
 }

@@ -1,5 +1,5 @@
 apiVersion: admitik.freepik.com/v1alpha1
-kind: ClusterAdmissionPolicy
+kind: ClusterValidationPolicy
 metadata:
   name: starlark-confirm-existing-namespace-labels
 spec:
@@ -35,7 +35,7 @@ spec:
         # Ref [Extra Libs]: https://github.com/google/starlark-go/tree/master/lib
         
         # Injected data is located in following global variables:
-        # operation, oldObject, object, sources
+        # operation, oldObject, object, sources, vars
         
         def isLabelPresent(label):
           labels = object["metadata"].get("labels")

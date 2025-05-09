@@ -19,7 +19,6 @@ package main
 import (
 	"crypto/tls"
 	"flag"
-	"k8s.io/client-go/rest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -45,10 +45,12 @@ import (
 	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/certificates"
 	"freepik.com/admitik/internal/controller"
-	"freepik.com/admitik/internal/controller/clusteradmissionpolicies"
+	"freepik.com/admitik/internal/controller/clustermutationpolicies"
+	"freepik.com/admitik/internal/controller/clustervalidationpolicies"
 	"freepik.com/admitik/internal/controller/sources"
 	"freepik.com/admitik/internal/globals"
-	clusterAdmissionPolicies "freepik.com/admitik/internal/registry/clusteradmissionpolicies"
+	clusterMutationPoliciesRegistry "freepik.com/admitik/internal/registry/clustermutationpolicies"
+	clusterValidationPoliciesRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicies"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
 	"freepik.com/admitik/internal/server/admission"
 	// +kubebuilder:scaffold:imports
@@ -118,7 +120,7 @@ func main() {
 
 	flag.IntVar(&webhooksServerPort, "webhook-server-port", 10250,
 		"The port where the webhooks server listens")
-	flag.StringVar(&webhooksServerPath, "webhook-server-path", "/validate",
+	flag.StringVar(&webhooksServerPath, "webhook-server-path", "/admission",
 		"The path where the webhooks server listens")
 	flag.StringVar(&webhooksServerCA, "webhook-server-ca", "",
 		"The CA bundle to use for the webhooks server")
@@ -341,43 +343,65 @@ func main() {
 	}
 
 	// Create registries managers that will be used by several controllers
-	clusterAdmissionPoliciesReg := clusterAdmissionPolicies.NewClusterAdmissionPoliciesRegistry()
+	clusterValidationPoliciesReg := clusterValidationPoliciesRegistry.NewClusterValidationPoliciesRegistry()
+	clusterMutationPoliciesReg := clusterMutationPoliciesRegistry.NewClusterMutationPoliciesRegistry()
 	sourcesReg := sourcesRegistry.NewSourcesRegistry()
 
 	// Init SourcesController.
 	// This controller is in charge of launching watchers to cache sources expressed in some CRs in background.
-	// This way we avoid retrieving them from Kubernetes on each request to the Admission/Mutation controllers.
+	// This way we avoid retrieving them from Kubernetes on each request to the Validation/Mutation controllers.
 	sourcesController := sources.SourcesController{
 		Client: mgr.GetClient(),
 		Options: sources.SourcesControllerOptions{
 			InformerDurationToResync: sourcesTimeToResyncInformers,
 		},
 		Dependencies: sources.SourcesControllerDependencies{
-			Context:                          &globals.Application.Context,
-			ClusterAdmissionPoliciesRegistry: clusterAdmissionPoliciesReg,
-			SourcesRegistry:                  sourcesReg,
+			Context:                           &globals.Application.Context,
+			ClusterValidationPoliciesRegistry: clusterValidationPoliciesReg,
+			ClusterMutationPoliciesRegistry:   clusterMutationPoliciesReg,
+			SourcesRegistry:                   sourcesReg,
 		},
 	}
 
 	setupLog.Info("starting sources controller")
 	go sourcesController.Start()
 
-	// Init primary controller
+	// Init primary controllers
 	// ATTENTION: This controller may be replaced by a custom one in the future doing the same tasks
 	// to simplify this project's dependencies and maintainability
-	if err = (&clusteradmissionpolicies.ClusterAdmissionPolicyReconciler{
+	webhookClientConfigValidation := webhookClientConfig.DeepCopy()
+	*webhookClientConfigValidation.URL = *webhookClientConfigValidation.URL + admission.AdmissionServerValidationPath
+	if err = (&clustervalidationpolicies.ClusterValidationPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 
-		Options: clusteradmissionpolicies.ClusterAdmissionPolicyControllerOptions{
-			WebhookClientConfig: *webhookClientConfig,
+		Options: clustervalidationpolicies.ClusterValidationPolicyControllerOptions{
+			WebhookClientConfig: *webhookClientConfigValidation,
 			WebhookTimeout:      webhooksClientTimeout,
 		},
-		Dependencies: clusteradmissionpolicies.ClusterAdmissionPolicyControllerDependencies{
-			ClusterAdmissionPoliciesRegistry: clusterAdmissionPoliciesReg,
+		Dependencies: clustervalidationpolicies.ClusterValidationPolicyControllerDependencies{
+			ClusterValidationPoliciesRegistry: clusterValidationPoliciesReg,
 		},
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ClusterAdmissionPolicy")
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterValidationPolicy")
+		os.Exit(1)
+	}
+
+	webhookClientConfigMutation := webhookClientConfig.DeepCopy()
+	*webhookClientConfigMutation.URL = *webhookClientConfigMutation.URL + admission.AdmissionServerMutationPath
+	if err = (&clustermutationpolicies.ClusterMutationPolicyReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+
+		Options: clustermutationpolicies.ClusterMutationPolicyControllerOptions{
+			WebhookClientConfig: *webhookClientConfigMutation,
+			WebhookTimeout:      webhooksClientTimeout,
+		},
+		Dependencies: clustermutationpolicies.ClusterMutationPolicyControllerDependencies{
+			ClusterMutationPoliciesRegistry: clusterMutationPoliciesReg,
+		},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterMutationPolicy")
 		os.Exit(1)
 	}
 
@@ -392,7 +416,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Init admissions server to process incoming events
+	// Init admissions server to process incoming validation/mutation events
 	admissionServer := admission.NewAdmissionServer(
 		admission.AdmissionServerOptions{
 			//
@@ -405,11 +429,12 @@ func main() {
 			TLSPrivateKey:  webhooksServerPrivateKey,
 		},
 		admission.AdmissionServerDependencies{
-			SourcesRegistry:                  sourcesReg,
-			ClusterAdmissionPoliciesRegistry: clusterAdmissionPoliciesReg,
+			SourcesRegistry:                   sourcesReg,
+			ClusterValidationPoliciesRegistry: clusterValidationPoliciesReg,
+			ClusterMutationPoliciesRegistry:   clusterMutationPoliciesReg,
 		})
 
-	setupLog.Info("starting admission controller")
+	setupLog.Info("starting admission server")
 	go admissionServer.Start(globals.Application.Context)
 
 	//

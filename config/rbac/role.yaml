@@ -13,6 +13,18 @@ rules:
 - apiGroups:
   - admissionregistration.k8s.io
   resources:
+  - mutatingwebhookconfigurations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
   - validatingwebhookconfigurations
   verbs:
   - create
@@ -25,7 +37,7 @@ rules:
 - apiGroups:
   - admitik.freepik.com
   resources:
-  - clusteradmissionpolicies
+  - clustermutationpolicies
   verbs:
   - create
   - delete
@@ -37,13 +49,39 @@ rules:
 - apiGroups:
   - admitik.freepik.com
   resources:
-  - clusteradmissionpolicies/finalizers
+  - clustermutationpolicies/finalizers
   verbs:
   - update
 - apiGroups:
   - admitik.freepik.com
   resources:
-  - clusteradmissionpolicies/status
+  - clustermutationpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - admitik.freepik.com
+  resources:
+  - clustervalidationpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - admitik.freepik.com
+  resources:
+  - clustervalidationpolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - admitik.freepik.com
+  resources:
+  - clustervalidationpolicies/status
   verbs:
   - get
   - patch
