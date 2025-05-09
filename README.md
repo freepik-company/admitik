@@ -92,7 +92,7 @@ After deploying this operator, you will have new resources available. Let's talk
 > [!TIP]
 > You can find examples for all the features of the resource in the [examples directory](./config/samples)
 
-### How to create kubernetes dynamic validation policies
+### Admission validation policies
 
 To create a dynamic validation policy in your cluster, you will need to create a `ClusterValidationPolicy` resource.
 You may prefer to learn directly from an example, so let's explain it creating a ClusterValidationPolicy:
@@ -364,6 +364,60 @@ You can see all you need in these helpful links:
 * [Extra official supported libs](https://github.com/google/starlark-go/tree/master/lib)
 * [Extra unofficial supported libs](https://github.com/freepik-company/admitik/tree/master/internal/template/starlarkmods)
 * [Playground](https://starlark-lang.org/playground.html)
+
+### Admission mutation policies
+
+This type of policy is designed to patch resources that are in your cluster entrance. For creating it,
+you will need to create a `ClusterMutationPolicy` resource.
+
+The policy structure are super similar to other policy types to keep this as simple as possible for the user.
+As always, better to learn from an example:
+
+> [!IMPORTANT]
+> When you have multiple ClusterMutationPolicy resources with the same watchedResources parameters,
+> a resource will accumulate all the patches from different mutation policies meeting the conditions.
+>
+> All the mutations will be performed to the same resource
+
+```yaml
+apiVersion: admitik.freepik.com/v1alpha1
+kind: ClusterMutationPolicy
+metadata:
+   name: mutate-resources
+spec:
+
+  # Resources to be mutated against the webhooks server.
+  # Those matching any combination of following params will be sent.
+  # As a hint: don't set operations you don't need for a resource type
+  watchedResources:
+     group: gateway.networking.k8s.io
+     version: v1
+     resource: httproutes
+     operations:
+        - CREATE
+        - UPDATE
+
+  # ALL the conditions must be valid to mutate the resource.
+  conditions:
+     - name: the-name-of-the-condition
+       key: |
+         # YOUR TEMPLATE HERE
+       value: "your-value-here"
+
+  patch:
+    type:   jsonpatch  # jsonpatch | strategicmerge
+    engine: starlark   # gotmpl | starlark
+    template: |
+      patch = [
+        {"op": "add", "path": "/metadata/annotations/first", "value": "firstValue"},
+        {"op": "replace", "path": "/metadata/annotations/second", "value": "secondValue"},
+      ]
+      print(json.encode(patch))
+```
+
+The mission is to create conditions whose templates, under _key_ field, output something. For each condition,
+the output of the template will be compared to the _value_ field.
+If they match, condition is met and the next one will be evaluated.
 
 ## How to develop
 

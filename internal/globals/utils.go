@@ -18,7 +18,6 @@ package globals
 
 import (
 	"errors"
-	//
 	"os"
 
 	//
