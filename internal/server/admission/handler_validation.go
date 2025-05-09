@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"strings"
 )
 
 // handleValidationRequest handles the incoming validation requests
@@ -139,7 +140,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 
 		// When the policy is in Permissive mode, allow it anyway
 		var kubeEventAction string
-		if caPolicyObj.Spec.FailureAction == v1alpha1.FailureActionPermissive {
+		if strings.ToLower(caPolicyObj.Spec.FailureAction) == v1alpha1.ValidationFailureActionPermissive {
 			reviewResponse.Response.Allowed = true
 			kubeEventAction = "AllowedWithViolations"
 			logger.Info(fmt.Sprintf("object accepted with unmet conditions: %s", parsedMessage))
@@ -155,7 +156,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 		}
 
 		// On conditions not being met, first required policy causes early full rejection
-		if caPolicyObj.Spec.FailureAction == v1alpha1.FailureActionEnforce {
+		if strings.ToLower(caPolicyObj.Spec.FailureAction) == v1alpha1.ValidationFailureActionEnforce {
 			return
 		}
 	}

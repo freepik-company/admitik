@@ -22,9 +22,7 @@ import (
 )
 
 const (
-	FailureActionPermissive string = "Permissive"
-	FailureActionEnforce    string = "Enforce"
-
+	
 	//
 	TemplateEnginePlain    string = "plain"
 	TemplateEngineStarlark string = "starlark"

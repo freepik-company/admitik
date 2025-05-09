@@ -95,13 +95,13 @@ func (s *HttpServer) isPassingGotmplCondition(key, value string, injectedValues 
 }
 
 // fetchPolicySources TODO
-func (s *HttpServer) fetchPolicySources(cmPolicyObj any) (results map[int][]map[string]any) {
+func (s *HttpServer) fetchPolicySources(policyObj any) (results map[int][]map[string]any) {
 
 	results = make(map[int][]map[string]any)
 
 	var policySources []v1alpha1.SourceT
 
-	switch p := (cmPolicyObj).(type) {
+	switch p := (policyObj).(type) {
 	case *v1alpha1.ClusterValidationPolicy:
 		policySources = p.Spec.Sources
 	case *v1alpha1.ClusterMutationPolicy:
@@ -132,7 +132,7 @@ func (s *HttpServer) fetchPolicySources(cmPolicyObj any) (results map[int][]map[
 
 // createKubeEvent creates a modern event in Kubernetes with data given by params
 func createKubeEvent(ctx context.Context, namespace string, object map[string]interface{},
-	policy any, action, message string) error {
+	policyObj any, action, message string) error {
 
 	objectData, err := globals.GetObjectBasicData(&object)
 	if err != nil {
@@ -142,7 +142,7 @@ func createKubeEvent(ctx context.Context, namespace string, object map[string]in
 	var eventReason string
 	var policyApiVersion, policyKind, policyName string
 
-	switch p := policy.(type) {
+	switch p := policyObj.(type) {
 	case v1alpha1.ClusterValidationPolicy:
 		policyApiVersion = p.APIVersion
 		policyKind = p.Kind

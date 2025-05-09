@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"strings"
 )
 
 // handleRequest handles the incoming requests
@@ -169,6 +170,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 func generateJsonPatchOperations(objectToPatch []byte, patchType string, patch []byte) (results jsondiff.Patch, err error) {
 
 	var patchedObjectBytes []byte
+	patchType = strings.ToLower(patchType)
 
 	// Apply user-defined patch to the entering object
 	switch patchType {
