@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package watchedresources
+package observedresources
 
 import (
 	"context"
@@ -37,8 +37,8 @@ import (
 	//
 	"freepik.com/admitik/internal/globals"
 	clusterGenerationPoliciesRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicies"
+	observedResourcesRegistry "freepik.com/admitik/internal/registry/observedresources"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
-	watchedResourcesRegistry "freepik.com/admitik/internal/registry/watchedresources"
 )
 
 const (
@@ -52,45 +52,45 @@ const (
 	secondsToReconcileInformersAgain = 2 * time.Second
 
 	//
-	controllerName = "watchers"
+	controllerName = "observedresources"
 
 	//
-	controllerContextFinishedMessage = "WatcherController finished by context"
+	controllerContextFinishedMessage = "ObservedResourcesController finished by context"
 	controllerInformerStartedMessage = "Informer for '%s' has been started"
 	controllerInformerKilledMessage  = "Informer for resource type '%s' killed by StopSignal"
 
 	watchedObjectParseError         = "Impossible to process triggered object: %s"
 	resourceInformerLaunchingError  = "Impossible to start informer for resource type: %s"
-	resourceInformerGvrParsingError = "Failed to parse GVR from resourceType. Does it look like {group}/{version}/{resource}?"
+	resourceInformerGvrParsingError = "Failed to parse GVR from resourceType. Does it look like {group}/{version}/{resource}/{namespace}/{name}?"
 )
 
-// WatchedResourcesControllerOptions represents available options that can be passed to WatchedResourcesController on start
-type WatchedResourcesControllerOptions struct {
+// ObservedResourcesControllerOptions represents available options that can be passed to ObservedResourcesController on start
+type ObservedResourcesControllerOptions struct {
 	// Duration to wait until resync all the objects
 	InformerDurationToResync time.Duration
 }
 
-type WatchedResourcesControllerDependencies struct {
+type ObservedResourcesControllerDependencies struct {
 	Context *context.Context
 
 	//
 	ClusterGenerationPoliciesRegistry *clusterGenerationPoliciesRegistry.ClusterGenerationPoliciesRegistry
-	WatchedResourcesRegistry          *watchedResourcesRegistry.WatchedResourcesRegistry
+	ObservedResourcesRegistry         *observedResourcesRegistry.ObservedResourcesRegistry
 	SourcesRegistry                   *sourcesRegistry.SourcesRegistry
 }
 
-// WatchedResourcesController represents the controller that triggers parallel threads.
+// ObservedResourcesController represents the controller that triggers parallel threads.
 // These threads process coming events against the conditions defined in TODO
 // Each thread is a watcher in charge of a group of resources GVRNN (Group + Version + Resource + Namespace + Name)
-type WatchedResourcesController struct {
+type ObservedResourcesController struct {
 	Client client.Client
 
-	Options      WatchedResourcesControllerOptions
-	Dependencies WatchedResourcesControllerDependencies
+	Options      ObservedResourcesControllerOptions
+	Dependencies ObservedResourcesControllerDependencies
 }
 
 // getWatchersFromRegistries returns a list of TODO with all the types registered in suitable registries
-func (r *WatchedResourcesController) getWatchedResourcesFromRegistries() []string {
+func (r *ObservedResourcesController) getObservedResourcesFromRegistries() []string {
 
 	candidatesFromGeneration := r.Dependencies.ClusterGenerationPoliciesRegistry.GetRegisteredResourceTypes()
 
@@ -104,7 +104,7 @@ func (r *WatchedResourcesController) getWatchedResourcesFromRegistries() []strin
 // informersCleanerWorker review the 'TODO' section of several object types stored in registries in the background.
 // It disables the informers that are not needed and delete them from sources registry
 // This function is intended to be used as goroutine
-func (r *WatchedResourcesController) informersCleanerWorker() {
+func (r *ObservedResourcesController) informersCleanerWorker() {
 	logger := log.FromContext(*r.Dependencies.Context)
 	logger = logger.WithValues("controller", controllerName)
 
@@ -112,12 +112,12 @@ func (r *WatchedResourcesController) informersCleanerWorker() {
 
 	for {
 		//
-		referentCandidates := r.getWatchedResourcesFromRegistries()
-		reviewedCandidates := r.Dependencies.WatchedResourcesRegistry.GetRegisteredResourceTypes()
+		referentCandidates := r.getObservedResourcesFromRegistries()
+		reviewedCandidates := r.Dependencies.ObservedResourcesRegistry.GetRegisteredResourceTypes()
 
 		for _, resourceType := range reviewedCandidates {
 			if !slices.Contains(referentCandidates, resourceType) {
-				err := r.Dependencies.WatchedResourcesRegistry.DisableInformer(resourceType)
+				err := r.Dependencies.ObservedResourcesRegistry.DisableInformer(resourceType)
 				if err != nil {
 					logger.WithValues("resourceType", resourceType).
 						Info("Failed disabling watcher informer")
@@ -131,7 +131,7 @@ func (r *WatchedResourcesController) informersCleanerWorker() {
 
 // Start launches the SourcesController and keeps it alive
 // It kills the controller on application's context death, and rerun the process when failed
-func (r *WatchedResourcesController) Start() {
+func (r *ObservedResourcesController) Start() {
 	logger := log.FromContext(*r.Dependencies.Context)
 	logger = logger.WithValues("controller", controllerName)
 
@@ -153,28 +153,28 @@ func (r *WatchedResourcesController) Start() {
 
 // reconcileInformers checks each registered 'watchedResource' type and triggers informers
 // for those that are not already started.
-func (r *WatchedResourcesController) reconcileInformers() {
+func (r *ObservedResourcesController) reconcileInformers() {
 	logger := log.FromContext(*r.Dependencies.Context)
 	logger = logger.WithValues("controller", controllerName)
 
-	watcherCandidates := r.getWatchedResourcesFromRegistries()
+	watcherCandidates := r.getObservedResourcesFromRegistries()
 
 	for _, resourceType := range watcherCandidates {
 
-		_, informerExists := r.Dependencies.WatchedResourcesRegistry.GetInformer(resourceType)
+		_, informerExists := r.Dependencies.ObservedResourcesRegistry.GetInformer(resourceType)
 
 		// Avoid wasting CPU for nothing
-		if informerExists && r.Dependencies.WatchedResourcesRegistry.IsStarted(resourceType) {
+		if informerExists && r.Dependencies.ObservedResourcesRegistry.IsStarted(resourceType) {
 			continue
 		}
 
 		//
-		if !informerExists || !r.Dependencies.WatchedResourcesRegistry.IsStarted(resourceType) {
+		if !informerExists || !r.Dependencies.ObservedResourcesRegistry.IsStarted(resourceType) {
 			go r.launchInformerForType(resourceType)
 
 			// Wait for the just started informer to ACK itself
 			time.Sleep(secondsToCheckInformerAck)
-			if !r.Dependencies.WatchedResourcesRegistry.IsStarted(resourceType) {
+			if !r.Dependencies.ObservedResourcesRegistry.IsStarted(resourceType) {
 				logger.Info(fmt.Sprintf(resourceInformerLaunchingError, resourceType))
 			}
 		}
@@ -183,22 +183,22 @@ func (r *WatchedResourcesController) reconcileInformers() {
 
 // launchInformerForType creates and runs a Kubernetes informer for the specified
 // resource type, and triggers processing for each event
-func (r *WatchedResourcesController) launchInformerForType(resourceType string) {
+func (r *ObservedResourcesController) launchInformerForType(resourceType string) {
 	logger := log.FromContext(*r.Dependencies.Context)
 	logger = logger.WithValues("controller", controllerName)
 
-	informer, informerExists := r.Dependencies.WatchedResourcesRegistry.GetInformer(resourceType)
+	informer, informerExists := r.Dependencies.ObservedResourcesRegistry.GetInformer(resourceType)
 	if !informerExists {
-		informer = r.Dependencies.WatchedResourcesRegistry.RegisterInformer(resourceType)
+		informer = r.Dependencies.ObservedResourcesRegistry.RegisterInformer(resourceType)
 	}
 
 	logger.Info(fmt.Sprintf(controllerInformerStartedMessage, resourceType))
 
 	// Trigger ACK flag for informer that is launching
 	// Hey, this informer is blocking, so ACK is only disabled if the informer becomes dead
-	_ = r.Dependencies.WatchedResourcesRegistry.SetStarted(resourceType, true)
+	_ = r.Dependencies.ObservedResourcesRegistry.SetStarted(resourceType, true)
 	defer func() {
-		_ = r.Dependencies.WatchedResourcesRegistry.SetStarted(resourceType, false)
+		_ = r.Dependencies.ObservedResourcesRegistry.SetStarted(resourceType, false)
 	}()
 
 	// Extract GVR + Namespace + Name from watched type:
