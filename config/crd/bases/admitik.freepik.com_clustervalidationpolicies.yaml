@@ -73,9 +73,7 @@ spec:
                 type: object
               sources:
                 items:
-                  description: |-
-                    SourceT represents a group of sources being watched
-                    for later injection
+                  description: ResourceGroupT represents a group of resources
                   properties:
                     group:
                       type: string
@@ -94,9 +92,8 @@ spec:
                   type: object
                 type: array
               watchedResources:
-                description: |-
-                  WatchedResourceT represents a group of resources being watched
-                  for admission operations
+                description: AdmissionResourceGroupT represents a group of resources
+                  from Admission point of view
                 properties:
                   group:
                     type: string

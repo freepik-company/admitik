@@ -82,9 +82,7 @@ spec:
                 type: object
               sources:
                 items:
-                  description: |-
-                    SourceT represents a group of sources being watched
-                    for later injection
+                  description: ResourceGroupT represents a group of resources
                   properties:
                     group:
                       type: string
@@ -103,24 +101,20 @@ spec:
                   type: object
                 type: array
               watchedResources:
-                description: |-
-                  WatchedResourceT represents a group of resources being watched
-                  for admission operations
+                description: ResourceGroupT represents a group of resources
                 properties:
                   group:
                     type: string
-                  operations:
-                    items:
-                      description: OperationType specifies an operation for a request.
-                      type: string
-                    type: array
+                  name:
+                    type: string
+                  namespace:
+                    type: string
                   resource:
                     type: string
                   version:
                     type: string
                 required:
                 - group
-                - operations
                 - resource
                 - version
                 type: object

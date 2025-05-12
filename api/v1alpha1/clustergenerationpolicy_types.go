@@ -39,8 +39,8 @@ type ObjectT struct {
 // ClusterGenerationPolicySpec defines the desired state of ClusterGenerationPolicy
 type ClusterGenerationPolicySpec struct {
 	//
-	WatchedResources WatchedResourceT `json:"watchedResources"`
-	Sources          []SourceT        `json:"sources"`
+	WatchedResources ResourceGroupT   `json:"watchedResources"`
+	Sources          []ResourceGroupT `json:"sources"`
 
 	//
 	Conditions []ConditionT `json:"conditions"`

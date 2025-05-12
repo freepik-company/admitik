@@ -34,8 +34,8 @@ type PatchT struct {
 // ClusterMutationPolicySpec defines the desired state of ClusterMutationPolicy
 type ClusterMutationPolicySpec struct {
 	//
-	WatchedResources WatchedResourceT `json:"watchedResources"`
-	Sources          []SourceT        `json:"sources"`
+	WatchedResources AdmissionResourceGroupT `json:"watchedResources"`
+	Sources          []ResourceGroupT        `json:"sources"`
 
 	//
 	Conditions []ConditionT `json:"conditions"`

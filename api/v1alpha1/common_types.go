@@ -30,21 +30,19 @@ const (
 	TemplateEngineGotmpl   string = "gotmpl"
 )
 
-// WatchedResourceT represents a group of resources being watched
-// for admission operations
-type WatchedResourceT struct {
-	metav1.GroupVersionResource `json:",inline"`
-
-	Operations []admissionV1.OperationType `json:"operations"`
-}
-
-// SourceT represents a group of sources being watched
-// for later injection
-type SourceT struct {
+// ResourceGroupT represents a group of resources
+type ResourceGroupT struct {
 	metav1.GroupVersionResource `json:",inline"`
 
 	Name      string `json:"name,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
+}
+
+// AdmissionResourceGroupT represents a group of resources from Admission point of view
+type AdmissionResourceGroupT struct {
+	metav1.GroupVersionResource `json:",inline"`
+
+	Operations []admissionV1.OperationType `json:"operations"`
 }
 
 // ConditionT represents a canonical Kubernetes status condition for a resource
