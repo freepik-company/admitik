@@ -22,9 +22,10 @@ import (
 )
 
 const (
-	
+
 	//
 	TemplateEnginePlain    string = "plain"
+	TemplateEngineCel      string = "cel"
 	TemplateEngineStarlark string = "starlark"
 	TemplateEngineGotmpl   string = "gotmpl"
 )

@@ -45,10 +45,12 @@ import (
 	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/certificates"
 	"freepik.com/admitik/internal/controller"
+	"freepik.com/admitik/internal/controller/clustergenerationpolicies"
 	"freepik.com/admitik/internal/controller/clustermutationpolicies"
 	"freepik.com/admitik/internal/controller/clustervalidationpolicies"
 	"freepik.com/admitik/internal/controller/sources"
 	"freepik.com/admitik/internal/globals"
+	clusterGenerationPoliciesRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicies"
 	clusterMutationPoliciesRegistry "freepik.com/admitik/internal/registry/clustermutationpolicies"
 	clusterValidationPoliciesRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicies"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
@@ -343,8 +345,9 @@ func main() {
 	}
 
 	// Create registries managers that will be used by several controllers
-	clusterValidationPoliciesReg := clusterValidationPoliciesRegistry.NewClusterValidationPoliciesRegistry()
+	clusterGenerationPoliciesReg := clusterGenerationPoliciesRegistry.NewClusterGenerationPoliciesRegistry()
 	clusterMutationPoliciesReg := clusterMutationPoliciesRegistry.NewClusterMutationPoliciesRegistry()
+	clusterValidationPoliciesReg := clusterValidationPoliciesRegistry.NewClusterValidationPoliciesRegistry()
 	sourcesReg := sourcesRegistry.NewSourcesRegistry()
 
 	// Init SourcesController.
@@ -369,21 +372,16 @@ func main() {
 	// Init primary controllers
 	// ATTENTION: This controller may be replaced by a custom one in the future doing the same tasks
 	// to simplify this project's dependencies and maintainability
-	webhookClientConfigValidation := webhookClientConfig.DeepCopy()
-	*webhookClientConfigValidation.URL = *webhookClientConfigValidation.URL + admission.AdmissionServerValidationPath
-	if err = (&clustervalidationpolicies.ClusterValidationPolicyReconciler{
+	if err = (&clustergenerationpolicies.ClusterGenerationPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 
-		Options: clustervalidationpolicies.ClusterValidationPolicyControllerOptions{
-			WebhookClientConfig: *webhookClientConfigValidation,
-			WebhookTimeout:      webhooksClientTimeout,
-		},
-		Dependencies: clustervalidationpolicies.ClusterValidationPolicyControllerDependencies{
-			ClusterValidationPoliciesRegistry: clusterValidationPoliciesReg,
+		Options: clustergenerationpolicies.ClusterGenerationPolicyControllerOptions{},
+		Dependencies: clustergenerationpolicies.ClusterGenerationPolicyControllerDependencies{
+			ClusterGenerationPoliciesRegistry: clusterGenerationPoliciesReg,
 		},
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ClusterValidationPolicy")
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterGenerationPolicy")
 		os.Exit(1)
 	}
 
@@ -402,6 +400,24 @@ func main() {
 		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterMutationPolicy")
+		os.Exit(1)
+	}
+
+	webhookClientConfigValidation := webhookClientConfig.DeepCopy()
+	*webhookClientConfigValidation.URL = *webhookClientConfigValidation.URL + admission.AdmissionServerValidationPath
+	if err = (&clustervalidationpolicies.ClusterValidationPolicyReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+
+		Options: clustervalidationpolicies.ClusterValidationPolicyControllerOptions{
+			WebhookClientConfig: *webhookClientConfigValidation,
+			WebhookTimeout:      webhooksClientTimeout,
+		},
+		Dependencies: clustervalidationpolicies.ClusterValidationPolicyControllerDependencies{
+			ClusterValidationPoliciesRegistry: clusterValidationPoliciesReg,
+		},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterValidationPolicy")
 		os.Exit(1)
 	}
 
