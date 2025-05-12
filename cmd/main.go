@@ -360,8 +360,9 @@ func main() {
 		},
 		Dependencies: sources.SourcesControllerDependencies{
 			Context:                           &globals.Application.Context,
-			ClusterValidationPoliciesRegistry: clusterValidationPoliciesReg,
+			ClusterGenerationPoliciesRegistry: clusterGenerationPoliciesReg,
 			ClusterMutationPoliciesRegistry:   clusterMutationPoliciesReg,
+			ClusterValidationPoliciesRegistry: clusterValidationPoliciesReg,
 			SourcesRegistry:                   sourcesReg,
 		},
 	}
