@@ -36,6 +36,7 @@ import (
 
 	//
 	"freepik.com/admitik/internal/globals"
+	clusterGenerationPoliciesRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicies"
 	clusterMutationPoliciesRegistry "freepik.com/admitik/internal/registry/clustermutationpolicies"
 	clusterValidationPoliciesRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicies"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
@@ -74,8 +75,9 @@ type SourcesControllerDependencies struct {
 	Context *context.Context
 
 	//
-	ClusterValidationPoliciesRegistry *clusterValidationPoliciesRegistry.ClusterValidationPoliciesRegistry
+	ClusterGenerationPoliciesRegistry *clusterGenerationPoliciesRegistry.ClusterGenerationPoliciesRegistry
 	ClusterMutationPoliciesRegistry   *clusterMutationPoliciesRegistry.ClusterMutationPoliciesRegistry
+	ClusterValidationPoliciesRegistry *clusterValidationPoliciesRegistry.ClusterValidationPoliciesRegistry
 	SourcesRegistry                   *sourcesRegistry.SourcesRegistry
 }
 
@@ -94,9 +96,10 @@ func (r *SourcesController) getSourcesFromRegistries() []string {
 
 	var referentCandidates []string
 
-	candidatesFromValidation := r.Dependencies.ClusterValidationPoliciesRegistry.GetRegisteredSourcesTypes()
+	candidatesFromGeneration := r.Dependencies.ClusterGenerationPoliciesRegistry.GetRegisteredSourcesTypes()
 	candidatesFromMutation := r.Dependencies.ClusterMutationPoliciesRegistry.GetRegisteredSourcesTypes()
-	referentCandidates = slices.Concat(candidatesFromValidation, candidatesFromMutation)
+	candidatesFromValidation := r.Dependencies.ClusterValidationPoliciesRegistry.GetRegisteredSourcesTypes()
+	referentCandidates = slices.Concat(candidatesFromGeneration, candidatesFromMutation, candidatesFromValidation)
 
 	// Filter duplicated items
 	slices.Sort(referentCandidates)

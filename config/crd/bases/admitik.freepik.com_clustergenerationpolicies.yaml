@@ -60,17 +60,25 @@ spec:
                   - value
                   type: object
                 type: array
-              patch:
+              object:
+                description: ObjectT TODO
                 properties:
-                  engine:
-                    type: string
-                  template:
-                    type: string
-                  type:
-                    type: string
+                  clone:
+                    description: 'ObjectCloneT TODO: Future capability'
+                    type: object
+                  definition:
+                    description: ObjectDefinitionT TODO
+                    properties:
+                      engine:
+                        type: string
+                      template:
+                        type: string
+                    required:
+                    - template
+                    type: object
                 required:
-                - template
-                - type
+                - clone
+                - definition
                 type: object
               sources:
                 items:
@@ -118,7 +126,7 @@ spec:
                 type: object
             required:
             - conditions
-            - patch
+            - object
             - sources
             - watchedResources
             type: object

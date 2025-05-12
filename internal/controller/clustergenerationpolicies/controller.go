@@ -54,7 +54,6 @@ type ClusterGenerationPolicyReconciler struct {
 // +kubebuilder:rbac:groups=admitik.freepik.com,resources=clustergenerationpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=admitik.freepik.com,resources=clustergenerationpolicies/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=admitik.freepik.com,resources=clustergenerationpolicies/finalizers,verbs=update
-// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=get;list;create;update;patch;delete;watch
 // +kubebuilder:rbac:groups="*",resources="*",verbs="*"
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
