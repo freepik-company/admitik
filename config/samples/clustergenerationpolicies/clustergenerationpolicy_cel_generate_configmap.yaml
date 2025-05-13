@@ -15,13 +15,17 @@ spec:
 
   # Other resources to be retrieved for conditions templates.
   # They will be included under .sources scope in the template
-  sources: []
+  sources:
+    - group: ""
+      version: v1
+      resource: configmaps
 
   conditions:
     - name: second-condition
       engine: cel
       key: |
         object.metadata.name
+        //sources[0][0].metadata.name
       value: "pass"
 
   object:

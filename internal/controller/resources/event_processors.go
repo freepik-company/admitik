@@ -18,14 +18,21 @@ package resources
 
 import (
 	"fmt"
-	//"freepik.com/admitik/api/v1alpha1"
-	"freepik.com/admitik/internal/common"
-	"freepik.com/admitik/internal/globals"
-	//"freepik.com/admitik/internal/template"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"strings"
+
+	//
+	"gopkg.in/yaml.v3"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	// TODO
-	// "freepik.com/admitik/internal/template"
+
+	//
+	"freepik.com/admitik/api/v1alpha1"
+	"freepik.com/admitik/internal/common"
+	"freepik.com/admitik/internal/globals"
+	"freepik.com/admitik/internal/template"
 )
 
 const (
@@ -86,11 +93,13 @@ func (r *ResourcesController) processEventGeneration(resourceType string, eventT
 	logger := log.FromContext(globals.Application.Context)
 	logger = logger.WithValues("processor", ObserverTypeClusterGenerationPolicies)
 
+	var err error
+
 	commonTemplateInjectedObject := map[string]interface{}{}
-	commonTemplateInjectedObject["operation"] = eventType
+	commonTemplateInjectedObject["operation"] = string(eventType)
 	commonTemplateInjectedObject["object"] = &object[0]
 	if eventType == watch.Modified {
-		commonTemplateInjectedObject["oldObject"] = &object[0]
+		commonTemplateInjectedObject["oldObject"] = &object[1]
 	}
 
 	//
@@ -115,43 +124,111 @@ func (r *ResourcesController) processEventGeneration(resourceType string, eventT
 			continue
 		}
 
-		logger.Info(fmt.Sprintf("################## CP0 \n"))
+		// When conditions are met, evaluate generation's template and emit a response
+		var kubeEventAction string = "GenerationAborted"
+		var kubeEventMessage string
 
-		// When some condition is not met, evaluate patch's template and emit a response
-		//var kubeEventAction string = "GenerationAborted"
-		//var kubeEventMessage string
+		// FIXME: Arrange everything to avoid declaring no-sense vars here
+		//////////////////////////////////////////////////////////////////////////
+		var resultObject map[string]any
+		var resultObjectBasicData map[string]any
 
-		//var parsedPatch string
-		//var tmpJsonPatchOperations jsondiff.Patch
+		var tmpGroup, tmpVersion string
+		var resultObjConverted *unstructured.Unstructured
+		var tmpResource *v1alpha1.ResourceGroupT
+		var tmpApiVersionParts []string
+
+		//////////////////////////////////////////////////////////////////////////
+
+		var parsedDefinition string
+		switch policyObj.Spec.Object.Definition.Engine {
+		case v1alpha1.TemplateEngineCel:
+			parsedDefinition, err = template.EvaluateAndReplaceCelExpressions(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
+		case v1alpha1.TemplateEngineStarlark:
+			parsedDefinition, err = template.EvaluateTemplateStarlark(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
+		default:
+			parsedDefinition, err = template.EvaluateTemplate(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
+		}
+
 		//
-		//switch policyObj.Spec.Object.Definition.Engine {
-		//case v1alpha1.TemplateEngineStarlark:
-		//	parsedPatch, err = template.EvaluateTemplateStarlark(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
-		//default:
-		//	parsedPatch, err = template.EvaluateTemplate(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
-		//}
+		if err != nil {
+			logger.Info(fmt.Sprintf("failed parsing generation template: %s", err.Error()))
+			kubeEventMessage = "Generation template failed. More info in controller logs."
+			goto createKubeEvent
+		}
+
+		logger.Info(fmt.Sprintf("Los datos crudos, reinona: \n%v \n", parsedDefinition))
+
 		//
-		//if err != nil {
-		//	logger.Info(fmt.Sprintf("failed parsing generation template: %s", err.Error()))
-		//	kubeEventMessage = "Generation template failed. More info in controller logs."
-		//	goto createKubeEvent
-		//}
+		err = yaml.Unmarshal([]byte(parsedDefinition), &resultObject)
+		if err != nil {
+			logger.Info(fmt.Sprintf("failed decoding template result. Invalid object: %s", err.Error()))
+			kubeEventMessage = "Invalid object after template. More info in controller logs."
+			goto createKubeEvent
+		}
+
 		//
-		//tmpJsonPatchOperations, err = generateJsonPatchOperations(requestObj.Request.Object.Raw, cmPolicyObj.Spec.Patch.Type, []byte(parsedPatch))
-		//if err != nil {
-		//	logger.Info(fmt.Sprintf("failed generating canonical jsonPatch operations for Kube API server: %s", err.Error()))
-		//	kubeEventMessage = "Generated patch is invalid. More info in controller logs."
-		//	goto createKubeEvent
-		//}
-		//
-		//jsonPatchOperations = append(jsonPatchOperations, tmpJsonPatchOperations...)
+		resultObjectBasicData, err = globals.GetObjectBasicData(&resultObject)
+		if err != nil {
+			logger.Info(fmt.Sprintf("failed obtaining metadata from template result. Invalid object: %s", err.Error()))
+			kubeEventMessage = "Invalid object after template. More info in controller logs."
+			goto createKubeEvent
+		}
+
+		// TODO
+		// apiVersion, kind, name, namespace
+		//var tmpGroup, tmpVersion string
+		tmpVersion = resultObjectBasicData["apiVersion"].(string)
+
+		tmpApiVersionParts = strings.Split(resultObjectBasicData["apiVersion"].(string), "/")
+		if len(tmpApiVersionParts) == 2 {
+			tmpGroup = tmpApiVersionParts[0]
+			tmpVersion = tmpApiVersionParts[1]
+		}
+		tmpResource = &v1alpha1.ResourceGroupT{
+			GroupVersionResource: metav1.GroupVersionResource{
+				Group:   tmpGroup,
+				Version: tmpVersion,
+				//Resource: resultObjectBasicData["kind"].(string),
+				Resource: "configmaps",
+			},
+			Name:      resultObjectBasicData["name"].(string),
+			Namespace: resultObjectBasicData["namespace"].(string),
+		}
+
+		resultObjConverted = &unstructured.Unstructured{
+			Object: resultObject,
+		}
+
+		logger.Info(fmt.Sprintf("El recursito: %v\n", tmpResource))
+
+		_, err = globals.Application.KubeRawClient.
+			Resource(schema.GroupVersionResource(tmpResource.GroupVersionResource)).
+			Namespace(tmpResource.Namespace).
+			Create(
+				globals.Application.Context,
+				resultObjConverted,
+				metav1.CreateOptions{},
+			)
+
+		if err != nil {
+			logger.Info(fmt.Sprintf("failed creating generated object from template result: %s", err.Error()))
+			kubeEventMessage = "Object creation after template failed. More info in controller logs."
+			goto createKubeEvent
+		}
+
+		// TODO
+		// 2. Comprobar que existe (o no) en Kubernetes
+		// 3. Crearlo si no existe, updatearlo si existe
+
+		logger.Info(fmt.Sprintf("Esto es lo que voy a crear: \n %v \n", parsedDefinition))
 		continue
 
-		//createKubeEvent:
-		//	err = common.CreateKubeEvent(globals.Application.Context, "default", "resources-controller",
-		//		object[0], *policyObj, kubeEventAction, kubeEventMessage)
-		//	if err != nil {
-		//		logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
-		//	}
+	createKubeEvent:
+		err = common.CreateKubeEvent(globals.Application.Context, "default", "resources-controller",
+			object[0], *policyObj, kubeEventAction, kubeEventMessage)
+		if err != nil {
+			logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
+		}
 	}
 }

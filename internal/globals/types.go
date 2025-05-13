@@ -20,6 +20,7 @@ import (
 	"context"
 
 	//
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
@@ -30,6 +31,7 @@ type applicationT struct {
 	Context context.Context
 
 	// Kubernetes clients
-	KubeRawClient     *dynamic.DynamicClient
-	KubeRawCoreClient *kubernetes.Clientset
+	KubeDiscoveryClient *discovery.DiscoveryClient
+	KubeRawClient       *dynamic.DynamicClient
+	KubeRawCoreClient   *kubernetes.Clientset
 }

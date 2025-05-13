@@ -19,9 +19,9 @@ package common
 import (
 	"context"
 	"fmt"
-	"freepik.com/admitik/internal/registry/sources"
 	"time"
 
+	//
 	corev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,6 +29,7 @@ import (
 	//
 	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/globals"
+	"freepik.com/admitik/internal/registry/sources"
 	"freepik.com/admitik/internal/template"
 )
 
@@ -41,6 +42,8 @@ func IsPassingConditions(conditionList []v1alpha1.ConditionT, injectedValues *ma
 
 		// Choose templating engine. Maybe more will be added in the future
 		switch condition.Engine {
+		case v1alpha1.TemplateEngineCel:
+			conditionPassed, condErr = isPassingCelCondition(condition.Key, condition.Value, injectedValues)
 		case v1alpha1.TemplateEngineStarlark:
 			conditionPassed, condErr = isPassingStarlarkCondition(condition.Key, condition.Value, injectedValues)
 		default:
@@ -57,6 +60,18 @@ func IsPassingConditions(conditionList []v1alpha1.ConditionT, injectedValues *ma
 	}
 
 	return true, nil
+}
+
+// isPassingCelCondition returns equality between the result given by the 'key' Cel template and the 'value'
+// For template evaluation, it injects extra information available to the user
+func isPassingCelCondition(key, value string, injectedValues *map[string]interface{}) (result bool, err error) {
+
+	parsedKey, err := template.EvaluateTemplateCel(key, injectedValues)
+	if err != nil {
+		return false, err
+	}
+
+	return parsedKey == value, nil
 }
 
 // isPassingStarlarkCondition returns equality between the result given by the 'key' Starlak template and the 'value'
@@ -91,6 +106,8 @@ func FetchPolicySources(policyObj any, sourcesReg *sources.SourcesRegistry) (res
 	var policySources []v1alpha1.ResourceGroupT
 
 	switch p := (policyObj).(type) {
+	case *v1alpha1.ClusterGenerationPolicy:
+		policySources = p.Spec.Sources
 	case *v1alpha1.ClusterValidationPolicy:
 		policySources = p.Spec.Sources
 	case *v1alpha1.ClusterMutationPolicy:
@@ -148,7 +165,7 @@ func CreateKubeEvent(ctx context.Context, namespace string, reporter string, obj
 		policyApiVersion = p.APIVersion
 		policyKind = p.Kind
 		policyName = p.Name
-		eventReason = "ClusterMutationPolicyAudit"
+		eventReason = "ClusterGenerationPolicyAudit"
 
 	default:
 		return fmt.Errorf("unsupported policy type")

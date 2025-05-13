@@ -21,6 +21,7 @@ import (
 	"os"
 
 	//
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -29,29 +30,35 @@ import (
 )
 
 // NewKubernetesClient return a new Kubernetes Dynamic client from client-go SDK
-func NewKubernetesClient(options *rest.Config) (client *dynamic.DynamicClient, coreClient *kubernetes.Clientset, err error) {
+func NewKubernetesClient(options *rest.Config) (client *dynamic.DynamicClient, coreClient *kubernetes.Clientset, discoveryClient *discovery.DiscoveryClient, err error) {
 	config, err := ctrl.GetConfig()
 	if err != nil {
-		return client, coreClient, err
+		return client, coreClient, discoveryClient, err
 	}
 
 	config.QPS = options.QPS
 	config.Burst = options.Burst
 
 	// Create the clients to do requests to our friend: Kubernetes
+	// Discovery client
+	discoveryClient, err = discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		return client, coreClient, discoveryClient, err
+	}
+
 	// Dynamic client
 	client, err = dynamic.NewForConfig(config)
 	if err != nil {
-		return client, coreClient, err
+		return client, coreClient, discoveryClient, err
 	}
 
 	// Core client
 	coreClient, err = kubernetes.NewForConfig(config)
 	if err != nil {
-		return client, coreClient, err
+		return client, coreClient, discoveryClient, err
 	}
 
-	return client, coreClient, err
+	return client, coreClient, discoveryClient, err
 }
 
 // GetCurrentNamespace return namespace where Admitik is running using different strategies

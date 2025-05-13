@@ -204,8 +204,11 @@ func main() {
 	globals.Application.Context = ctrl.SetupSignalHandler()
 
 	// Create and store raw Kubernetes clients from client-go
-	// They are used by non kubebuilder processess and controllers
-	globals.Application.KubeRawClient, globals.Application.KubeRawCoreClient, err = globals.NewKubernetesClient(&rest.Config{
+	// They are used by non kubebuilder processes and controllers
+	globals.Application.KubeRawClient,
+		globals.Application.KubeRawCoreClient,
+		globals.Application.KubeDiscoveryClient,
+		err = globals.NewKubernetesClient(&rest.Config{
 		QPS:   float32(kubeClientQps),
 		Burst: kubeClientBurst,
 	})
@@ -364,6 +367,7 @@ func main() {
 			Context:                           &globals.Application.Context,
 			ClusterGenerationPoliciesRegistry: clusterGenerationPoliciesReg,
 			ResourcesRegistry:                 resourcesReg,
+			SourcesRegistry:                   sourcesReg,
 		},
 	}
 
