@@ -38,6 +38,8 @@ type ObjectT struct {
 
 // ClusterGenerationPolicySpec defines the desired state of ClusterGenerationPolicy
 type ClusterGenerationPolicySpec struct {
+	OverwriteExisting bool `json:"overwriteExisting,omitempty"`
+
 	//
 	WatchedResources ResourceGroupT   `json:"watchedResources"`
 	Sources          []ResourceGroupT `json:"sources"`

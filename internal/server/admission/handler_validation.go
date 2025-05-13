@@ -19,6 +19,7 @@ package admission
 import (
 	"encoding/json"
 	"fmt"
+	"freepik.com/admitik/internal/common"
 	"io"
 	"net/http"
 	"strings"
@@ -130,10 +131,10 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 
 		// Retrieve the sources declared per policy
 		specificTemplateInjectedObject := commonTemplateInjectedObject
-		specificTemplateInjectedObject["sources"] = s.fetchPolicySources(caPolicyObj)
+		specificTemplateInjectedObject["sources"] = common.FetchPolicySources(caPolicyObj, s.dependencies.SourcesRegistry)
 
 		// Evaluate template conditions
-		conditionsPassed, condErr := s.isPassingConditions(caPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
+		conditionsPassed, condErr := common.IsPassingConditions(caPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
 		if condErr != nil {
 			logger.Info(fmt.Sprintf("failed evaluating conditions: %s", condErr.Error()))
 		}
@@ -170,7 +171,8 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 		}
 
 		// Create the Event in Kubernetes about involved object
-		err = createKubeEvent(request.Context(), "default", requestObject, *caPolicyObj, kubeEventAction, parsedMessage)
+		err = common.CreateKubeEvent(request.Context(), "default", "admission-server",
+			requestObject, *caPolicyObj, kubeEventAction, parsedMessage)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
 		}

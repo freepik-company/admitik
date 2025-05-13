@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package observedresources
+package resources
 
 import (
 	"errors"
@@ -22,20 +22,20 @@ import (
 	"time"
 )
 
-// NewObservedResourcesRegistry TODO
-func NewObservedResourcesRegistry() *ObservedResourcesRegistry {
+// NewResourcesRegistry TODO
+func NewResourcesRegistry() *ResourcesRegistry {
 
-	return &ObservedResourcesRegistry{
-		informers: make(map[ResourceTypeName]*ObservedResourcesInformer),
+	return &ResourcesRegistry{
+		informers: make(map[ResourceTypeName]*ResourcesInformer),
 	}
 }
 
 // RegisterInformer registers an informer for required resource type
-func (m *ObservedResourcesRegistry) RegisterInformer(rt ResourceTypeName) *ObservedResourcesInformer {
+func (m *ResourcesRegistry) RegisterInformer(rt ResourceTypeName) *ResourcesInformer {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.informers[rt] = &ObservedResourcesInformer{
+	m.informers[rt] = &ResourcesInformer{
 		Started:    false,
 		StopSignal: make(chan bool),
 	}
@@ -45,7 +45,7 @@ func (m *ObservedResourcesRegistry) RegisterInformer(rt ResourceTypeName) *Obser
 
 // DisableInformer send a signal to the informer to stop
 // and delete it from the registry
-func (m *ObservedResourcesRegistry) DisableInformer(rt ResourceTypeName) error {
+func (m *ResourcesRegistry) DisableInformer(rt ResourceTypeName) error {
 	informer, exists := m.GetInformer(rt)
 	if !exists {
 		return errors.New("informer not found")
@@ -78,7 +78,7 @@ func (m *ObservedResourcesRegistry) DisableInformer(rt ResourceTypeName) error {
 }
 
 // GetInformer return the informer attached to a resource type
-func (m *ObservedResourcesRegistry) GetInformer(rt ResourceTypeName) (informer *ObservedResourcesInformer, exists bool) {
+func (m *ResourcesRegistry) GetInformer(rt ResourceTypeName) (informer *ResourcesInformer, exists bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -88,7 +88,7 @@ func (m *ObservedResourcesRegistry) GetInformer(rt ResourceTypeName) (informer *
 }
 
 // GetRegisteredResourceTypes returns TODO
-func (m *ObservedResourcesRegistry) GetRegisteredResourceTypes() []ResourceTypeName {
+func (m *ResourcesRegistry) GetRegisteredResourceTypes() []ResourceTypeName {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -96,7 +96,7 @@ func (m *ObservedResourcesRegistry) GetRegisteredResourceTypes() []ResourceTypeN
 }
 
 // SetStarted updates the 'started' flag of an informer
-func (m *ObservedResourcesRegistry) SetStarted(rt ResourceTypeName, started bool) error {
+func (m *ResourcesRegistry) SetStarted(rt ResourceTypeName, started bool) error {
 	informer, exists := m.GetInformer(rt)
 	if !exists {
 		return errors.New("informer not found")
@@ -110,7 +110,7 @@ func (m *ObservedResourcesRegistry) SetStarted(rt ResourceTypeName, started bool
 }
 
 // IsStarted returns whether an informer of the provided resource type is started or not
-func (m *ObservedResourcesRegistry) IsStarted(rt ResourceTypeName) bool {
+func (m *ResourcesRegistry) IsStarted(rt ResourceTypeName) bool {
 	informer, exists := m.GetInformer(rt)
 	if !exists {
 		return false

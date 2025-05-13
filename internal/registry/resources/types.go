@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package observedresources
+package resources
 
 import "sync"
 
@@ -22,16 +22,20 @@ import "sync"
 // The pattern will be: {group}/{version}/{resource}/{namespace}/{name}
 type ResourceTypeName = string
 
-// ObservedResourcesInformer wraps status and control of an informer of a resource.
-type ObservedResourcesInformer struct {
+// ResourcesInformer wraps status and control of an informer of a resource.
+type ResourcesInformer struct {
 	mu sync.Mutex
 
 	Started    bool
 	StopSignal chan bool
+
+	// Observers represents controllers needing this informer to be alive
+	// This is needed to execute specific processors when an event is triggered
+	Observers []string
 }
 
-// ObservedResourcesRegistry manage watchers' lifecycle
-type ObservedResourcesRegistry struct {
+// ResourcesRegistry manage watchers' lifecycle
+type ResourcesRegistry struct {
 	mu        sync.Mutex
-	informers map[ResourceTypeName]*ObservedResourcesInformer
+	informers map[ResourceTypeName]*ResourcesInformer
 }

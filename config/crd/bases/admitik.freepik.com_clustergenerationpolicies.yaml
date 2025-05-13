@@ -80,6 +80,8 @@ spec:
                 - clone
                 - definition
                 type: object
+              overwriteExisting:
+                type: boolean
               sources:
                 items:
                   description: ResourceGroupT represents a group of resources

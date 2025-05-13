@@ -19,6 +19,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"freepik.com/admitik/internal/controller/resources"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,6 +54,7 @@ import (
 	clusterGenerationPoliciesRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicies"
 	clusterMutationPoliciesRegistry "freepik.com/admitik/internal/registry/clustermutationpolicies"
 	clusterValidationPoliciesRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicies"
+	resourcesRegistry "freepik.com/admitik/internal/registry/resources"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
 	"freepik.com/admitik/internal/server/admission"
 	// +kubebuilder:scaffold:imports
@@ -349,6 +351,24 @@ func main() {
 	clusterMutationPoliciesReg := clusterMutationPoliciesRegistry.NewClusterMutationPoliciesRegistry()
 	clusterValidationPoliciesReg := clusterValidationPoliciesRegistry.NewClusterValidationPoliciesRegistry()
 	sourcesReg := sourcesRegistry.NewSourcesRegistry()
+	resourcesReg := resourcesRegistry.NewResourcesRegistry()
+
+	// Init ResourcesController.
+	// This controller is in charge of launching watchers to TODO.
+	resourcesController := resources.ResourcesController{
+		Client: mgr.GetClient(),
+		Options: resources.ResourcesControllerOptions{
+			InformerDurationToResync: sourcesTimeToResyncInformers,
+		},
+		Dependencies: resources.ResourcesControllerDependencies{
+			Context:                           &globals.Application.Context,
+			ClusterGenerationPoliciesRegistry: clusterGenerationPoliciesReg,
+			ResourcesRegistry:                 resourcesReg,
+		},
+	}
+
+	setupLog.Info("starting resources controller")
+	go resourcesController.Start()
 
 	// Init SourcesController.
 	// This controller is in charge of launching watchers to cache sources expressed in some CRs in background.
