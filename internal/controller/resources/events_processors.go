@@ -18,12 +18,14 @@ package resources
 
 import (
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/dynamic"
 	"strings"
 
 	//
 	"gopkg.in/yaml.v3"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -42,7 +44,21 @@ const (
 
 type ProcessorsFuncMapT map[string]func(string, watch.EventType, ...map[string]interface{})
 
-func (r *ResourcesController) GetProcessorsFuncMap() (funcMap ProcessorsFuncMapT) {
+// initProcessors TODO
+// This function is intended to be executed as goroutine
+func (r *ResourcesController) initProcessors() {
+	logger := log.FromContext(globals.Application.Context)
+
+	resources, err := fetchKubeAvailableResources()
+	if err != nil {
+		logger.Info(fmt.Sprintf("failed obtaining kubernetes available resources: %v", err.Error()))
+	}
+
+	r.kubeAvailableResourceList = resources
+}
+
+// getProcessorsFuncMap TODO
+func (r *ResourcesController) getProcessorsFuncMap() (funcMap ProcessorsFuncMapT) {
 	funcMap = ProcessorsFuncMapT{}
 
 	funcMap[ObserverTypeNoop] = r.processEventNoop
@@ -51,11 +67,11 @@ func (r *ResourcesController) GetProcessorsFuncMap() (funcMap ProcessorsFuncMapT
 	return funcMap
 }
 
-// TODO:
+// processEvent TODO:
 func (r *ResourcesController) processEvent(resourceType string, eventType watch.EventType, object ...map[string]interface{}) (err error) {
 	logger := log.FromContext(globals.Application.Context)
 
-	funcMap := r.GetProcessorsFuncMap()
+	funcMap := r.getProcessorsFuncMap()
 	observers, err := r.Dependencies.ResourcesRegistry.GetObservers(resourceType)
 	if err != nil {
 		logger.Info(fmt.Sprintf("failed getting informer observers: %v", err.Error()))
@@ -73,7 +89,7 @@ func (r *ResourcesController) processEvent(resourceType string, eventType watch.
 	return err
 }
 
-// TODO:
+// processEventNoop TODO:
 // This function is intended to be executed as goroutine
 func (r *ResourcesController) processEventNoop(resourceType string, eventType watch.EventType, object ...map[string]interface{}) {
 	logger := log.FromContext(globals.Application.Context)
@@ -87,7 +103,7 @@ func (r *ResourcesController) processEventNoop(resourceType string, eventType wa
 	logger.Info(fmt.Sprintf("No-op processor triggered by object: %v", basicData))
 }
 
-// TODO:
+// processEventGeneration TODO:
 // This function is intended to be executed as goroutine
 func (r *ResourcesController) processEventGeneration(resourceType string, eventType watch.EventType, object ...map[string]interface{}) {
 	logger := log.FromContext(globals.Application.Context)
@@ -135,11 +151,14 @@ func (r *ResourcesController) processEventGeneration(resourceType string, eventT
 
 		var tmpGroup, tmpVersion string
 		var resultObjConverted *unstructured.Unstructured
-		var tmpResource *v1alpha1.ResourceGroupT
+		var tmpResource string
+		var tmpGvrnn *v1alpha1.ResourceGroupT
 		var tmpApiVersionParts []string
+		var resourceClient dynamic.ResourceInterface
 
 		//////////////////////////////////////////////////////////////////////////
 
+		// Evaluate template for generating the resource
 		var parsedDefinition string
 		switch policyObj.Spec.Object.Definition.Engine {
 		case v1alpha1.TemplateEngineCel:
@@ -150,16 +169,13 @@ func (r *ResourcesController) processEventGeneration(resourceType string, eventT
 			parsedDefinition, err = template.EvaluateTemplate(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
 		}
 
-		//
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed parsing generation template: %s", err.Error()))
 			kubeEventMessage = "Generation template failed. More info in controller logs."
 			goto createKubeEvent
 		}
 
-		logger.Info(fmt.Sprintf("Los datos crudos, reinona: \n%v \n", parsedDefinition))
-
-		//
+		// Check the result to know whether is finally a YAML or not
 		err = yaml.Unmarshal([]byte(parsedDefinition), &resultObject)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed decoding template result. Invalid object: %s", err.Error()))
@@ -167,7 +183,7 @@ func (r *ResourcesController) processEventGeneration(resourceType string, eventT
 			goto createKubeEvent
 		}
 
-		//
+		// Result MUST be valid, so try to extract some basic data to check
 		resultObjectBasicData, err = globals.GetObjectBasicData(&resultObject)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed obtaining metadata from template result. Invalid object: %s", err.Error()))
@@ -175,22 +191,24 @@ func (r *ResourcesController) processEventGeneration(resourceType string, eventT
 			goto createKubeEvent
 		}
 
-		// TODO
-		// apiVersion, kind, name, namespace
-		//var tmpGroup, tmpVersion string
+		// Craft a metadata object for client-go to perform actions
 		tmpVersion = resultObjectBasicData["apiVersion"].(string)
-
-		tmpApiVersionParts = strings.Split(resultObjectBasicData["apiVersion"].(string), "/")
+		tmpApiVersionParts = strings.Split(tmpVersion, "/")
 		if len(tmpApiVersionParts) == 2 {
 			tmpGroup = tmpApiVersionParts[0]
 			tmpVersion = tmpApiVersionParts[1]
 		}
-		tmpResource = &v1alpha1.ResourceGroupT{
+		tmpResource = getResourceFromGvk(r.kubeAvailableResourceList, schema.GroupVersionKind{
+			Group:   tmpGroup,
+			Version: tmpVersion,
+			Kind:    resultObjectBasicData["kind"].(string),
+		})
+
+		tmpGvrnn = &v1alpha1.ResourceGroupT{
 			GroupVersionResource: metav1.GroupVersionResource{
-				Group:   tmpGroup,
-				Version: tmpVersion,
-				//Resource: resultObjectBasicData["kind"].(string),
-				Resource: "configmaps",
+				Group:    tmpGroup,
+				Version:  tmpVersion,
+				Resource: tmpResource,
 			},
 			Name:      resultObjectBasicData["name"].(string),
 			Namespace: resultObjectBasicData["namespace"].(string),
@@ -200,28 +218,45 @@ func (r *ResourcesController) processEventGeneration(resourceType string, eventT
 			Object: resultObject,
 		}
 
-		logger.Info(fmt.Sprintf("El recursito: %v\n", tmpResource))
+		// Perform actions against Kubernetes
+		resourceClient = globals.Application.KubeRawClient.
+			Resource(schema.GroupVersionResource(tmpGvrnn.GroupVersionResource)).
+			Namespace(tmpGvrnn.Namespace)
 
-		_, err = globals.Application.KubeRawClient.
-			Resource(schema.GroupVersionResource(tmpResource.GroupVersionResource)).
-			Namespace(tmpResource.Namespace).
-			Create(
-				globals.Application.Context,
-				resultObjConverted,
-				metav1.CreateOptions{},
-			)
+		_, err = resourceClient.Create(
+			globals.Application.Context,
+			resultObjConverted,
+			metav1.CreateOptions{},
+		)
 
 		if err != nil {
-			logger.Info(fmt.Sprintf("failed creating generated object from template result: %s", err.Error()))
-			kubeEventMessage = "Object creation after template failed. More info in controller logs."
+			if !errors.IsAlreadyExists(err) {
+				logger.Info(fmt.Sprintf("failed creating generated object from template result: %s", err.Error()))
+				kubeEventMessage = "Object creation after template failed. More info in controller logs."
+				goto createKubeEvent
+			}
+
+			goto updateResource
+		}
+
+	updateResource:
+		if !policyObj.Spec.OverwriteExisting {
+			logger.Info(fmt.Sprintf("failed updating generated object from template result: 'OverwriteExisting' is disabled"))
+			kubeEventMessage = "Object update after template failed. More info in controller logs."
 			goto createKubeEvent
 		}
 
-		// TODO
-		// 2. Comprobar que existe (o no) en Kubernetes
-		// 3. Crearlo si no existe, updatearlo si existe
+		_, err = resourceClient.Update(
+			globals.Application.Context,
+			resultObjConverted,
+			metav1.UpdateOptions{},
+		)
 
-		logger.Info(fmt.Sprintf("Esto es lo que voy a crear: \n %v \n", parsedDefinition))
+		if err != nil {
+			logger.Info(fmt.Sprintf("failed updating generated object from template result: %s", err.Error()))
+			kubeEventMessage = "Object update after template failed. More info in controller logs."
+			goto createKubeEvent
+		}
 		continue
 
 	createKubeEvent:

@@ -88,6 +88,9 @@ type ResourcesController struct {
 
 	Options      ResourcesControllerOptions
 	Dependencies ResourcesControllerDependencies
+
+	// Carried stuff
+	kubeAvailableResourceList *[]GVKR // TODO: Time to wrap processors?
 }
 
 // getResourcesFromRegistries returns a list of observers for each type of resource that is required to be watched
@@ -144,6 +147,9 @@ func (r *ResourcesController) informersCleanerWorker() {
 func (r *ResourcesController) Start() {
 	logger := log.FromContext(*r.Dependencies.Context)
 	logger = logger.WithValues("controller", controllerName)
+
+	// TODO: Review
+	go r.initProcessors()
 
 	// Start cleaner for dead informers
 	go r.informersCleanerWorker()
