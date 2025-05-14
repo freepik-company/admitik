@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package resources
+package observedresource
 
 import (
 	"fmt"
@@ -46,7 +46,7 @@ type ProcessorsFuncMapT map[string]func(string, watch.EventType, ...map[string]i
 
 // initProcessors TODO
 // This function is intended to be executed as goroutine
-func (r *ResourcesController) initProcessors() {
+func (r *ObservedResourceController) initProcessors() {
 	logger := log.FromContext(globals.Application.Context)
 
 	resources, err := fetchKubeAvailableResources()
@@ -58,7 +58,7 @@ func (r *ResourcesController) initProcessors() {
 }
 
 // getProcessorsFuncMap TODO
-func (r *ResourcesController) getProcessorsFuncMap() (funcMap ProcessorsFuncMapT) {
+func (r *ObservedResourceController) getProcessorsFuncMap() (funcMap ProcessorsFuncMapT) {
 	funcMap = ProcessorsFuncMapT{}
 
 	funcMap[ObserverTypeNoop] = r.processEventNoop
@@ -68,11 +68,11 @@ func (r *ResourcesController) getProcessorsFuncMap() (funcMap ProcessorsFuncMapT
 }
 
 // processEvent TODO:
-func (r *ResourcesController) processEvent(resourceType string, eventType watch.EventType, object ...map[string]interface{}) (err error) {
+func (r *ObservedResourceController) processEvent(resourceType string, eventType watch.EventType, object ...map[string]interface{}) (err error) {
 	logger := log.FromContext(globals.Application.Context)
 
 	funcMap := r.getProcessorsFuncMap()
-	observers, err := r.Dependencies.ResourcesRegistry.GetObservers(resourceType)
+	observers, err := r.Dependencies.ResourceObserverRegistry.GetObservers(resourceType)
 	if err != nil {
 		logger.Info(fmt.Sprintf("failed getting informer observers: %v", err.Error()))
 	}
@@ -91,7 +91,7 @@ func (r *ResourcesController) processEvent(resourceType string, eventType watch.
 
 // processEventNoop TODO:
 // This function is intended to be executed as goroutine
-func (r *ResourcesController) processEventNoop(resourceType string, eventType watch.EventType, object ...map[string]interface{}) {
+func (r *ObservedResourceController) processEventNoop(resourceType string, eventType watch.EventType, object ...map[string]interface{}) {
 	logger := log.FromContext(globals.Application.Context)
 	logger = logger.WithValues("processor", ObserverTypeNoop)
 
@@ -105,7 +105,7 @@ func (r *ResourcesController) processEventNoop(resourceType string, eventType wa
 
 // processEventGeneration TODO:
 // This function is intended to be executed as goroutine
-func (r *ResourcesController) processEventGeneration(resourceType string, eventType watch.EventType, object ...map[string]interface{}) {
+func (r *ObservedResourceController) processEventGeneration(resourceType string, eventType watch.EventType, object ...map[string]interface{}) {
 	logger := log.FromContext(globals.Application.Context)
 	logger = logger.WithValues("processor", ObserverTypeClusterGenerationPolicies)
 

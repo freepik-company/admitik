@@ -11,6 +11,8 @@ resources:
 ## ClusterValidationPolicy
 #####################################
 
+# CEL examples
+
 # Gotmpl examples
 - clustervalidationpolicies/clustervalidationpolicy_gotmpl_existing_labels.yaml
 - clustervalidationpolicies/clustervalidationpolicy_gotmpl_avoid_colliding_routes.yaml
@@ -24,7 +26,20 @@ resources:
 ## ClusterMutationPolicy
 #####################################
 
+# CEL examples
+
 # Gotmpl examples
 
 # Starlark examples
 - clustermutationpolicies/clustermutationpolicy_starlark_add_some_labels.yaml
+
+#####################################
+## ClusterGenerationPolicy
+#####################################
+
+# CEL examples
+
+# Gotmpl examples
+
+# Starlark examples
+- clustergenerationpolicies/clustergenerationpolicy_cel_generate_configmap.yaml

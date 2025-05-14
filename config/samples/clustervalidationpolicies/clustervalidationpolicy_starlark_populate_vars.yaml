@@ -4,8 +4,8 @@ metadata:
   name: starlark-populate-vars
 spec:
 
-  # Resources to be watched
-  watchedResources:
+  # Resources to be intercepted before reaching the cluster
+  interceptedResources:
     group: ""
     version: v1
     resource: namespaces

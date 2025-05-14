@@ -62,13 +62,13 @@ func (r *ClusterMutationPolicyReconciler) ReconcileClusterMutationPolicy(ctx con
 	logger := log.FromContext(ctx)
 
 	// Replace wildcards in operations
-	if slices.Contains(resourceManifest.Spec.WatchedResources.Operations, admissionregv1.OperationAll) {
-		resourceManifest.Spec.WatchedResources.Operations = MutationOperations
+	if slices.Contains(resourceManifest.Spec.InterceptedResources.Operations, admissionregv1.OperationAll) {
+		resourceManifest.Spec.InterceptedResources.Operations = MutationOperations
 	}
 
 	// Update the registry
 	var desiredWatchedTypes []string
-	for _, operation := range resourceManifest.Spec.WatchedResources.Operations {
+	for _, operation := range resourceManifest.Spec.InterceptedResources.Operations {
 
 		// Skip unsupported operations
 		if !slices.Contains(MutationOperations, operation) {
@@ -78,9 +78,9 @@ func (r *ClusterMutationPolicyReconciler) ReconcileClusterMutationPolicy(ctx con
 		// Create the key-pattern and store it for later cleaning
 		// Duplicated operations will be skipped
 		watchedType := strings.Join([]string{
-			resourceManifest.Spec.WatchedResources.Group,
-			resourceManifest.Spec.WatchedResources.Version,
-			resourceManifest.Spec.WatchedResources.Resource,
+			resourceManifest.Spec.InterceptedResources.Group,
+			resourceManifest.Spec.InterceptedResources.Version,
+			resourceManifest.Spec.InterceptedResources.Resource,
 			string(operation),
 		}, "/")
 
@@ -142,15 +142,15 @@ func (r *ClusterMutationPolicyReconciler) ReconcileClusterMutationPolicy(ctx con
 }
 
 // getValidatingWebhookConfiguration return a ValidatingWebhookConfiguration object that is built based on
-// previous existing one in Kubernetes and the current pool keys extracted from ClusterMutationPolicy.spec.watchedResources
+// previous existing one in Kubernetes and the current pool keys extracted from ClusterMutationPolicy.spec.InterceptedResources
 func (r *ClusterMutationPolicyReconciler) getMergedMutatingWebhookConfiguration(ctx context.Context) (
 	mwConfig admissionregv1.MutatingWebhookConfiguration, alreadyCreated bool, err error) {
 
 	// Craft ValidatingWebhookConfiguration rules based on the pool keys
 	currentVwcRules := []admissionregv1.RuleWithOperations{}
-	watchedResourcesPatterns := r.Dependencies.ClusterMutationPoliciesRegistry.GetRegisteredResourceTypes()
+	InterceptedResourcesPatterns := r.Dependencies.ClusterMutationPoliciesRegistry.GetRegisteredResourceTypes()
 
-	for _, resourcePattern := range watchedResourcesPatterns {
+	for _, resourcePattern := range InterceptedResourcesPatterns {
 
 		resourcePatternParts := strings.Split(resourcePattern, "/")
 		if len(resourcePatternParts) != 4 {

@@ -6,8 +6,8 @@ spec:
   # TODO: Implement failureAction for mutations
   # failureAction: Permissive
 
-  # Resources to be watched
-  watchedResources:
+  # Resources to be intercepted before reaching the cluster
+  interceptedResources:
     group: ""
     version: v1
     resource: namespaces

@@ -59,6 +59,27 @@ spec:
                   - value
                   type: object
                 type: array
+              interceptedResources:
+                description: AdmissionResourceGroupT represents a group of resources
+                  from Admission point of view
+                properties:
+                  group:
+                    type: string
+                  operations:
+                    items:
+                      description: OperationType specifies an operation for a request.
+                      type: string
+                    type: array
+                  resource:
+                    type: string
+                  version:
+                    type: string
+                required:
+                - group
+                - operations
+                - resource
+                - version
+                type: object
               patch:
                 properties:
                   engine:
@@ -91,32 +112,11 @@ spec:
                   - version
                   type: object
                 type: array
-              watchedResources:
-                description: AdmissionResourceGroupT represents a group of resources
-                  from Admission point of view
-                properties:
-                  group:
-                    type: string
-                  operations:
-                    items:
-                      description: OperationType specifies an operation for a request.
-                      type: string
-                    type: array
-                  resource:
-                    type: string
-                  version:
-                    type: string
-                required:
-                - group
-                - operations
-                - resource
-                - version
-                type: object
             required:
             - conditions
+            - interceptedResources
             - patch
             - sources
-            - watchedResources
             type: object
           status:
             description: ClusterMutationPolicyStatus defines the observed state of

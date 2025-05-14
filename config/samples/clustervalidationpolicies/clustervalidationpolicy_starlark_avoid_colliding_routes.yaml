@@ -7,8 +7,8 @@ metadata:
 spec:
   failureAction: Permissive
 
-  # Resources to be watched
-  watchedResources:
+  # Resources to be intercepted before reaching the cluster
+  interceptedResources:
     group: gateway.networking.k8s.io
     operations:
       - CREATE

@@ -19,7 +19,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
-	"freepik.com/admitik/internal/controller/resources"
+	"freepik.com/admitik/internal/controller/observedresource"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,7 +54,8 @@ import (
 	clusterGenerationPoliciesRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicies"
 	clusterMutationPoliciesRegistry "freepik.com/admitik/internal/registry/clustermutationpolicies"
 	clusterValidationPoliciesRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicies"
-	resourcesRegistry "freepik.com/admitik/internal/registry/resources"
+	resourceInformerRegistry "freepik.com/admitik/internal/registry/resourceinformer"
+	resourceObserverRegistry "freepik.com/admitik/internal/registry/resourceobserver"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
 	"freepik.com/admitik/internal/server/admission"
 	// +kubebuilder:scaffold:imports
@@ -354,25 +355,26 @@ func main() {
 	clusterMutationPoliciesReg := clusterMutationPoliciesRegistry.NewClusterMutationPoliciesRegistry()
 	clusterValidationPoliciesReg := clusterValidationPoliciesRegistry.NewClusterValidationPoliciesRegistry()
 	sourcesReg := sourcesRegistry.NewSourcesRegistry()
-	resourcesReg := resourcesRegistry.NewResourcesRegistry()
+	resourceObserverReg := resourceObserverRegistry.NewResourceObserverRegistry()
+	resourceInformerReg := resourceInformerRegistry.NewResourceInformerRegistry()
 
 	// Init ResourcesController.
 	// This controller is in charge of launching watchers to TODO.
-	resourcesController := resources.ResourcesController{
+	observedResourceController := observedresource.ObservedResourceController{
 		Client: mgr.GetClient(),
-		Options: resources.ResourcesControllerOptions{
+		Options: observedresource.ObservedResourceControllerOptions{
 			InformerDurationToResync: sourcesTimeToResyncInformers,
 		},
-		Dependencies: resources.ResourcesControllerDependencies{
+		Dependencies: observedresource.ObservedResourceControllerDependencies{
 			Context:                           &globals.Application.Context,
 			ClusterGenerationPoliciesRegistry: clusterGenerationPoliciesReg,
-			ResourcesRegistry:                 resourcesReg,
 			SourcesRegistry:                   sourcesReg,
+			ResourceInformerRegistry:          resourceInformerReg,
+			ResourceObserverRegistry:          resourceObserverReg,
 		},
 	}
-
-	setupLog.Info("starting resources controller")
-	go resourcesController.Start()
+	setupLog.Info("starting observed resources controller")
+	go observedResourceController.Start()
 
 	// Init SourcesController.
 	// This controller is in charge of launching watchers to cache sources expressed in some CRs in background.
@@ -390,7 +392,6 @@ func main() {
 			SourcesRegistry:                   sourcesReg,
 		},
 	}
-
 	setupLog.Info("starting sources controller")
 	go sourcesController.Start()
 
@@ -474,7 +475,6 @@ func main() {
 			ClusterValidationPoliciesRegistry: clusterValidationPoliciesReg,
 			ClusterMutationPoliciesRegistry:   clusterMutationPoliciesReg,
 		})
-
 	setupLog.Info("starting admission server")
 	go admissionServer.Start(globals.Application.Context)
 
