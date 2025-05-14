@@ -1,6 +1,5 @@
 /*
 Copyright 2024.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -18,94 +17,42 @@ package observedresource
 
 import (
 	"fmt"
-	"k8s.io/client-go/dynamic"
-	"strings"
-
-	//
+	"freepik.com/admitik/api/v1alpha1"
+	"freepik.com/admitik/internal/common"
+	"freepik.com/admitik/internal/globals"
+	clusterGenerationPoliciesRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicies"
+	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
+	"freepik.com/admitik/internal/template"
 	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"strings"
+)
+
+type GenerationProcessorDependencies struct {
+	ClusterGenerationPoliciesRegistry *clusterGenerationPoliciesRegistry.ClusterGenerationPoliciesRegistry
+	SourcesRegistry                   *sourcesRegistry.SourcesRegistry
 
 	//
-	"freepik.com/admitik/api/v1alpha1"
-	"freepik.com/admitik/internal/common"
-	"freepik.com/admitik/internal/globals"
-	"freepik.com/admitik/internal/template"
-)
-
-const (
-	ObserverTypeNoop                      = "noop"
-	ObserverTypeClusterGenerationPolicies = "clustergenerationpolicies"
-)
-
-type ProcessorsFuncMapT map[string]func(string, watch.EventType, ...map[string]interface{})
-
-// initProcessors TODO
-// This function is intended to be executed as goroutine
-func (r *ObservedResourceController) initProcessors() {
-	logger := log.FromContext(globals.Application.Context)
-
-	resources, err := fetchKubeAvailableResources()
-	if err != nil {
-		logger.Info(fmt.Sprintf("failed obtaining kubernetes available resources: %v", err.Error()))
-	}
-
-	r.kubeAvailableResourceList = resources
+	KubeAvailableResourceList *[]GVKR
 }
 
-// getProcessorsFuncMap TODO
-func (r *ObservedResourceController) getProcessorsFuncMap() (funcMap ProcessorsFuncMapT) {
-	funcMap = ProcessorsFuncMapT{}
-
-	funcMap[ObserverTypeNoop] = r.processEventNoop
-	funcMap[ObserverTypeClusterGenerationPolicies] = r.processEventGeneration
-
-	return funcMap
+type GenerationProcessor struct {
+	dependencies GenerationProcessorDependencies
 }
 
-// processEvent TODO:
-func (r *ObservedResourceController) processEvent(resourceType string, eventType watch.EventType, object ...map[string]interface{}) (err error) {
-	logger := log.FromContext(globals.Application.Context)
-
-	funcMap := r.getProcessorsFuncMap()
-	observers, err := r.Dependencies.ResourceObserverRegistry.GetObservers(resourceType)
-	if err != nil {
-		logger.Info(fmt.Sprintf("failed getting informer observers: %v", err.Error()))
+func NewGenerationProcessor(deps GenerationProcessorDependencies) *GenerationProcessor {
+	return &GenerationProcessor{
+		dependencies: deps,
 	}
-
-	for _, observer := range observers {
-		function, functionFound := funcMap[observer]
-		if !functionFound {
-			continue
-		}
-
-		go function(resourceType, eventType, object...)
-	}
-
-	return err
 }
 
-// processEventNoop TODO:
-// This function is intended to be executed as goroutine
-func (r *ObservedResourceController) processEventNoop(resourceType string, eventType watch.EventType, object ...map[string]interface{}) {
-	logger := log.FromContext(globals.Application.Context)
-	logger = logger.WithValues("processor", ObserverTypeNoop)
-
-	basicData, err := globals.GetObjectBasicData(&object[0])
-	if err != nil {
-		logger.Info("failed getting basic data from object: %v", err.Error())
-	}
-
-	logger.Info(fmt.Sprintf("No-op processor triggered by object: %v", basicData))
-}
-
-// processEventGeneration TODO:
-// This function is intended to be executed as goroutine
-func (r *ObservedResourceController) processEventGeneration(resourceType string, eventType watch.EventType, object ...map[string]interface{}) {
+func (p *GenerationProcessor) Process(resourceType string, eventType watch.EventType, object ...map[string]interface{}) {
 	logger := log.FromContext(globals.Application.Context)
 	logger = logger.WithValues("processor", ObserverTypeClusterGenerationPolicies)
 
@@ -119,7 +66,7 @@ func (r *ObservedResourceController) processEventGeneration(resourceType string,
 	}
 
 	//
-	policyList := r.Dependencies.ClusterGenerationPoliciesRegistry.GetResources(resourceType)
+	policyList := p.dependencies.ClusterGenerationPoliciesRegistry.GetResources(resourceType)
 	for _, policyObj := range policyList {
 
 		// Automatically add some information to the logs
@@ -127,7 +74,7 @@ func (r *ObservedResourceController) processEventGeneration(resourceType string,
 
 		// Retrieve the sources declared per policy
 		specificTemplateInjectedObject := commonTemplateInjectedObject
-		specificTemplateInjectedObject["sources"] = common.FetchPolicySources(policyObj, r.Dependencies.SourcesRegistry)
+		specificTemplateInjectedObject["sources"] = common.FetchPolicySources(policyObj, p.dependencies.SourcesRegistry)
 
 		//Evaluate template conditions
 		conditionsPassed, condErr := common.IsPassingConditions(policyObj.Spec.Conditions, &specificTemplateInjectedObject)
@@ -198,7 +145,7 @@ func (r *ObservedResourceController) processEventGeneration(resourceType string,
 			tmpGroup = tmpApiVersionParts[0]
 			tmpVersion = tmpApiVersionParts[1]
 		}
-		tmpResource = getResourceFromGvk(r.kubeAvailableResourceList, schema.GroupVersionKind{
+		tmpResource = getResourceFromGvk(p.dependencies.KubeAvailableResourceList, schema.GroupVersionKind{
 			Group:   tmpGroup,
 			Version: tmpVersion,
 			Kind:    resultObjectBasicData["kind"].(string),
