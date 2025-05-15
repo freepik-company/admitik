@@ -78,6 +78,7 @@ func fetchKubeAvailableResources() (resources *[]GVKR, err error) {
 
 // getResourceFromGvk TODO
 func getResourceFromGvk(resourceList *[]GVKR, gvk schema.GroupVersionKind) string {
+
 	for _, object := range *resourceList {
 		if object.GVK == gvk {
 			return object.Resource

@@ -16,11 +16,6 @@ limitations under the License.
 
 package resourceobserver
 
-import (
-	"errors"
-	"slices"
-)
-
 // NewResourceObserverRegistry TODO
 func NewResourceObserverRegistry() *ResourceObserverRegistry {
 
@@ -39,65 +34,45 @@ func (m *ResourceObserverRegistry) getObserverGroup(rt ResourceTypeName) (og *Re
 	return og, exists
 }
 
-// AddObserver adds an observer to the specified group
-func (m *ResourceObserverRegistry) AddObserver(rt ResourceTypeName, observer string) error {
+// createObserverGroup create an observer group attached to a resource type
+func (m *ResourceObserverRegistry) createObserverGroup(rt ResourceTypeName) (og *ResourceObserverGroup) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	og, exists := m.getObserverGroup(rt)
-	if !exists {
-		return errors.New("observer group not found")
-	}
+	//
+	og = &ResourceObserverGroup{}
+	m.observers[rt] = og
 
-	og.mu.Lock()
-	defer og.mu.Unlock()
-
-	og.observers = append(og.observers, observer)
-	return nil
+	//
+	return og
 }
 
-// DeleteObserver deletes an observer from the specified group
-func (m *ResourceObserverRegistry) DeleteObserver(rt ResourceTypeName, observer string) error {
+// SetObservers TODO
+func (m *ResourceObserverRegistry) SetObservers(rt ResourceTypeName, observers []string) {
 
 	og, exists := m.getObserverGroup(rt)
 	if !exists {
-		return errors.New("observer group not found")
+		og = m.createObserverGroup(rt)
 	}
 
+	//
 	og.mu.Lock()
 	defer og.mu.Unlock()
 
-	og.observers = slices.DeleteFunc(og.observers, func(itemUnderReview string) bool {
-		return itemUnderReview == observer
-	})
-
-	return nil
-}
-
-// TODO
-func (m *ResourceObserverRegistry) SetObservers(rt ResourceTypeName, observers []string) error {
-
-	og, exists := m.getObserverGroup(rt)
-	if !exists {
-		return errors.New("observer group not found")
-	}
-
-	og.mu.Lock()
-	defer og.mu.Unlock()
-
+	//
 	og.observers = observers
-
-	return nil
 }
 
-// TODO
-func (m *ResourceObserverRegistry) GetObservers(rt ResourceTypeName) ([]string, error) {
+// GetObservers TODO
+func (m *ResourceObserverRegistry) GetObservers(rt ResourceTypeName) []string {
 
 	og, exists := m.getObserverGroup(rt)
 	if !exists {
-		return []string{}, errors.New("observer group not found")
+		return []string{}
 	}
 
 	og.mu.Lock()
 	defer og.mu.Unlock()
 
-	return og.observers, nil
+	return og.observers
 }

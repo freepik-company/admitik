@@ -145,11 +145,18 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 			tmpGroup = tmpApiVersionParts[0]
 			tmpVersion = tmpApiVersionParts[1]
 		}
+
 		tmpResource = getResourceFromGvk(p.dependencies.KubeAvailableResourceList, schema.GroupVersionKind{
 			Group:   tmpGroup,
 			Version: tmpVersion,
 			Kind:    resultObjectBasicData["kind"].(string),
 		})
+
+		if tmpResource == "" {
+			logger.Info("failed obtaining resource equivalent from Kubernetes for provided GVK. Is this resource defined?")
+			kubeEventMessage = "Unknown object resource for provided GVK. More info in controller logs."
+			goto createKubeEvent
+		}
 
 		tmpGvrnn = &v1alpha1.ResourceGroupT{
 			GroupVersionResource: metav1.GroupVersionResource{
@@ -185,6 +192,8 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 
 			goto updateResource
 		}
+
+		continue
 
 	updateResource:
 		if !policyObj.Spec.OverwriteExisting {

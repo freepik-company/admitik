@@ -96,23 +96,6 @@ type ObservedResourceController struct {
 	dispatcher                *EventDispatcher
 }
 
-// getResourcesFromPolicyRegistries returns a list of stringy resource-groups extracted from policies
-// inside the field 'watchedResources'
-// TODO: Review this
-//func (r *ObservedResourceController) getResourcesFromPolicyRegistriesOriginal() []string {
-//
-//	var referentCandidates []string
-//
-//	candidatesFromGeneration := r.Dependencies.ClusterGenerationPoliciesRegistry.GetRegisteredResourceTypes()
-//	referentCandidates = slices.Concat(candidatesFromGeneration)
-//
-//	// Filter duplicated items
-//	slices.Sort(referentCandidates)
-//	referentCandidates = slices.Compact(referentCandidates)
-//
-//	return referentCandidates
-//}
-
 // getResourcesFromPolicyRegistries returns a list of observers for each type of resource that is required to be watched
 // Example: map[resourceType][]Observers
 // TODO: Improve docs
@@ -142,7 +125,6 @@ func (r *ObservedResourceController) informersCleanerWorker() {
 	logger.Info("Starting informers cleaner worker")
 
 	for {
-		//
 		referentCandidates := r.getResourcesFromPolicyRegistries()
 		referentCandidatesKeys := maps.Keys(referentCandidates)
 
@@ -162,29 +144,6 @@ func (r *ObservedResourceController) informersCleanerWorker() {
 	}
 }
 
-// kubeAvailableResourcesWorker review the TODO
-// This function is intended to be used as goroutine
-func (r *ObservedResourceController) kubeAvailableResourcesWorker() {
-	logger := log.FromContext(*r.Dependencies.Context)
-	logger = logger.WithValues("controller", controllerName)
-
-	logger.Info("Starting informers cleaner worker")
-
-	for {
-		resources, err := fetchKubeAvailableResources()
-
-		if err != nil {
-			logger.Info("Failed fetching Kubernetes available resources list")
-			goto takeANap
-		}
-
-		r.kubeAvailableResourceList = resources
-
-	takeANap:
-		time.Sleep(5 * time.Second)
-	}
-}
-
 // Start launches the ObservedResourceController and keeps it alive
 // It kills the controller on application's context death, and rerun the process when failed
 func (r *ObservedResourceController) Start() {
@@ -196,13 +155,7 @@ func (r *ObservedResourceController) Start() {
 		ClusterGenerationPoliciesRegistry: r.Dependencies.ClusterGenerationPoliciesRegistry,
 		SourcesRegistry:                   r.Dependencies.SourcesRegistry,
 		ResourceObserverRegistry:          r.Dependencies.ResourceObserverRegistry,
-
-		//
-		KubeAvailableResourceList: r.kubeAvailableResourceList,
 	})
-
-	// Start syncer for available resources in Kubernetes
-	go r.kubeAvailableResourcesWorker()
 
 	// Start cleaner for dead informers
 	go r.informersCleanerWorker()
@@ -232,12 +185,9 @@ func (r *ObservedResourceController) reconcileInformers() {
 
 		_, informerExists := r.Dependencies.ResourceInformerRegistry.GetInformer(resourceType)
 
-		// Store the observers needing the informer inside it
+		// Store the observers needing this informer
 		if informerExists {
-			err := r.Dependencies.ResourceObserverRegistry.SetObservers(resourceType, observers)
-			if err != nil {
-				logger.Info(fmt.Sprintf("failed storing observers for an resource informer: %v", err.Error()))
-			}
+			r.Dependencies.ResourceObserverRegistry.SetObservers(resourceType, observers)
 		}
 
 		// Avoid wasting CPU for nothing
@@ -329,7 +279,7 @@ func (r *ObservedResourceController) launchInformerForType(resourceType string) 
 
 		AddFunc: func(eventObject interface{}) {
 			convertedEventObject := eventObject.(*unstructured.Unstructured)
-			
+
 			r.dispatcher.Dispatch(resourceType, watch.Added, convertedEventObject.UnstructuredContent())
 		},
 		UpdateFunc: func(eventObjectOld, eventObject interface{}) {
