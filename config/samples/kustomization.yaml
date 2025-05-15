@@ -51,8 +51,9 @@ resources:
 # Gotmpl examples
 
 # Starlark examples
-- clustergenerationpolicies/cel_generate_configmap.yaml
 
 # Plain examples
+- clustergenerationpolicies/plain_generate_configmap.yaml
 
 # Plain+CEL examples
+- clustergenerationpolicies/plain_with_cel_generate_configmap.yaml
