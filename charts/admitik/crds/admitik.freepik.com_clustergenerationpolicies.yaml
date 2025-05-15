@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.15.0
-  name: clustervalidationpolicies.admitik.freepik.com
+  name: clustergenerationpolicies.admitik.freepik.com
 spec:
   group: admitik.freepik.com
   names:
-    kind: ClusterValidationPolicy
-    listKind: ClusterValidationPolicyList
-    plural: clustervalidationpolicies
-    singular: clustervalidationpolicy
+    kind: ClusterGenerationPolicy
+    listKind: ClusterGenerationPolicyList
+    plural: clustergenerationpolicies
+    singular: clustergenerationpolicy
   scope: Cluster
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ClusterValidationPolicy is the Schema for the clustervalidationpolicies
+        description: ClusterGenerationPolicy is the Schema for the clustergenerationpolicies
           API
         properties:
           apiVersion:
@@ -38,8 +38,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: ClusterValidationPolicySpec defines the desired state of
-              ClusterValidationPolicy
+            description: ClusterGenerationPolicySpec defines the desired state of
+              ClusterGenerationPolicy
             properties:
               conditions:
                 items:
@@ -60,38 +60,28 @@ spec:
                   - value
                   type: object
                 type: array
-              failureAction:
-                type: string
-              interceptedResources:
-                description: AdmissionResourceGroupT represents a group of resources
-                  from Admission point of view
+              object:
+                description: ObjectT TODO
                 properties:
-                  group:
-                    type: string
-                  operations:
-                    items:
-                      description: OperationType specifies an operation for a request.
-                      type: string
-                    type: array
-                  resource:
-                    type: string
-                  version:
-                    type: string
+                  clone:
+                    description: 'ObjectCloneT TODO: Future capability'
+                    type: object
+                  definition:
+                    description: ObjectDefinitionT TODO
+                    properties:
+                      engine:
+                        type: string
+                      template:
+                        type: string
+                    required:
+                    - template
+                    type: object
                 required:
-                - group
-                - operations
-                - resource
-                - version
+                - clone
+                - definition
                 type: object
-              message:
-                properties:
-                  engine:
-                    type: string
-                  template:
-                    type: string
-                required:
-                - template
-                type: object
+              overwriteExisting:
+                type: boolean
               sources:
                 items:
                   description: ResourceGroupT represents a group of resources
@@ -112,15 +102,33 @@ spec:
                   - version
                   type: object
                 type: array
+              watchedResources:
+                description: ResourceGroupT represents a group of resources
+                properties:
+                  group:
+                    type: string
+                  name:
+                    type: string
+                  namespace:
+                    type: string
+                  resource:
+                    type: string
+                  version:
+                    type: string
+                required:
+                - group
+                - resource
+                - version
+                type: object
             required:
             - conditions
-            - interceptedResources
-            - message
+            - object
             - sources
+            - watchedResources
             type: object
           status:
-            description: ClusterValidationPolicyStatus defines the observed state
-              of ClusterValidationPolicy
+            description: ClusterGenerationPolicyStatus defines the observed state
+              of ClusterGenerationPolicy
             properties:
               conditions:
                 description: Conditions represent the latest available observations
