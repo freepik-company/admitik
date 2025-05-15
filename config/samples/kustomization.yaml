@@ -14,13 +14,17 @@ resources:
 # CEL examples
 
 # Gotmpl examples
-- clustervalidationpolicies/clustervalidationpolicy_gotmpl_existing_labels.yaml
-- clustervalidationpolicies/clustervalidationpolicy_gotmpl_avoid_colliding_routes.yaml
+- clustervalidationpolicies/gotmpl_existing_labels.yaml
+- clustervalidationpolicies/gotmpl_avoid_colliding_routes.yaml
 
 # Starlark examples
-- clustervalidationpolicies/clustervalidationpolicy_starlark_existing_labels.yaml
-- clustervalidationpolicies/clustervalidationpolicy_starlark_avoid_colliding_routes.yaml
-- clustervalidationpolicies/clustervalidationpolicy_starlark_populate_vars.yaml
+- clustervalidationpolicies/starlark_existing_labels.yaml
+- clustervalidationpolicies/starlark_avoid_colliding_routes.yaml
+- clustervalidationpolicies/starlark_populate_vars.yaml
+
+# Plain examples
+
+# Plain+CEL examples
 
 #####################################
 ## ClusterMutationPolicy
@@ -31,7 +35,12 @@ resources:
 # Gotmpl examples
 
 # Starlark examples
-- clustermutationpolicies/clustermutationpolicy_starlark_add_some_labels.yaml
+- clustermutationpolicies/starlark_add_some_labels.yaml
+
+# Plain examples
+
+# Plain+CEL examples
+- clustermutationpolicies/plain_with_cel_add_some_labels.yaml
 
 #####################################
 ## ClusterGenerationPolicy
@@ -42,4 +51,8 @@ resources:
 # Gotmpl examples
 
 # Starlark examples
-- clustergenerationpolicies/clustergenerationpolicy_cel_generate_configmap.yaml
+- clustergenerationpolicies/cel_generate_configmap.yaml
+
+# Plain examples
+
+# Plain+CEL examples

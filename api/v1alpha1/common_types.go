@@ -21,15 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-
-	//
-	TemplateEnginePlain    string = "plain"
-	TemplateEngineCel      string = "cel"
-	TemplateEngineStarlark string = "starlark"
-	TemplateEngineGotmpl   string = "gotmpl"
-)
-
 // ResourceGroupT represents a group of resources
 type ResourceGroupT struct {
 	metav1.GroupVersionResource `json:",inline"`

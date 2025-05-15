@@ -1,10 +1,8 @@
 apiVersion: admitik.freepik.com/v1alpha1
 kind: ClusterMutationPolicy
 metadata:
-  name: starlark-add-some-labels
+  name: plain-with-cel-add-some-labels
 spec:
-  # TODO: Implement failureAction for mutations
-  # failureAction: Permissive
 
   # Resources to be intercepted before reaching the cluster
   interceptedResources:
@@ -19,19 +17,14 @@ spec:
   # They will be included under .sources scope in the template
   sources: []
 
-  conditions:
-    - name: first-condition
-      engine: starlark
-      key: |
-        print("pass")
-      value: "pass"
+  # Conditions are optional, so no-conditions means they are always met
+  conditions: []
 
   patch:
     type: jsonpatch # JsonPatch | StrategicMerge
     engine: starlark
     template: |
-      patch = [
-          {"op": "add", "path": "/metadata/annotations/first", "value": "firstValue"},
-          {"op": "replace", "path": "/metadata/annotations/second", "value": "secondValue"},
-      ]
-      print(json.encode(patch))
+      {[
+          {"op": "add", "path": "/metadata/annotations/objectname", "value": "{{cel: object.metadata.name }}"},
+          {"op": "replace", "path": "/metadata/annotations/objectnamespace", "value": "{{cel: object.metadata.namespace }}"},
+      ]}

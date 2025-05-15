@@ -21,10 +21,6 @@ spec:
 
   conditions:
     - name: confirm-existing-label
-
-      # The 'engine' field decides between:
-      # * gotmpl:   (default) Vitamin Golang templating (well known from Helm)
-      # * starlark: Starlark from Google
       engine: gotmpl
 
       # The 'key' field is the place to write your template or code

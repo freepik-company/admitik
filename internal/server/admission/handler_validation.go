@@ -146,12 +146,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 
 		// When some condition is not met, evaluate message's template and emit a response
 		var parsedMessage string
-		if caPolicyObj.Spec.Message.Engine == v1alpha1.TemplateEngineStarlark {
-			parsedMessage, err = template.EvaluateTemplateStarlark(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
-		} else {
-			parsedMessage, err = template.EvaluateTemplate(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
-		}
-
+		parsedMessage, err = template.EvaluateTemplate(caPolicyObj.Spec.Message.Engine, caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed parsing message template: %s", err.Error()))
 			parsedMessage = "Reason unavailable: message template failed. More info in controller logs."

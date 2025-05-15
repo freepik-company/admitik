@@ -148,13 +148,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 		var parsedPatch string
 		var tmpJsonPatchOperations jsondiff.Patch
 
-		switch cmPolicyObj.Spec.Patch.Engine {
-		case v1alpha1.TemplateEngineStarlark:
-			parsedPatch, err = template.EvaluateTemplateStarlark(cmPolicyObj.Spec.Patch.Template, &specificTemplateInjectedObject)
-		default:
-			parsedPatch, err = template.EvaluateTemplate(cmPolicyObj.Spec.Patch.Template, &specificTemplateInjectedObject)
-		}
-
+		parsedPatch, err = template.EvaluateTemplate(cmPolicyObj.Spec.Patch.Engine, cmPolicyObj.Spec.Patch.Template, &specificTemplateInjectedObject)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed parsing patch template: %s", err.Error()))
 			kubeEventMessage = "Patch template failed. More info in controller logs."

@@ -1,7 +1,7 @@
 apiVersion: admitik.freepik.com/v1alpha1
 kind: ClusterGenerationPolicy
 metadata:
-  name: cel-generate-configmap
+  name: plain-with-cel-generate-configmap
 spec:
   #overwriteExisting: true
 
@@ -21,23 +21,22 @@ spec:
       resource: configmaps
 
   conditions:
-    - name: second-condition
+    - name: first-condition
       engine: cel
       key: |
         object.metadata.name
-        //sources[0][0].metadata.name
-      value: "pass"
+      value: "default"
 
   object:
     clone: {}
     definition:
-      engine: cel
+      engine: plain+cel
       template: |
         apiVersion: v1
         kind: ConfigMap
         metadata:
           name: whatever-config
-          namespace: "{{ object.metadata.name }}"
+          namespace: "{{cel: object.metadata.name }}"
         data:
-          KEY_1: "whatever"
-          KEY_2: "whatismore"
+          FIRST_SOURCE_ITEM_NAME: "{{cel: sources[0][0].metadata.name }}"
+          FIRST_SOURCE_ITEM_NAMESPACE: "{{cel: sources[0][0].metadata.namespace }}"

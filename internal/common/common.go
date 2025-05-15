@@ -33,81 +33,22 @@ import (
 	"freepik.com/admitik/internal/template"
 )
 
-//func PEPE() {
-//	var parsedDefinition string
-//	switch policyObj.Spec.Object.Definition.Engine {
-//	case v1alpha1.TemplateEngineCel:
-//		parsedDefinition, err = template.EvaluateAndReplaceCelExpressions(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
-//	case v1alpha1.TemplateEngineStarlark:
-//		parsedDefinition, err = template.EvaluateTemplateStarlark(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
-//	default:
-//		parsedDefinition, err = template.EvaluateTemplate(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
-//	}
-//}
-
 // IsPassingConditions iterate over a list of templated conditions and return whether they are passing or not
 func IsPassingConditions(conditionList []v1alpha1.ConditionT, injectedValues *map[string]interface{}) (result bool, err error) {
 	for _, condition := range conditionList {
 
-		var conditionPassed bool
-		var condErr error
-
 		// Choose templating engine. Maybe more will be added in the future
-		switch condition.Engine {
-		case v1alpha1.TemplateEngineCel:
-			conditionPassed, condErr = isPassingCelCondition(condition.Key, condition.Value, injectedValues)
-		case v1alpha1.TemplateEngineStarlark:
-			conditionPassed, condErr = isPassingStarlarkCondition(condition.Key, condition.Value, injectedValues)
-		default:
-			conditionPassed, condErr = isPassingGotmplCondition(condition.Key, condition.Value, injectedValues)
-		}
-
+		parsedKey, condErr := template.EvaluateTemplate(condition.Engine, condition.Key, injectedValues)
 		if condErr != nil {
 			return false, fmt.Errorf("failed condition '%s': %s", condition.Name, condErr.Error())
 		}
 
-		if !conditionPassed {
+		if parsedKey != condition.Value {
 			return false, nil
 		}
 	}
 
 	return true, nil
-}
-
-// isPassingCelCondition returns equality between the result given by the 'key' Cel template and the 'value'
-// For template evaluation, it injects extra information available to the user
-func isPassingCelCondition(key, value string, injectedValues *map[string]interface{}) (result bool, err error) {
-
-	parsedKey, err := template.EvaluateTemplateCel(key, injectedValues)
-	if err != nil {
-		return false, err
-	}
-
-	return parsedKey == value, nil
-}
-
-// isPassingStarlarkCondition returns equality between the result given by the 'key' Starlak template and the 'value'
-// For template evaluation, it injects extra information available to the user
-func isPassingStarlarkCondition(key, value string, injectedValues *map[string]interface{}) (result bool, err error) {
-
-	parsedKey, err := template.EvaluateTemplateStarlark(key, injectedValues)
-	if err != nil {
-		return false, err
-	}
-
-	return parsedKey == value, nil
-}
-
-// isPassingGotmplCondition returns equality between the result given by the 'key' Gotmpl template and the 'value'
-// For template evaluation, it injects extra information available to the user
-func isPassingGotmplCondition(key, value string, injectedValues *map[string]interface{}) (bool, error) {
-
-	parsedKey, err := template.EvaluateTemplate(key, injectedValues)
-	if err != nil {
-		return false, err
-	}
-
-	return parsedKey == value, nil
 }
 
 // FetchPolicySources TODO

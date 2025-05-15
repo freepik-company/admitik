@@ -107,14 +107,8 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 
 		// Evaluate template for generating the resource
 		var parsedDefinition string
-		switch policyObj.Spec.Object.Definition.Engine {
-		case v1alpha1.TemplateEngineCel:
-			parsedDefinition, err = template.EvaluateAndReplaceCelExpressions(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
-		case v1alpha1.TemplateEngineStarlark:
-			parsedDefinition, err = template.EvaluateTemplateStarlark(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
-		default:
-			parsedDefinition, err = template.EvaluateTemplate(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
-		}
+		parsedDefinition, err = template.EvaluateTemplate(policyObj.Spec.Object.Definition.Engine,
+			policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
 
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed parsing generation template: %s", err.Error()))
@@ -167,6 +161,12 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 			Name:      resultObjectBasicData["name"].(string),
 			Namespace: resultObjectBasicData["namespace"].(string),
 		}
+		logger.WithValues(
+			"group", tmpGvrnn.Group,
+			"version", tmpGvrnn.Version,
+			"resource", tmpGvrnn.Resource,
+			"name", resultObjectBasicData["name"].(string),
+			"namespace", resultObjectBasicData["namespace"].(string))
 
 		resultObjConverted = &unstructured.Unstructured{
 			Object: resultObject,
