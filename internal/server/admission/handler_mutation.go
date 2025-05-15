@@ -120,7 +120,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 	// At this point, some extra params will be added to the object that will be injected in template
 	jsonPatchOperations := jsondiff.Patch{}
 
-	cmPolicyList := s.dependencies.ClusterMutationPoliciesRegistry.GetResources(resourcePattern)
+	cmPolicyList := s.dependencies.ClusterMutationPolicyRegistry.GetResources(resourcePattern)
 	for _, cmPolicyObj := range cmPolicyList {
 
 		// Automatically add some information to the logs

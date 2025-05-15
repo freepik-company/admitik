@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clustergenerationpolicies
+package clustermutationpolicy
 
 import (
 	"sync"
@@ -26,7 +26,7 @@ import (
 // The pattern will be: {group}/{version}/{resource}/{operation}
 type ResourceTypeName = string
 
-type ClusterGenerationPoliciesRegistry struct {
+type ClusterMutationPolicyRegistry struct {
 	mu       sync.Mutex
-	registry map[ResourceTypeName][]*v1alpha1.ClusterGenerationPolicy
+	registry map[ResourceTypeName][]*v1alpha1.ClusterMutationPolicy
 }

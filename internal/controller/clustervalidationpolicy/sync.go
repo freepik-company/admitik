@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clustervalidationpolicies
+package clustervalidationpolicy
 
 import (
 	"context"
@@ -94,23 +94,23 @@ func (r *ClusterValidationPolicyReconciler) ReconcileClusterValidationPolicy(ctx
 		if eventType == watch.Deleted {
 			logger.Info(resourceDeletionMessage, "watcher", watchedType)
 
-			r.Dependencies.ClusterValidationPoliciesRegistry.RemoveResource(watchedType, resourceManifest)
+			r.Dependencies.ClusterValidationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
 		}
 
 		// Handle creation/update requests
 		if eventType == watch.Modified {
 			logger.Info(resourceUpdatedMessage, "watcher", watchedType)
 
-			r.Dependencies.ClusterValidationPoliciesRegistry.RemoveResource(watchedType, resourceManifest)
-			r.Dependencies.ClusterValidationPoliciesRegistry.AddResource(watchedType, resourceManifest)
+			r.Dependencies.ClusterValidationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
+			r.Dependencies.ClusterValidationPolicyRegistry.AddResource(watchedType, resourceManifest)
 		}
 	}
 
 	// Clean non-desired watched types. This is needed for updates where the user
 	// reduces the amount of watched operations on watched resources
-	for _, registeredResourceType := range r.Dependencies.ClusterValidationPoliciesRegistry.GetRegisteredResourceTypes() {
+	for _, registeredResourceType := range r.Dependencies.ClusterValidationPolicyRegistry.GetRegisteredResourceTypes() {
 		if !slices.Contains(desiredWatchedTypes, registeredResourceType) {
-			r.Dependencies.ClusterValidationPoliciesRegistry.RemoveResource(registeredResourceType, resourceManifest)
+			r.Dependencies.ClusterValidationPolicyRegistry.RemoveResource(registeredResourceType, resourceManifest)
 		}
 	}
 
@@ -149,7 +149,7 @@ func (r *ClusterValidationPolicyReconciler) getMergedValidatingWebhookConfigurat
 
 	// Craft ValidatingWebhookConfiguration rules based on the pool keys
 	currentVwcRules := []admissionregv1.RuleWithOperations{}
-	InterceptedResourcesPatterns := r.Dependencies.ClusterValidationPoliciesRegistry.GetRegisteredResourceTypes()
+	InterceptedResourcesPatterns := r.Dependencies.ClusterValidationPolicyRegistry.GetRegisteredResourceTypes()
 
 	for _, resourcePattern := range InterceptedResourcesPatterns {
 

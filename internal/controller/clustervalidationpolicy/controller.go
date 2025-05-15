@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clustervalidationpolicies
+package clustervalidationpolicy
 
 import (
 	"context"
@@ -32,7 +32,7 @@ import (
 	//
 	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/controller"
-	clusterValidationPoliciesRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicies"
+	clusterValidationPolicyRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicy"
 )
 
 type ClusterValidationPolicyControllerOptions struct {
@@ -41,7 +41,7 @@ type ClusterValidationPolicyControllerOptions struct {
 }
 
 type ClusterValidationPolicyControllerDependencies struct {
-	ClusterValidationPoliciesRegistry *clusterValidationPoliciesRegistry.ClusterValidationPoliciesRegistry
+	ClusterValidationPolicyRegistry *clusterValidationPolicyRegistry.ClusterValidationPolicyRegistry
 }
 
 // ClusterValidationPolicyReconciler reconciles a ClusterValidationPolicy object

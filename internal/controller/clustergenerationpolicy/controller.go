@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clustergenerationpolicies
+package clustergenerationpolicy
 
 import (
 	"context"
@@ -31,14 +31,14 @@ import (
 	//
 	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/controller"
-	clusterGenerationPoliciesRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicies"
+	clusterGenerationPolicyRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicy"
 )
 
 type ClusterGenerationPolicyControllerOptions struct {
 }
 
 type ClusterGenerationPolicyControllerDependencies struct {
-	ClusterGenerationPoliciesRegistry *clusterGenerationPoliciesRegistry.ClusterGenerationPoliciesRegistry
+	ClusterGenerationPolicyRegistry *clusterGenerationPolicyRegistry.ClusterGenerationPolicyRegistry
 }
 
 // ClusterGenerationPolicyReconciler reconciles a ClusterGenerationPolicy object

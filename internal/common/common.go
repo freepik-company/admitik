@@ -33,6 +33,18 @@ import (
 	"freepik.com/admitik/internal/template"
 )
 
+//func PEPE() {
+//	var parsedDefinition string
+//	switch policyObj.Spec.Object.Definition.Engine {
+//	case v1alpha1.TemplateEngineCel:
+//		parsedDefinition, err = template.EvaluateAndReplaceCelExpressions(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
+//	case v1alpha1.TemplateEngineStarlark:
+//		parsedDefinition, err = template.EvaluateTemplateStarlark(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
+//	default:
+//		parsedDefinition, err = template.EvaluateTemplate(policyObj.Spec.Object.Definition.Template, &specificTemplateInjectedObject)
+//	}
+//}
+
 // IsPassingConditions iterate over a list of templated conditions and return whether they are passing or not
 func IsPassingConditions(conditionList []v1alpha1.ConditionT, injectedValues *map[string]interface{}) (result bool, err error) {
 	for _, condition := range conditionList {

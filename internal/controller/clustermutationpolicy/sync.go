@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clustermutationpolicies
+package clustermutationpolicy
 
 import (
 	"context"
@@ -93,23 +93,23 @@ func (r *ClusterMutationPolicyReconciler) ReconcileClusterMutationPolicy(ctx con
 		if eventType == watch.Deleted {
 			logger.Info(resourceDeletionMessage, "watcher", watchedType)
 
-			r.Dependencies.ClusterMutationPoliciesRegistry.RemoveResource(watchedType, resourceManifest)
+			r.Dependencies.ClusterMutationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
 		}
 
 		// Handle creation/update requests
 		if eventType == watch.Modified {
 			logger.Info(resourceUpdatedMessage, "watcher", watchedType)
 
-			r.Dependencies.ClusterMutationPoliciesRegistry.RemoveResource(watchedType, resourceManifest)
-			r.Dependencies.ClusterMutationPoliciesRegistry.AddResource(watchedType, resourceManifest)
+			r.Dependencies.ClusterMutationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
+			r.Dependencies.ClusterMutationPolicyRegistry.AddResource(watchedType, resourceManifest)
 		}
 	}
 
 	// Clean non-desired watched types. This is needed for updates where the user
 	// reduces the amount of watched operations on watched resources
-	for _, registeredResourceType := range r.Dependencies.ClusterMutationPoliciesRegistry.GetRegisteredResourceTypes() {
+	for _, registeredResourceType := range r.Dependencies.ClusterMutationPolicyRegistry.GetRegisteredResourceTypes() {
 		if !slices.Contains(desiredWatchedTypes, registeredResourceType) {
-			r.Dependencies.ClusterMutationPoliciesRegistry.RemoveResource(registeredResourceType, resourceManifest)
+			r.Dependencies.ClusterMutationPolicyRegistry.RemoveResource(registeredResourceType, resourceManifest)
 		}
 	}
 
@@ -148,7 +148,7 @@ func (r *ClusterMutationPolicyReconciler) getMergedMutatingWebhookConfiguration(
 
 	// Craft ValidatingWebhookConfiguration rules based on the pool keys
 	currentVwcRules := []admissionregv1.RuleWithOperations{}
-	InterceptedResourcesPatterns := r.Dependencies.ClusterMutationPoliciesRegistry.GetRegisteredResourceTypes()
+	InterceptedResourcesPatterns := r.Dependencies.ClusterMutationPolicyRegistry.GetRegisteredResourceTypes()
 
 	for _, resourcePattern := range InterceptedResourcesPatterns {
 

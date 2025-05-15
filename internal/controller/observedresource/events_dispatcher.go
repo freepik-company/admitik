@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	//
-	clusterGenerationPoliciesRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicies"
+	clusterGenerationPolicyRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicy"
 	resourceObserverRegistry "freepik.com/admitik/internal/registry/resourceobserver"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
 )
@@ -36,9 +36,9 @@ const (
 
 type EventDispatcherDependencies struct {
 	//
-	ClusterGenerationPoliciesRegistry *clusterGenerationPoliciesRegistry.ClusterGenerationPoliciesRegistry
-	SourcesRegistry                   *sourcesRegistry.SourcesRegistry
-	ResourceObserverRegistry          *resourceObserverRegistry.ResourceObserverRegistry
+	ClusterGenerationPolicyRegistry *clusterGenerationPolicyRegistry.ClusterGenerationPolicyRegistry
+	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
+	ResourceObserverRegistry        *resourceObserverRegistry.ResourceObserverRegistry
 
 	//
 
@@ -99,9 +99,9 @@ func (d *EventDispatcher) getInitializedProcessors() (processorsMap map[string]P
 	processors[ObserverTypeNoop] = NewNoopProcessor(NoopProcessorDependencies{})
 
 	processors[ObserverTypeClusterGenerationPolicies] = NewGenerationProcessor(GenerationProcessorDependencies{
-		ClusterGenerationPoliciesRegistry: d.dependencies.ClusterGenerationPoliciesRegistry,
-		SourcesRegistry:                   d.dependencies.SourcesRegistry,
-		KubeAvailableResourceList:         &d.kubeAvailableResourceList,
+		ClusterGenerationPolicyRegistry: d.dependencies.ClusterGenerationPolicyRegistry,
+		SourcesRegistry:                 d.dependencies.SourcesRegistry,
+		KubeAvailableResourceList:       &d.kubeAvailableResourceList,
 	})
 
 	processorsMap = processors

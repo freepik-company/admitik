@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clustermutationpolicies
+package clustervalidationpolicy
 
 import (
 	"reflect"
@@ -28,45 +28,45 @@ import (
 	"freepik.com/admitik/api/v1alpha1"
 )
 
-func NewClusterMutationPoliciesRegistry() *ClusterMutationPoliciesRegistry {
-	return &ClusterMutationPoliciesRegistry{
-		registry: make(map[ResourceTypeName][]*v1alpha1.ClusterMutationPolicy),
+func NewClusterValidationPolicyRegistry() *ClusterValidationPolicyRegistry {
+	return &ClusterValidationPolicyRegistry{
+		registry: make(map[ResourceTypeName][]*v1alpha1.ClusterValidationPolicy),
 	}
 }
 
-// AddResource add a ClusterMutationPolicy of provided type into registry
-func (m *ClusterMutationPoliciesRegistry) AddResource(rt ResourceTypeName, clusterMutationPolicy *v1alpha1.ClusterMutationPolicy) {
+// AddResource add a ClusterValidationPolicy of provided type into registry
+func (m *ClusterValidationPolicyRegistry) AddResource(rt ResourceTypeName, clusterValidationPolicy *v1alpha1.ClusterValidationPolicy) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.registry[rt] = append(m.registry[rt], clusterMutationPolicy)
+	m.registry[rt] = append(m.registry[rt], clusterValidationPolicy)
 }
 
-// RemoveResource delete a ClusterMutationPolicy of provided type
-func (m *ClusterMutationPoliciesRegistry) RemoveResource(rt ResourceTypeName, clusterMutationPolicy *v1alpha1.ClusterMutationPolicy) {
+// RemoveResource delete a ClusterValidationPolicy of provided type
+func (m *ClusterValidationPolicyRegistry) RemoveResource(rt ResourceTypeName, clusterValidationPolicy *v1alpha1.ClusterValidationPolicy) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	clusterMutationPolicies := m.registry[rt]
+	clusterValidationPolicies := m.registry[rt]
 	index := -1
-	for itemIndex, itemObject := range clusterMutationPolicies {
-		if itemObject.Name == clusterMutationPolicy.Name {
+	for itemIndex, itemObject := range clusterValidationPolicies {
+		if itemObject.Name == clusterValidationPolicy.Name {
 			index = itemIndex
 			break
 		}
 	}
 	if index != -1 {
-		m.registry[rt] = append(clusterMutationPolicies[:index], clusterMutationPolicies[index+1:]...)
+		m.registry[rt] = append(clusterValidationPolicies[:index], clusterValidationPolicies[index+1:]...)
 	}
 
-	// Delete index from registry when no more ClusterMutationPolicy resource is needing it
+	// Delete index from registry when no more ClusterValidationPolicy resource is needing it
 	if len(m.registry[rt]) == 0 {
 		delete(m.registry, rt)
 	}
 }
 
-// GetResources return all the ClusterMutationPolicy objects of provided type
-func (m *ClusterMutationPoliciesRegistry) GetResources(rt ResourceTypeName) []*v1alpha1.ClusterMutationPolicy {
+// GetResources return all the ClusterValidationPolicy objects of provided type
+func (m *ClusterValidationPolicyRegistry) GetResources(rt ResourceTypeName) []*v1alpha1.ClusterValidationPolicy {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -75,11 +75,11 @@ func (m *ClusterMutationPoliciesRegistry) GetResources(rt ResourceTypeName) []*v
 		return list
 	}
 
-	return []*v1alpha1.ClusterMutationPolicy{}
+	return []*v1alpha1.ClusterValidationPolicy{}
 }
 
-// GetRegisteredResourceTypes returns a list of resource groups that will be evaluated by the mutations server
-func (m *ClusterMutationPoliciesRegistry) GetRegisteredResourceTypes() []ResourceTypeName {
+// GetRegisteredResourceTypes returns a list of resource groups that will be evaluated by the admissions server
+func (m *ClusterValidationPolicyRegistry) GetRegisteredResourceTypes() []ResourceTypeName {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -88,7 +88,7 @@ func (m *ClusterMutationPoliciesRegistry) GetRegisteredResourceTypes() []Resourc
 
 // GetRegisteredSourcesTypes returns a list of resource groups that the user desires to watch for later
 // injection in templates that will be evaluated by controllers
-func (m *ClusterMutationPoliciesRegistry) GetRegisteredSourcesTypes() []ResourceTypeName {
+func (m *ClusterValidationPolicyRegistry) GetRegisteredSourcesTypes() []ResourceTypeName {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()

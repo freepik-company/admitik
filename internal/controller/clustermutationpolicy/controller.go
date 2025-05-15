@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clustermutationpolicies
+package clustermutationpolicy
 
 import (
 	"context"
@@ -33,7 +33,7 @@ import (
 	//
 	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/controller"
-	clusterMutationPoliciesRegistry "freepik.com/admitik/internal/registry/clustermutationpolicies"
+	clusterMutationPolicyRegistry "freepik.com/admitik/internal/registry/clustermutationpolicy"
 )
 
 type ClusterMutationPolicyControllerOptions struct {
@@ -42,7 +42,7 @@ type ClusterMutationPolicyControllerOptions struct {
 }
 
 type ClusterMutationPolicyControllerDependencies struct {
-	ClusterMutationPoliciesRegistry *clusterMutationPoliciesRegistry.ClusterMutationPoliciesRegistry
+	ClusterMutationPolicyRegistry *clusterMutationPolicyRegistry.ClusterMutationPolicyRegistry
 }
 
 // ClusterMutationPolicyReconciler reconciles a ClusterMutationPolicy object

@@ -20,7 +20,7 @@ import (
 	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/common"
 	"freepik.com/admitik/internal/globals"
-	clusterGenerationPoliciesRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicies"
+	clusterGenerationPolicyRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicy"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
 	"freepik.com/admitik/internal/template"
 	"gopkg.in/yaml.v3"
@@ -35,8 +35,8 @@ import (
 )
 
 type GenerationProcessorDependencies struct {
-	ClusterGenerationPoliciesRegistry *clusterGenerationPoliciesRegistry.ClusterGenerationPoliciesRegistry
-	SourcesRegistry                   *sourcesRegistry.SourcesRegistry
+	ClusterGenerationPolicyRegistry *clusterGenerationPolicyRegistry.ClusterGenerationPolicyRegistry
+	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
 
 	//
 	KubeAvailableResourceList *[]GVKR
@@ -66,7 +66,7 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 	}
 
 	//
-	policyList := p.dependencies.ClusterGenerationPoliciesRegistry.GetResources(resourceType)
+	policyList := p.dependencies.ClusterGenerationPolicyRegistry.GetResources(resourceType)
 	for _, policyObj := range policyList {
 
 		// Automatically add some information to the logs

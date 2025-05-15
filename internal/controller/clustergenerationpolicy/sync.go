@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clustergenerationpolicies
+package clustergenerationpolicy
 
 import (
 	"context"
@@ -51,18 +51,18 @@ func (r *ClusterGenerationPolicyReconciler) ReconcileClusterGenerationPolicy(ctx
 	if eventType == watch.Deleted {
 		logger.Info(resourceDeletionMessage, "watcher", watchedType)
 
-		r.Dependencies.ClusterGenerationPoliciesRegistry.RemoveResource(watchedType, resourceManifest)
+		r.Dependencies.ClusterGenerationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
 	}
 
 	// Handle creation/update requests
 	if eventType == watch.Modified {
 		logger.Info(resourceUpdatedMessage, "watcher", watchedType)
 
-		for _, registeredResourceType := range r.Dependencies.ClusterGenerationPoliciesRegistry.GetRegisteredResourceTypes() {
-			r.Dependencies.ClusterGenerationPoliciesRegistry.RemoveResource(registeredResourceType, resourceManifest)
+		for _, registeredResourceType := range r.Dependencies.ClusterGenerationPolicyRegistry.GetRegisteredResourceTypes() {
+			r.Dependencies.ClusterGenerationPolicyRegistry.RemoveResource(registeredResourceType, resourceManifest)
 		}
 
-		r.Dependencies.ClusterGenerationPoliciesRegistry.AddResource(watchedType, resourceManifest)
+		r.Dependencies.ClusterGenerationPolicyRegistry.AddResource(watchedType, resourceManifest)
 	}
 
 	// TODO: Discuss

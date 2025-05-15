@@ -37,7 +37,7 @@ import (
 
 	//
 	"freepik.com/admitik/internal/globals"
-	clusterGenerationPoliciesRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicies"
+	clusterGenerationPolicyRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicy"
 	resourceInformerRegistry "freepik.com/admitik/internal/registry/resourceinformer"
 	resourceObserverRegistry "freepik.com/admitik/internal/registry/resourceobserver"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
@@ -76,10 +76,10 @@ type ObservedResourceControllerDependencies struct {
 	Context *context.Context
 
 	//
-	ClusterGenerationPoliciesRegistry *clusterGenerationPoliciesRegistry.ClusterGenerationPoliciesRegistry
-	SourcesRegistry                   *sourcesRegistry.SourcesRegistry
-	ResourceInformerRegistry          *resourceInformerRegistry.ResourceInformerRegistry
-	ResourceObserverRegistry          *resourceObserverRegistry.ResourceObserverRegistry
+	ClusterGenerationPolicyRegistry *clusterGenerationPolicyRegistry.ClusterGenerationPolicyRegistry
+	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
+	ResourceInformerRegistry        *resourceInformerRegistry.ResourceInformerRegistry
+	ResourceObserverRegistry        *resourceObserverRegistry.ResourceObserverRegistry
 }
 
 // ObservedResourceController represents the controller that triggers parallel threads.
@@ -103,7 +103,7 @@ func (r *ObservedResourceController) getResourcesFromPolicyRegistries() map[stri
 
 	results := make(map[string][]string)
 
-	candidatesFromGeneration := r.Dependencies.ClusterGenerationPoliciesRegistry.GetRegisteredResourceTypes()
+	candidatesFromGeneration := r.Dependencies.ClusterGenerationPolicyRegistry.GetRegisteredResourceTypes()
 	for _, resourceType := range candidatesFromGeneration {
 		if !slices.Contains(results[resourceType], ObserverTypeClusterGenerationPolicies) {
 			results[resourceType] = append(results[resourceType], ObserverTypeClusterGenerationPolicies)
@@ -152,9 +152,9 @@ func (r *ObservedResourceController) Start() {
 
 	// Create an event dispatcher for later usage
 	r.dispatcher = NewEventDispatcher(EventDispatcherDependencies{
-		ClusterGenerationPoliciesRegistry: r.Dependencies.ClusterGenerationPoliciesRegistry,
-		SourcesRegistry:                   r.Dependencies.SourcesRegistry,
-		ResourceObserverRegistry:          r.Dependencies.ResourceObserverRegistry,
+		ClusterGenerationPolicyRegistry: r.Dependencies.ClusterGenerationPolicyRegistry,
+		SourcesRegistry:                 r.Dependencies.SourcesRegistry,
+		ResourceObserverRegistry:        r.Dependencies.ResourceObserverRegistry,
 	})
 
 	// Start cleaner for dead informers

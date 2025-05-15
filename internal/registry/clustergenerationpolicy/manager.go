@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clustergenerationpolicies
+package clustergenerationpolicy
 
 import (
 	"reflect"
@@ -28,14 +28,14 @@ import (
 	"freepik.com/admitik/api/v1alpha1"
 )
 
-func NewClusterGenerationPoliciesRegistry() *ClusterGenerationPoliciesRegistry {
-	return &ClusterGenerationPoliciesRegistry{
+func NewClusterGenerationPolicyRegistry() *ClusterGenerationPolicyRegistry {
+	return &ClusterGenerationPolicyRegistry{
 		registry: make(map[ResourceTypeName][]*v1alpha1.ClusterGenerationPolicy),
 	}
 }
 
 // AddResource add a ClusterGenerationPolicy of provided type into registry
-func (m *ClusterGenerationPoliciesRegistry) AddResource(rt ResourceTypeName, policy *v1alpha1.ClusterGenerationPolicy) {
+func (m *ClusterGenerationPolicyRegistry) AddResource(rt ResourceTypeName, policy *v1alpha1.ClusterGenerationPolicy) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -43,7 +43,7 @@ func (m *ClusterGenerationPoliciesRegistry) AddResource(rt ResourceTypeName, pol
 }
 
 // RemoveResource delete a ClusterGenerationPolicy of provided type
-func (m *ClusterGenerationPoliciesRegistry) RemoveResource(rt ResourceTypeName, policy *v1alpha1.ClusterGenerationPolicy) {
+func (m *ClusterGenerationPolicyRegistry) RemoveResource(rt ResourceTypeName, policy *v1alpha1.ClusterGenerationPolicy) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -66,7 +66,7 @@ func (m *ClusterGenerationPoliciesRegistry) RemoveResource(rt ResourceTypeName, 
 }
 
 // GetResources return all the ClusterGenerationPolicy objects of provided type
-func (m *ClusterGenerationPoliciesRegistry) GetResources(rt ResourceTypeName) []*v1alpha1.ClusterGenerationPolicy {
+func (m *ClusterGenerationPolicyRegistry) GetResources(rt ResourceTypeName) []*v1alpha1.ClusterGenerationPolicy {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -79,7 +79,7 @@ func (m *ClusterGenerationPoliciesRegistry) GetResources(rt ResourceTypeName) []
 }
 
 // GetRegisteredResourceTypes returns a list of resource groups that will be evaluated by the mutations server
-func (m *ClusterGenerationPoliciesRegistry) GetRegisteredResourceTypes() []ResourceTypeName {
+func (m *ClusterGenerationPolicyRegistry) GetRegisteredResourceTypes() []ResourceTypeName {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -88,7 +88,7 @@ func (m *ClusterGenerationPoliciesRegistry) GetRegisteredResourceTypes() []Resou
 
 // GetRegisteredSourcesTypes returns a list of resource groups that the user desires to watch for later
 // injection in templates that will be evaluated by controllers
-func (m *ClusterGenerationPoliciesRegistry) GetRegisteredSourcesTypes() []ResourceTypeName {
+func (m *ClusterGenerationPolicyRegistry) GetRegisteredSourcesTypes() []ResourceTypeName {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()

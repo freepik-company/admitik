@@ -19,7 +19,6 @@ package main
 import (
 	"crypto/tls"
 	"flag"
-	"freepik.com/admitik/internal/controller/observedresource"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,14 +45,15 @@ import (
 	"freepik.com/admitik/api/v1alpha1"
 	"freepik.com/admitik/internal/certificates"
 	"freepik.com/admitik/internal/controller"
-	"freepik.com/admitik/internal/controller/clustergenerationpolicies"
-	"freepik.com/admitik/internal/controller/clustermutationpolicies"
-	"freepik.com/admitik/internal/controller/clustervalidationpolicies"
+	"freepik.com/admitik/internal/controller/clustergenerationpolicy"
+	"freepik.com/admitik/internal/controller/clustermutationpolicy"
+	"freepik.com/admitik/internal/controller/clustervalidationpolicy"
+	"freepik.com/admitik/internal/controller/observedresource"
 	"freepik.com/admitik/internal/controller/sources"
 	"freepik.com/admitik/internal/globals"
-	clusterGenerationPoliciesRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicies"
-	clusterMutationPoliciesRegistry "freepik.com/admitik/internal/registry/clustermutationpolicies"
-	clusterValidationPoliciesRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicies"
+	clusterGenerationPolicyRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicy"
+	clusterMutationPolicyRegistry "freepik.com/admitik/internal/registry/clustermutationpolicy"
+	clusterValidationPolicyRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicy"
 	resourceInformerRegistry "freepik.com/admitik/internal/registry/resourceinformer"
 	resourceObserverRegistry "freepik.com/admitik/internal/registry/resourceobserver"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
@@ -351,9 +351,9 @@ func main() {
 	}
 
 	// Create registries managers that will be used by several controllers
-	clusterGenerationPoliciesReg := clusterGenerationPoliciesRegistry.NewClusterGenerationPoliciesRegistry()
-	clusterMutationPoliciesReg := clusterMutationPoliciesRegistry.NewClusterMutationPoliciesRegistry()
-	clusterValidationPoliciesReg := clusterValidationPoliciesRegistry.NewClusterValidationPoliciesRegistry()
+	clusterGenerationPolicyReg := clusterGenerationPolicyRegistry.NewClusterGenerationPolicyRegistry()
+	clusterMutationPolicyReg := clusterMutationPolicyRegistry.NewClusterMutationPolicyRegistry()
+	clusterValidationPolicyReg := clusterValidationPolicyRegistry.NewClusterValidationPolicyRegistry()
 	sourcesReg := sourcesRegistry.NewSourcesRegistry()
 	resourceObserverReg := resourceObserverRegistry.NewResourceObserverRegistry()
 	resourceInformerReg := resourceInformerRegistry.NewResourceInformerRegistry()
@@ -366,11 +366,11 @@ func main() {
 			InformerDurationToResync: sourcesTimeToResyncInformers,
 		},
 		Dependencies: observedresource.ObservedResourceControllerDependencies{
-			Context:                           &globals.Application.Context,
-			ClusterGenerationPoliciesRegistry: clusterGenerationPoliciesReg,
-			SourcesRegistry:                   sourcesReg,
-			ResourceInformerRegistry:          resourceInformerReg,
-			ResourceObserverRegistry:          resourceObserverReg,
+			Context:                         &globals.Application.Context,
+			ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
+			SourcesRegistry:                 sourcesReg,
+			ResourceInformerRegistry:        resourceInformerReg,
+			ResourceObserverRegistry:        resourceObserverReg,
 		},
 	}
 	setupLog.Info("starting observed resources controller")
@@ -385,11 +385,11 @@ func main() {
 			InformerDurationToResync: sourcesTimeToResyncInformers,
 		},
 		Dependencies: sources.SourcesControllerDependencies{
-			Context:                           &globals.Application.Context,
-			ClusterGenerationPoliciesRegistry: clusterGenerationPoliciesReg,
-			ClusterMutationPoliciesRegistry:   clusterMutationPoliciesReg,
-			ClusterValidationPoliciesRegistry: clusterValidationPoliciesReg,
-			SourcesRegistry:                   sourcesReg,
+			Context:                         &globals.Application.Context,
+			ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
+			ClusterMutationPolicyRegistry:   clusterMutationPolicyReg,
+			ClusterValidationPolicyRegistry: clusterValidationPolicyReg,
+			SourcesRegistry:                 sourcesReg,
 		},
 	}
 	setupLog.Info("starting sources controller")
@@ -398,13 +398,13 @@ func main() {
 	// Init primary controllers
 	// ATTENTION: This controller may be replaced by a custom one in the future doing the same tasks
 	// to simplify this project's dependencies and maintainability
-	if err = (&clustergenerationpolicies.ClusterGenerationPolicyReconciler{
+	if err = (&clustergenerationpolicy.ClusterGenerationPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 
-		Options: clustergenerationpolicies.ClusterGenerationPolicyControllerOptions{},
-		Dependencies: clustergenerationpolicies.ClusterGenerationPolicyControllerDependencies{
-			ClusterGenerationPoliciesRegistry: clusterGenerationPoliciesReg,
+		Options: clustergenerationpolicy.ClusterGenerationPolicyControllerOptions{},
+		Dependencies: clustergenerationpolicy.ClusterGenerationPolicyControllerDependencies{
+			ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
 		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterGenerationPolicy")
@@ -413,16 +413,16 @@ func main() {
 
 	webhookClientConfigMutation := webhookClientConfig.DeepCopy()
 	*webhookClientConfigMutation.URL = *webhookClientConfigMutation.URL + admission.AdmissionServerMutationPath
-	if err = (&clustermutationpolicies.ClusterMutationPolicyReconciler{
+	if err = (&clustermutationpolicy.ClusterMutationPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 
-		Options: clustermutationpolicies.ClusterMutationPolicyControllerOptions{
+		Options: clustermutationpolicy.ClusterMutationPolicyControllerOptions{
 			WebhookClientConfig: *webhookClientConfigMutation,
 			WebhookTimeout:      webhooksClientTimeout,
 		},
-		Dependencies: clustermutationpolicies.ClusterMutationPolicyControllerDependencies{
-			ClusterMutationPoliciesRegistry: clusterMutationPoliciesReg,
+		Dependencies: clustermutationpolicy.ClusterMutationPolicyControllerDependencies{
+			ClusterMutationPolicyRegistry: clusterMutationPolicyReg,
 		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterMutationPolicy")
@@ -431,16 +431,16 @@ func main() {
 
 	webhookClientConfigValidation := webhookClientConfig.DeepCopy()
 	*webhookClientConfigValidation.URL = *webhookClientConfigValidation.URL + admission.AdmissionServerValidationPath
-	if err = (&clustervalidationpolicies.ClusterValidationPolicyReconciler{
+	if err = (&clustervalidationpolicy.ClusterValidationPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 
-		Options: clustervalidationpolicies.ClusterValidationPolicyControllerOptions{
+		Options: clustervalidationpolicy.ClusterValidationPolicyControllerOptions{
 			WebhookClientConfig: *webhookClientConfigValidation,
 			WebhookTimeout:      webhooksClientTimeout,
 		},
-		Dependencies: clustervalidationpolicies.ClusterValidationPolicyControllerDependencies{
-			ClusterValidationPoliciesRegistry: clusterValidationPoliciesReg,
+		Dependencies: clustervalidationpolicy.ClusterValidationPolicyControllerDependencies{
+			ClusterValidationPolicyRegistry: clusterValidationPolicyReg,
 		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterValidationPolicy")
@@ -471,9 +471,9 @@ func main() {
 			TLSPrivateKey:  webhooksServerPrivateKey,
 		},
 		admission.AdmissionServerDependencies{
-			SourcesRegistry:                   sourcesReg,
-			ClusterValidationPoliciesRegistry: clusterValidationPoliciesReg,
-			ClusterMutationPoliciesRegistry:   clusterMutationPoliciesReg,
+			SourcesRegistry:                 sourcesReg,
+			ClusterValidationPolicyRegistry: clusterValidationPolicyReg,
+			ClusterMutationPolicyRegistry:   clusterMutationPolicyReg,
 		})
 	setupLog.Info("starting admission server")
 	go admissionServer.Start(globals.Application.Context)
