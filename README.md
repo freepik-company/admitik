@@ -103,7 +103,7 @@ These variables let you write dynamic, context-aware policies using real cluster
 
 > [!TIP]
 > Remember that each engine has its own capabilities, so all the variables are available everywhere, 
-> but not all engines can do everything. For example, CEL is simple so can read `vars` but can not modify it
+> but not all engines can do everything. For example, CEL is for simple expressions, so it can read `vars` but can not modify them
 
 
 ## 📂 Policy Kinds
