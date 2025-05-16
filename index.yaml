@@ -2,6 +2,32 @@ apiVersion: v1
 entries:
   admitik:
   - apiVersion: v2
+    appVersion: 1.1.0
+    created: "2025-05-16T15:20:01.705039628Z"
+    description: A Helm chart for Admitik, an admission controller for Kubernetes
+      that allow resources entrance if conditions are met (realtime)
+    digest: cd2e029de53686bfac2cb7560f3ba2474169cea7626b8109e3a0e07c9db3a743
+    home: https://github.com/freepik-company/admitik
+    keywords:
+    - freepik
+    - prosimcorp
+    - admitik
+    - gitops
+    kubeVersion: '>=1.22.0-0'
+    maintainers:
+    - email: ahernandez@freepik.com
+      name: Alby Hernández
+      url: https://github.com/freepik-company/admitik
+    - name: prosimcorp
+      url: https://github.com/prosimcorp
+    name: admitik
+    sources:
+    - https://github.com/freepik-company/admitik
+    type: application
+    urls:
+    - admitik-1.1.0.tgz
+    version: 1.1.0
+  - apiVersion: v2
     appVersion: 1.0.0
     created: "2025-05-09T14:42:23.892359275Z"
     description: A Helm chart for Admitik, an admission controller for Kubernetes
@@ -507,4 +533,4 @@ entries:
     urls:
     - admitik-0.1.0.tgz
     version: 0.1.0
-generated: "2025-05-09T14:42:23.892482484Z"
+generated: "2025-05-16T15:20:01.705191151Z"
