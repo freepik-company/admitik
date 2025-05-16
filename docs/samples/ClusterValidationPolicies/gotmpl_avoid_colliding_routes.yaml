@@ -3,6 +3,7 @@ kind: ClusterValidationPolicy
 metadata:
   name: gotmpl-avoid-colliding-routes
 spec:
+
   failureAction: Permissive
 
   # Resources to be intercepted before reaching the cluster
@@ -53,6 +54,7 @@ spec:
       value: "route-not-found"
 
   message:
+    engine: gotmpl
     template: |
       {{- $object := .object -}}
       {{- printf "Resource '%s' was rejected as some of declared routes already exists" $object.metadata.name -}}

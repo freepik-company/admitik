@@ -1,0 +1,51 @@
+apiVersion: admitik.freepik.com/v1alpha1
+kind: ClusterMutationPolicy
+metadata:
+  name: starlark-add-some-labels
+spec:
+
+  # Resources to be intercepted before reaching the cluster
+  interceptedResources:
+    group: ""
+    version: v1
+    resource: namespaces
+    operations:
+      - CREATE
+      - UPDATE
+
+  # Other resources to be retrieved for conditions templates.
+  # They will be included under .sources scope in the template
+  sources: []
+
+  conditions:
+    - name: first-condition
+      engine: starlark
+      key: |
+        def check_namespace():
+          if object["metadata"]["name"].startswith("mutate-"):
+            print("mutate-it")
+        
+        check_namespace()
+      value: "mutate-it"
+
+  patch:
+    type: jsonpatch # JsonPatch | StrategicMerge
+    engine: starlark
+    template: |
+      def check_operation():
+        patch = []
+      
+        if "annotations" not in object["metadata"]:
+          patch = patch + [{"op": "add", "path": "/metadata/annotations", "value": {}}]
+      
+        if operation == "CREATE":
+          patch = patch + [
+            {"op": "add", "path": "/metadata/annotations/mutated-by", "value": "admitik"},
+            {"op": "add", "path": "/metadata/annotations/watched-operation", "value": operation },
+          ]
+        else:
+          patch = patch + []
+      
+        print(json.encode(patch))
+      
+      check_operation()

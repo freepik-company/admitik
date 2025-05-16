@@ -19,7 +19,6 @@ package admission
 import (
 	"encoding/json"
 	"fmt"
-	"freepik.com/admitik/internal/common"
 	"io"
 	"net/http"
 	"strings"
@@ -31,6 +30,7 @@ import (
 
 	//
 	"freepik.com/admitik/api/v1alpha1"
+	"freepik.com/admitik/internal/common"
 	"freepik.com/admitik/internal/template"
 )
 

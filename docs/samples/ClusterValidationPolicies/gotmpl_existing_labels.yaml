@@ -3,7 +3,7 @@ kind: ClusterValidationPolicy
 metadata:
   name: gotmpl-confirm-existing-namespace-labels
 spec:
-
+  
   failureAction: Enforce
 
   # Resources to be intercepted before reaching the cluster
@@ -45,6 +45,6 @@ spec:
       value: "label-found"
 
   message:
+    engine: gotmpl
     template: |
-      {{- $object := .object -}}
-      {{- printf "Resource '%s' was rejected as some required label is missing" $object.metadata.name -}}
+      {{- logPrintf "hola" -}}

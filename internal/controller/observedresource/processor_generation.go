@@ -102,7 +102,6 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 		var tmpGvrnn *v1alpha1.ResourceGroupT
 		var tmpApiVersionParts []string
 		var resourceClient dynamic.ResourceInterface
-
 		//////////////////////////////////////////////////////////////////////////
 
 		// Evaluate template for generating the resource

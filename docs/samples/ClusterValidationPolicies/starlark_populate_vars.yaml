@@ -4,6 +4,8 @@ metadata:
   name: starlark-populate-vars
 spec:
 
+  failureAction: Permissive
+
   # Resources to be intercepted before reaching the cluster
   interceptedResources:
     group: ""
@@ -41,7 +43,6 @@ spec:
         print("pass")
       value: "pass"
 
-  failureAction: Permissive
   message:
     engine: starlark
     template: |

@@ -220,6 +220,7 @@ func main() {
 
 	///////////////////////////////////
 	// Get/Generate certificates needed by admission webhooks server
+	// TODO: Extract this entire block to a different function
 	var ca, cert, privKey string
 
 	if (webhooksServerCA != "" || webhooksServerCertificate != "" || webhooksServerPrivateKey != "") &&

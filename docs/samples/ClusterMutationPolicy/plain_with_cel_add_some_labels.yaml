@@ -11,7 +11,6 @@ spec:
     resource: namespaces
     operations:
       - CREATE
-      - UPDATE
 
   # Other resources to be retrieved for conditions templates.
   # They will be included under .sources scope in the template
@@ -22,9 +21,11 @@ spec:
 
   patch:
     type: jsonpatch # JsonPatch | StrategicMerge
-    engine: starlark
+    engine: plain+cel
     template: |
-      {[
-          {"op": "add", "path": "/metadata/annotations/objectname", "value": "{{cel: object.metadata.name }}"},
-          {"op": "replace", "path": "/metadata/annotations/objectnamespace", "value": "{{cel: object.metadata.namespace }}"},
-      ]}
+      [
+        { "op": "add", "path": "/metadata/annotations", "value": {} },
+        { "op": "add", "path": "/metadata/annotations/object-operation", "value": "{{cel: operation }}" },
+        { "op": "add", "path": "/metadata/annotations/object-kind", "value": "{{cel: object.kind }}" },
+        { "op": "add", "path": "/metadata/annotations/object-name", "value": "{{cel: object.metadata.name }}" }
+      ]

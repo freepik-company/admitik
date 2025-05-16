@@ -5,6 +5,7 @@ kind: ClusterValidationPolicy
 metadata:
   name: starlark-avoid-colliding-routes
 spec:
+
   failureAction: Permissive
 
   # Resources to be intercepted before reaching the cluster

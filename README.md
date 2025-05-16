@@ -1,6 +1,6 @@
 # Admitik
 
-<img src="https://raw.githubusercontent.com/achetronic/admitik/master/docs/img/logo.png" alt="Admitik Logo (Main) logo." width="150">
+**Cloud native policy engine for Kubernetes**
 
 ![GitHub go.mod Go version (subdirectory of monorepo)](https://img.shields.io/github/go-mod/go-version/freepik-company/admitik)
 ![GitHub](https://img.shields.io/github/license/freepik-company/admitik)
@@ -9,8 +9,10 @@
 ![GitHub followers](https://img.shields.io/github/followers/achetronic?label=achetronic&link=http%3A%2F%2Fgithub.com%2Fachetronic)
 ![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/achetronic?style=flat&logo=twitter&link=https%3A%2F%2Ftwitter.com%2Fachetronic)
 
+<img src="https://raw.githubusercontent.com/achetronic/admitik/master/docs/img/header.png" alt="Admitik Header (Main) logo." width="100%">
 
-**Admitik** is a cloud native **policy engine** for Kubernetes that lets you define policies 
+
+Admitik is a cloud native policy engine for Kubernetes that lets you define policies 
 to **validate**, **mutate**, **generate**, **clone**, or **clean** resources. 
 
 It uses template engines (like CEL or Starlark) to apply logic, patch resources, or generate new ones 
@@ -21,11 +23,52 @@ No new languages to learn. No sidecars. Just Kubernetes-native power. 💪
 
 ## ✨ What Can Admitik Do?
 
-- ✅ **Validation** Allow or block resources like Pods, Namespaces, etc., based on your logic.
-- 🔁 **Mutation** Automatically add labels, annotations, or patch fields before resources are stored.
-- 📦 **Generation** Create new resources when something happens — like generating a `ConfigMap` when a `Namespace` appears.
-- 🧬 **Cloning** Copy existing resources into other namespaces.
-- 🧹 **Cleanup** Delete resources that match custom conditions (e.g. old `Jobs` or temp objects).
+#### ✅ **Validation**
+Enforce admission rules to keep your cluster secure, compliant, and predictable.
+
+- Block configurations that violate security or runtime policies
+- Enforce consistent naming, labeling, or structural patterns
+- Reject resources that miss required platform standards (e.g. limits, roles, labels)
+
+#### 🔁 **Mutation**
+Modify resources before they’re stored to ensure they meet platform expectations.
+
+- Auto-inject metadata for cost tracking, ownership, or auditing
+- Add observability settings (e.g. monitoring annotations) automatically
+- Apply missing defaults for scheduling, networking, or access behavior
+
+#### 📦 **Generation**
+Create complementary resources in response to cluster activity.
+
+- Deploy baseline policies or controls when new environments appear
+- Automatically provision RBAC or access scopes based on context
+- Generate environment-specific configs to simplify onboarding
+
+#### 🧬 **Cloning**
+
+> [!IMPORTANT]
+> We are working on this feature! 🛠️
+
+<!---
+Replicate trusted configurations across scopes to ensure alignment and reduce duplication.
+
+- Distribute shared policies or settings across teams or namespaces
+- Keep environments in sync by replicating structural patterns
+- Copy access or config resources securely between isolated areas
+-->
+
+#### 🧹 **Cleanup**
+
+> [!IMPORTANT]
+> We are working on this feature! 🛠️
+
+<!---
+Continuously remove resources that are no longer relevant or safe to keep.
+
+- Delete completed workloads to avoid clutter and resource waste
+- Clean up temporary or short-lived artifacts after use
+- Enforce retention policies for unused or expired infrastructure
+-->
 
 
 ## 🧰 Template Engines
@@ -34,15 +77,17 @@ Admitik uses templating to evaluate conditions, build messages, craft patches, o
 
 Supported engines:
 
-- 🧾 **Go Templates** (with [Sprig functions](https://masterminds.github.io/sprig/))
-- 🔢 **CEL** (Common Expression Language)
-- 🐍 **Starlark** (a Python-like scripting language)
-- 💡 **Plain+CEL** (light templating with inline CEL expressions)
+- **Go Templates** (with [Sprig functions](https://masterminds.github.io/sprig/))
+- **CEL** (Common Expression Language)
+- **Starlark** (a Python-like scripting language)
+- **Plain** (you write it, your rules)
+- **Plain+CEL** (light templating with inline CEL expressions)
 
 Choose the one that fits your needs — or combine them in the same policy!
 
-
-## 🧠 Template Evaluation Context
+<!---
+### 🧠 Evaluation Context
+-->
 
 Inside any template, you can access these powerful variables:
 
@@ -57,8 +102,8 @@ Inside any template, you can access these powerful variables:
 These variables let you write dynamic, context-aware policies using real cluster data. 🔍
 
 > [!TIP]
-> Remember that each engine has its own capabilities, so all the variables are always available, 
-> but not all engines can do everything. For example, CEL is simple so can't write in `vars`
+> Remember that each engine has its own capabilities, so all the variables are available everywhere, 
+> but not all engines can do everything. For example, CEL is simple so can read `vars` but can not modify it
 
 
 ## 📂 Policy Kinds
@@ -68,15 +113,17 @@ These variables let you write dynamic, context-aware policies using real cluster
 | `ClusterValidationPolicy` | Validates intercepted resources                       |
 | `ClusterMutationPolicy`   | Modifies intercepted resources                        |
 | `ClusterGenerationPolicy` | Generates new resources (or clone existing) on events |
-| `ClusterCleanupPolicy`    | Deletes resources under custom rules                  |
 
+<!---
+| `ClusterCleanupPolicy`    | Deletes resources under custom rules                  |
+-->
 
 ## 🧪 Examples
 
 We’ve prepared real-world examples so you can get started quickly:
 
 <!---
-HIDDEN UNTIL DOC PAGES ARE CRAFTED
+HIDDEN UNTIL DOC PAGES ARE FULLY CRAFTED
 👉 [admitik.dev/docs/examples](https://admitik.dev/docs/examples)
 -->
 
@@ -90,7 +137,7 @@ We will cover all the installation methods in documentation soon, in the meanwhi
 [Helm registry](https://freepik-company.github.io/admitik/)
 
 <!---
-HIDDEN UNTIL DOC PAGES ARE CRAFTED
+HIDDEN UNTIL DOC PAGES ARE FULLY CRAFTED
 
 ## 🌐 Documentation
 
@@ -99,19 +146,21 @@ Advanced usage guides, examples, and reference docs coming soon:
 👉 [admitik.dev/docs](https://admitik.dev/docs)
 -->
 
-
 ## 🤝 Contributing
 
-All contributions are welcome! Feel free to:
+All contributions are welcome! Whether you're reporting bugs, suggesting features, or submitting code — thank you! Here’s how to get involved:
 
-- Open issues
-- Send pull requests
-- Ask questions
-- Suggest features
+▸ [Open an issue](https://github.com/freepik-company/Admitik/issues/new) to report bugs or request features
 
-## 💬 Need Help?
+▸ [Submit a pull request](https://github.com/freepik-company/Admitik/pulls) to contribute improvements
 
-Start a [discussion](https://github.com/freepik-company/admitik/discussions) or visit [issues](https://github.com/freepik-company/admitik/issues).
+<!---
+▸ [Ask a question or start a discussion](https://github.com/freepik-company/Admitik/discussions)
+-->
+
+▸ [Check open milestones](https://github.com/freepik-company/Admitik/milestones) to see what’s coming
+
+▸ [Read the contributing guide](./docs/CONTRIBUTING.md) to get started smoothly
 
 
 ## 📄 License

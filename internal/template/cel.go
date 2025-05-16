@@ -43,14 +43,14 @@ func EvaluateTemplateCel(template string, injectedValues *map[string]interface{}
 		return "", fmt.Errorf("unexpected type for injected data 'operation'")
 	}
 
-	injectedObject, castedOk := (*injectedValues)["object"].(*map[string]interface{})
+	injectedObject, castedOk := (*injectedValues)["object"].(map[string]interface{})
 	if !castedOk {
 		return "", fmt.Errorf("unexpected type for injected data 'object'")
 	}
 
-	injectedOldObject := &map[string]interface{}{}
+	injectedOldObject := map[string]interface{}{}
 	if injectedOperation == string(admissionv1.Update) {
-		injectedOldObject, castedOk = (*injectedValues)["oldObject"].(*map[string]interface{})
+		injectedOldObject, castedOk = (*injectedValues)["oldObject"].(map[string]interface{})
 		if !castedOk {
 			return "", fmt.Errorf("unexpected type for injected data 'oldObject': %T", (*injectedValues)["oldObject"])
 		}
@@ -87,8 +87,8 @@ func EvaluateTemplateCel(template string, injectedValues *map[string]interface{}
 	// The `out` var contains the output of a successful evaluation.
 	out, _, err := prg.Eval(map[string]interface{}{
 		"operation": injectedOperation,
-		"object":    *injectedObject,
-		"oldObject": *injectedOldObject,
+		"object":    injectedObject,
+		"oldObject": injectedOldObject,
 		"sources":   injectedSources,
 	})
 
