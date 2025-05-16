@@ -35,8 +35,8 @@ type ClusterValidationPolicySpec struct {
 	FailureAction string `json:"failureAction,omitempty"`
 
 	//
-	WatchedResources WatchedResourceT `json:"watchedResources"`
-	Sources          []SourceT        `json:"sources"`
+	InterceptedResources AdmissionResourceGroupT `json:"interceptedResources"`
+	Sources              []ResourceGroupT        `json:"sources"`
 
 	//
 	Conditions []ConditionT `json:"conditions"`

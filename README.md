@@ -1,6 +1,6 @@
 # Admitik
 
-<img src="https://raw.githubusercontent.com/achetronic/admitik/master/docs/img/logo.png" alt="Admitik Logo (Main) logo." width="150">
+**Cloud native policy engine for Kubernetes**
 
 ![GitHub go.mod Go version (subdirectory of monorepo)](https://img.shields.io/github/go-mod/go-version/freepik-company/admitik)
 ![GitHub](https://img.shields.io/github/license/freepik-company/admitik)
@@ -9,520 +9,160 @@
 ![GitHub followers](https://img.shields.io/github/followers/achetronic?label=achetronic&link=http%3A%2F%2Fgithub.com%2Fachetronic)
 ![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/achetronic?style=flat&logo=twitter&link=https%3A%2F%2Ftwitter.com%2Fachetronic)
 
-
-A dynamic Kubernetes admission controller that validates or modifies resources based on conditions you define using Helm templates.
-
-It can retrieve data from other resources and inject it into templates, allowing for customizable conditions and messages.
+<img src="https://raw.githubusercontent.com/achetronic/admitik/master/docs/img/header.png" alt="Admitik Header (Main) logo." width="100%">
 
 
+Admitik is a cloud native policy engine for Kubernetes that lets you define policies 
+to **validate**, **mutate**, **generate**, **clone**, or **clean** resources. 
 
-## Motivation
+It uses template engines (like CEL or Starlark) to apply logic, patch resources, or generate new ones 
+— all directly inside your cluster.
 
-Kubernetes has not an implementation of an admission controller to validate/mutate resources.
-Instead, it leverages its creation to the clusters administrators.
-
-This project was initiated to fill that gap by providing a potent and flexible admission controller.
-It allows for dynamic validation and mutation of resources, using data from other resources and
-enabling conditions and messages defined through Helm templates.
-
-Our goal is to equip administrators with a tool that offers greater control and adaptability
-in managing Kubernetes resources due to:
-
-1. There are Kubernetes clusters where resources are introduced from a multitude of sources,
-   where maintaining harmony and preventing conflicts in production environments is a significant challenge.
-
-   It's essential to have a comprehensive set of policies that can enforce rules and prevent
-   resource collisions effectively.
-
-2. Existing solutions often fall short—they may not offer the level of power and dynamism
-   necessary to address complex deployment scenarios.
+No new languages to learn. No sidecars. Just Kubernetes-native power. 💪
 
 
+## ✨ What Can Admitik Do?
 
-## Deployment
+#### ✅ **Validation**
+Enforce admission rules to keep your cluster secure, compliant, and predictable.
 
-We have designed the deployment of this project to allow remote deployment using Kustomize or Helm. This way it is possible
-to use it with a GitOps approach, using tools such as ArgoCD or FluxCD.
+- Block configurations that violate security or runtime policies
+- Enforce consistent naming, labeling, or structural patterns
+- Reject resources that miss required platform standards (e.g. limits, roles, labels)
 
-If you prefer Kustomize, just make a Kustomization manifest referencing
-the tag of the version you want to deploy as follows:
+#### 🔁 **Mutation**
+Modify resources before they’re stored to ensure they meet platform expectations.
 
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-- https://github.com/freepik-company/admitik/releases/download/v0.1.0/install.yaml
-```
+- Auto-inject metadata for cost tracking, ownership, or auditing
+- Add observability settings (e.g. monitoring annotations) automatically
+- Apply missing defaults for scheduling, networking, or access behavior
 
-> 🧚🏼 **Hey, listen! If you prefer to deploy using Helm, go to the [Helm registry](https://freepik-company.github.io/admitik/)**
+#### 📦 **Generation**
+Create complementary resources in response to cluster activity.
 
+- Deploy baseline policies or controls when new environments appear
+- Automatically provision RBAC or access scopes based on context
+- Generate environment-specific configs to simplify onboarding
 
-## Flags
-
-Some configuration parameters can be defined by flags that can be passed to the controller.
-They are described in the following table:
-
-| Name                                   | Description                                                                    |        Default         |
-|:---------------------------------------|:-------------------------------------------------------------------------------|:----------------------:|
-| `--metrics-bind-address`               | The address the metric endpoint binds to. </br> 0 disables the server          |          `0`           |
-| `--health-probe-bind-address`          | he address the probe endpoint binds to                                         |        `:8081`         |
-| `--leader-elect`                       | Enable leader election for controller manager                                  |        `false`         |
-| `--metrics-secure`                     | If set the metrics endpoint is served securely                                 |        `false`         |
-| `--enable-http2`                       | If set, HTTP/2 will be enabled for the metrirs                                 |        `false`         |
-| `--sources-time-to-resync-informers`   | Interval to resynchronize all resources in the informers                       |         `60s`          |
-| `--webhook-client-hostname`            | The hostname used by Kubernetes when calling the webhooks server               | `webhooks.admitik.svc` |
-| `--webhook-client-port`                | The port used by Kubernetes when calling the webhooks server                   |        `10250`         |
-| `--webhook-client-timeout`             | The seconds until timout waited by Kubernetes when calling the webhooks server |          `10`          |
-| `--webhook-server-port`                | The port where the webhooks server listens                                     |        `10250`         |
-| `--webhook-server-path`                | The path where the webhooks server listens                                     |      `/validate`       |
-| `--webhook-server-ca`                  | The CA bundle to use for the webhooks server                                   |          `-`           |
-| `--webhook-server-certificate`         | The Certificate used by webhooks server                                        |          `-`           |
-| `--webhook-server-private-key`         | The Private Key used by webhooks server                                        |          `-`           |
-| `--kube-client-qps`                    | The QPS rate of communication between controller and the API Server            |          `5`           |
-| `--kube-client-burst`                  | The burst capacity of communication between the controller and the API Server  |          `10`          |
-
-
-## Examples
-
-After deploying this operator, you will have new resources available. Let's talk about them.
+#### 🧬 **Cloning**
 
 > [!IMPORTANT]
-> We are already creating a documentation page to explain all the features better
+> We are working on this feature! 🛠️
+
+<!---
+Replicate trusted configurations across scopes to ensure alignment and reduce duplication.
+
+- Distribute shared policies or settings across teams or namespaces
+- Keep environments in sync by replicating structural patterns
+- Copy access or config resources securely between isolated areas
+-->
+
+#### 🧹 **Cleanup**
+
+> [!IMPORTANT]
+> We are working on this feature! 🛠️
+
+<!---
+Continuously remove resources that are no longer relevant or safe to keep.
+
+- Delete completed workloads to avoid clutter and resource waste
+- Clean up temporary or short-lived artifacts after use
+- Enforce retention policies for unused or expired infrastructure
+-->
+
+
+## 🧰 Template Engines
+
+Admitik uses templating to evaluate conditions, build messages, craft patches, or define generated objects.
+
+Supported engines:
+
+- **Go Templates** (with [Sprig functions](https://masterminds.github.io/sprig/))
+- **CEL** (Common Expression Language)
+- **Starlark** (a Python-like scripting language)
+- **Plain** (you write it, your rules)
+- **Plain+CEL** (light templating with inline CEL expressions)
+
+Choose the one that fits your needs — or combine them in the same policy!
+
+<!---
+### 🧠 Evaluation Context
+-->
+
+Inside any template, you can access these powerful variables:
+
+| Key         | Description                                                                                         |
+|-------------|-----------------------------------------------------------------------------------------------------|
+| `object`    | The resource being created, updated, or deleted                                                     |
+| `oldObject` | The previous version (on `UPDATE` operations)                                                       |
+| `operation` | The current action: `CREATE`, `UPDATE`, or `DELETE`                                                 |
+| `sources`   | Lists of extra Kubernetes resources you request for evaluation (like `ConfigMaps` or `Deployments`) |
+| `vars`      | A shared dictionary to store and reuse values across conditions and templates                       |
+
+These variables let you write dynamic, context-aware policies using real cluster data. 🔍
 
 > [!TIP]
-> You can find examples for all the features of the resource in the [examples directory](./config/samples)
-
-### Admission validation policies
-
-To create a dynamic validation policy in your cluster, you will need to create a `ClusterValidationPolicy` resource.
-You may prefer to learn directly from an example, so let's explain it creating a ClusterValidationPolicy:
-
-> [!IMPORTANT]
-> When you have multiple ClusterValidationPolicy resources with the same watchedResources parameters,
-> a resource can be rejected due to conditions specified in any of these policies.
->
-> However, because conditions are evaluated one after the other, the rejection message displayed
-> will be the one defined in the specific ClusterValidationPolicy where the rejecting condition is located.
-
-```yaml
-apiVersion: admitik.freepik.com/v1alpha1
-kind: ClusterValidationPolicy
-metadata:
-   name: watch-resources
-spec:
-   # (Optional) Action to perform with the conditions are not met
-   # Posible values: Enforce, Permissive
-   # Enforce: (default) Reject the object.
-   # Permissive: Accept the object
-   # Both results create an event in Kubernetes
-   failureAction: Enforce
-
-   # Resources to be validated against the webhooks server.
-   # Those matching any combination of following params will be sent.
-   # As a hint: don't set operations you don't need for a resource type
-   watchedResources:
-      group: gateway.networking.k8s.io
-      version: v1
-      resource: httproutes
-      operations:
-         - CREATE
-         - UPDATE
-
-   # ALL the conditions must be valid to allow the resource entrance.
-   conditions:
-      - name: the-name-of-the-condition
-        
-        # The 'key' field is the place to write your template or code
-        # The result of this field will be compared with 'value' for equality
-        key: |
-           # YOUR TEMPLATE HERE
-           
-        value: "your-value-here"
-
-   message:
-      template: |
-         # YOUR TEMPLATE HERE
-```
-
-The mission is to create conditions whose templates, under _key_ field, output something. For each condition, 
-the output of the template will be compared to the _value_ field. 
-If they match, condition is met and the next one will be evaluated.
-
-When a condition is NOT met, the object trying to enter in Kubernetes is rejected, and the _message_ is thrown to the user.
-
-Let's focus on templates capabilities for conditions and message.
-Templates can be written using several engines, such as _gotmpl_ or _starlark_ (maybe more in the future). We decided
-to support several syntax options to give freedom to cluster operators. To select between them, setting `engine: gotmpl` 
-or `engine: starlark` is the only thing you need.
-
-> [!IMPORTANT]
-> Policies without information are useless, right? To solve that, the controller injects data that are super
-> useful to craft your policies:
->
-> * `operation`: The operation that is being performed: create, update, etc
-> * `object`: The object trying to enter to Kubernetes
-> * `oldObject`: The previous existing object for those that are being updated
-> * `sources`: The sources reclaimed by you in policy's `spec.sources` field. 
->   - For Gophers, this field is a `map[int][]any` 
->   - For Starlarkers this fields is a `dict(list(object))` 😵‍💫
-> 
-> * `vars`: A place where to store data to be passed into the next template.
->   - This is writable by you
-> 
-> For each template engine will be injected in their native way
-
-#### Gotmpl 🦫
-
-Gotmpl engine is Golang template with vitamins: basically, Golang template with several super useful functions added. 
-This kind of template is better known as Helm template, so **all the functions available in Helm are available here too.**
-This way you start creating wonderful policies from first minute.
-
-```yaml
-apiVersion: admitik.freepik.com/v1alpha1
-kind: ClusterValidationPolicy
-metadata:
-  name: gotmpl-conditions
-spec:
-
-  # ... 
-  
-  conditions:
-    - name: first-condition
-      engine: gotmpl
-      key: |
-        {{- $someDataFromSomewhere := dict "name" "example-name" "namespace" "example-namespace" -}}
-         
-        {{- if eq $someDataFromSomewhere.name "example-name" -}}
-          {{- printf "condition-is-met" -}} 
-        {{- end -}} 
-      value: "condition-is-met"
-      
-      
-    - name: second-condition
-      engine: gotmpl
-      key: |
-         {{- /* Some data are injected as previously mentioned */ -}}
-         {{- /* Let's store them into variables */ -}}
-         {{- $operation := .operation -}}
-         {{- $oldObject := .oldObject -}}
-         {{- $object := .object -}}
-         {{- $sources := .sources -}}
-
-         {{- if eq $object.metadata.name "example-name" -}}
-           {{- printf "condition-is-met" -}} 
-         {{- end -}} 
-      value: "condition-is-NOT-met"
-
-
-  message:
-    template: |
-      {{- $object := .object -}}
-      {{- printf "Resource '%s' was rejected as some of declared routes already exists" $object.metadata.name -}}
-
-```
-
-Not only Helm-provided vitamins are available in `gotmpl` engine, on top of it we added some useful functions 
-such as `setEnv` and `logPrintf`, let's explain a bit. 
-
-**Sometimes you need to store information** during `gotmpl` conditions' evaluation. This is useful to keep and populate 
-some data that were generated in a `gotmpl` condition to another. In that situations, it's possible to use `setEnv`
-
-
-```yaml
-apiVersion: admitik.freepik.com/v1alpha1
-kind: ClusterValidationPolicy
-spec:
-
-  # ...
-
-  conditions:
-    - name: store-vars-for-later-usage
-      key: |
-        {{- $someDataForLater := dict "name" "example-name" "namespace" "example-namespace" -}}
-
-        {{/* Store your data under your desired key. You can use as many keys as needed */}}
-        {{- setVar "some_key" $someDataForLater -}}
-
-        {{- printf "force-condition-not-being-met" -}}
-      value: "condition-key-result"
-
-  message:
-    template: |
-      {{- $myVars := .vars -}}
-
-      {{- $someKeyInside := $myVars.some_key-}}
-
-      {{- printf "let's show some stored data: %s/%s" $someKeyInside.name $someKeyInside.namespace -}}
-```
-
-> [!TIP]
-> Another useful function that can be used in templates is `logPrintf`. It accepts the same params as printf
-> but throw the result in controller's logs instead of returning it 
-
-#### Starlark ✨
-
-> [!IMPORTANT]
-> Starlark performance is lower. It is an interpreted language that doesn't support pointers internally.
-> This can affect you for policies with a huge amount of sources in `spec.sources`. For those use cases, use `gotmpl`
-
-Oh, so you prefer Starlark instead of Gotmpl? you are betraying Go's community wanting something different. Anyway,
-we have you covered with wonderful Starlark conditions:
-
-```yaml
-apiVersion: admitik.freepik.com/v1alpha1
-kind: ClusterValidationPolicy
-metadata:
-  name: starlark-conditions
-spec:
-
-  # ... 
-  
-  conditions:
-    - name: first-condition
-      engine: starlark
-      key: |
-        # Injected data is located in following global variables:
-        # operation, oldObject, object, sources, vars
-         
-        print(operation)
-      value: "UPDATE"
-      
-      
-    - name: second-condition
-      engine: starlark
-      key: |
-        print(object["kind"])
-      value: "Deployment"
-      
-      
-    - name: third-condition
-      engine: starlark
-      key: |
-         
-        # You can even define functions
-        def findObjectInSources (sources):
-          for key in sources:
-            subList = sources[key]
-            for obj in subList:
-              if obj["kind"] == "Deployment" && obj["metadata"]["name"]:
-                print("ObjectFound")
-              else:
-                print("ObjectNotFound")
-
-        findObjectInSources(sources)
-      value: "ObjectFound"
-
-  message:
-    engine: starlark 
-    template: |
-      print("Resource '{}' was rejected as some condition is not met".format(object["metadata"]["name"]))
-```
-
-It's even possible to transmit information between your conditions and message using `vars` global variable:
-
-```yaml
-apiVersion: admitik.freepik.com/v1alpha1
-kind: ClusterValidationPolicy
-metadata:
-  name: starlark-populate-vars
-spec:
-
-  # ... 
-  
-  conditions:
-    - name: first-condition
-      engine: starlark
-      key: |        
-        vars.update({"your-key": "your-value"})
-        vars.update({"your-other-key": ["what", "ever", "you", "need"]})
-         
-        print("pass")
-      value: "pass"
-      
-    - name: second-condition
-      engine: starlark
-      key: |
-         # 'vars' have all the things stored by the user, even through the template engines when possible
-         # Let's show all of them in logs
-         log.printf("Available variables: {}".format( vars ))
-
-         # vars["your-key"] has 'your-value' inside
-         # Let's show it in logs
-         log.printf("Specific variable: {}".format( vars["your-key"] ))
-         
-         print("pass")
-      value: "pass"
-
-  message:
-    engine: starlark 
-    template: |
-       print("Resource '{}' is bypassing all conditions".format( object["metadata"]["name"] ))
-```
-
-You can see all you need in these helpful links: 
-* [Syntax and Functions](https://starlark-lang.org/spec.html)
-* [Extra official supported libs](https://github.com/google/starlark-go/tree/master/lib)
-* [Extra unofficial supported libs](https://github.com/freepik-company/admitik/tree/master/internal/template/starlarkmods)
-* [Playground](https://starlark-lang.org/playground.html)
-
-### Admission mutation policies
-
-This type of policy is designed to patch resources that are in your cluster entrance. For creating it,
-you will need to create a `ClusterMutationPolicy` resource.
-
-The policy structure are super similar to other policy types to keep this as simple as possible for the user.
-As always, better to learn from an example:
-
-> [!IMPORTANT]
-> When you have multiple ClusterMutationPolicy resources with the same watchedResources parameters,
-> a resource will accumulate all the patches from different mutation policies meeting the conditions.
->
-> All the mutations will be performed to the same resource
-
-```yaml
-apiVersion: admitik.freepik.com/v1alpha1
-kind: ClusterMutationPolicy
-metadata:
-   name: mutate-resources
-spec:
-
-  # Resources to be mutated against the webhooks server.
-  # Those matching any combination of following params will be sent.
-  # As a hint: don't set operations you don't need for a resource type
-  watchedResources:
-     group: gateway.networking.k8s.io
-     version: v1
-     resource: httproutes
-     operations:
-        - CREATE
-        - UPDATE
-
-  # ALL the conditions must be valid to mutate the resource.
-  conditions:
-     - name: the-name-of-the-condition
-       key: |
-         # YOUR TEMPLATE HERE
-       value: "your-value-here"
-
-  patch:
-    type:   jsonpatch  # jsonpatch | strategicmerge
-    engine: starlark   # gotmpl | starlark
-    template: |
-      patch = [
-        {"op": "add", "path": "/metadata/annotations/first", "value": "firstValue"},
-        {"op": "replace", "path": "/metadata/annotations/second", "value": "secondValue"},
-      ]
-      print(json.encode(patch))
-```
-
-The mission is to create conditions whose templates, under _key_ field, output something. For each condition,
-the output of the template will be compared to the _value_ field.
-If they match, condition is met and the next one will be evaluated.
-
-## How to develop
-
-### Prerequisites
-- Kubebuilder v4.0.0+
-- go version v1.22.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
-
-### The process
-
-> We recommend you to use a development tool like [Kind](https://kind.sigs.k8s.io/) or [Minikube](https://minikube.sigs.k8s.io/docs/start/)
-> to launch a lightweight Kubernetes on your local machine for development purposes
-
-For learning purposes, we will suppose you are going to use Kind. So the first step is to create a Kubernetes cluster
-on your local machine executing the following command:
-
-```console
-kind create cluster
-```
-
-Once you have launched a safe play place, execute the following command. It will install the custom resource definitions
-(CRDs) in the cluster configured in your ~/.kube/config file and run Kuberbac locally against the cluster:
-
-```console
-make install run
-```
-
-> [!IMPORTANT]
-> When executing this, a temporary public reverse tunnel will be created.
-> It goes from Kube Apiserver to your local webhooks server. It's done this way to be able to test the webhooks server
-> using local development tools such as **Kind**
-
-If you would like to test the operator against some resources, our examples can be applied to see the result in
-your Kind cluster
-
-```sh
-kubectl apply -k config/samples/
-```
-
-> Remember that your `kubectl` is pointing to your Kind cluster. However, you should always review the context your
-> kubectl CLI is pointing to
-
-
-
-## How releases are created
-
-Each release of this operator is done following several steps carefully in order not to break the things for anyone.
-Reliability is important to us, so we automated all the process of launching a release. For a better understanding of
-the process, the steps are described in the following recipe:
-
-1. Test the changes on the code:
-
-    ```console
-    make test
-    ```
-
-   > A release is not done if this stage fails
-
-
-2. Define the package information
-
-    ```console
-    export VERSION="0.0.1"
-    export IMG="ghcr.io/freepik-company/admitik:v$VERSION"
-    ```
-
-3. Generate and push the Docker image (published on Docker Hub).
-
-    ```console
-    make docker-build docker-push
-    ```
-
-4. Generate the manifests for deployments using Kustomize
-
-   ```console
-    make build-installer
-    ```
-
-
-
-## How to collaborate
-
-This project is done on top of [Kubebuilder](https://github.com/kubernetes-sigs/kubebuilder), so read about that project
-before collaborating. Of course, we are open to external collaborations for this project. For doing it you must fork the
-repository, make your changes to the code and open a PR. The code will be reviewed and tested (always)
-
-> We are developers and hate bad code. For that reason we ask you the highest quality on each line of code to improve
-> this project on each iteration.
-
-
-
-## License
-
-Copyright 2022.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+> Remember that each engine has its own capabilities, so all the variables are available everywhere, 
+> but not all engines can do everything. For example, CEL is simple so can read `vars` but can not modify it
+
+
+## 📂 Policy Kinds
+
+| Kind                      | What it does                                          |
+|---------------------------|-------------------------------------------------------|
+| `ClusterValidationPolicy` | Validates intercepted resources                       |
+| `ClusterMutationPolicy`   | Modifies intercepted resources                        |
+| `ClusterGenerationPolicy` | Generates new resources (or clone existing) on events |
+
+<!---
+| `ClusterCleanupPolicy`    | Deletes resources under custom rules                  |
+-->
+
+## 🧪 Examples
+
+We’ve prepared real-world examples so you can get started quickly:
+
+<!---
+HIDDEN UNTIL DOC PAGES ARE FULLY CRAFTED
+👉 [admitik.dev/docs/examples](https://admitik.dev/docs/examples)
+-->
+
+[Examples](./docs/samples)
+
+
+## 📦 Installation
+
+We will cover all the installation methods in documentation soon, in the meanwhile, instructions here!
+
+[Helm registry](https://freepik-company.github.io/admitik/)
+
+<!---
+HIDDEN UNTIL DOC PAGES ARE FULLY CRAFTED
+
+## 🌐 Documentation
+
+Advanced usage guides, examples, and reference docs coming soon:
+
+👉 [admitik.dev/docs](https://admitik.dev/docs)
+-->
+
+## 🤝 Contributing
+
+All contributions are welcome! Whether you're reporting bugs, suggesting features, or submitting code — thank you! Here’s how to get involved:
+
+▸ [Open an issue](https://github.com/freepik-company/Admitik/issues/new) to report bugs or request features
+
+▸ [Submit a pull request](https://github.com/freepik-company/Admitik/pulls) to contribute improvements
+
+<!---
+▸ [Ask a question or start a discussion](https://github.com/freepik-company/Admitik/discussions)
+-->
+
+▸ [Check open milestones](https://github.com/freepik-company/Admitik/milestones) to see what’s coming
+
+▸ [Read the contributing guide](./docs/CONTRIBUTING.md) to get started smoothly
+
+
+## 📄 License
+
+Admitik is licensed under the [Apache 2.0 License](./LICENSE).

@@ -1,0 +1,184 @@
+---
+# Source: fc-custom-manifests/templates/admitik/cluster-admission-policy.yaml
+apiVersion: admitik.freepik.com/v1alpha1
+kind: ClusterValidationPolicy
+metadata:
+  name: starlark-avoid-colliding-routes
+spec:
+
+  failureAction: Permissive
+
+  # Resources to be intercepted before reaching the cluster
+  interceptedResources:
+    group: gateway.networking.k8s.io
+    operations:
+      - CREATE
+      - UPDATE
+    resource: httproutes
+    version: v1
+
+  # Other resources to be retrieved for conditions templates.
+  # They will be included under .sources scope in the template
+  sources:
+    - group: gateway.networking.k8s.io
+      version: v1
+      resource: httproutes
+
+      # (Optional) It's possible to retrieve specific resources
+      # name: secondary-route
+      # namespace: default
+
+  conditions:
+    - name: compute-raw-match
+      engine: starlark
+
+      # The 'key' field is the place to write your template or code
+      # The result of this field will be compared with 'value' for equality
+      key: |
+        def compute_raw_match():
+            incoming_route = object
+            existing_routes = sources["0"]
+
+            # Extract incoming route's info for easier comparison
+            incoming_name = incoming_route["metadata"]["name"]
+            incoming_namespace = incoming_route["metadata"]["namespace"]
+            incoming_parent_refs = incoming_route["spec"]["parentRefs"]
+            incoming_hostnames = incoming_route["spec"]["hostnames"]
+
+            # Find potential duplicate routes
+            for existing_route in existing_routes:
+                # Skip self-comparison
+                if (incoming_name == existing_route["metadata"]["name"] and 
+                    incoming_namespace == existing_route["metadata"]["namespace"]):
+                    continue
+
+                # Check for parent ref overlap
+                if not has_matching_parent_ref(incoming_parent_refs, existing_route["spec"]["parentRefs"]):
+                    continue
+
+                # Check for hostname overlap
+                matching_hostnames = [h for h in incoming_hostnames if h in existing_route["spec"]["hostnames"]]
+                if not matching_hostnames:
+                    continue
+
+                # Check path overlap
+                if path_conflict_exists(incoming_route, existing_route):
+                    # Store route info for error message
+                    vars["existing_route"] = {
+                        "name": existing_route["metadata"]["name"],
+                        "namespace": existing_route["metadata"]["namespace"]
+                    }
+                    break
+
+            return "ignore-condition"
+
+        def has_matching_parent_ref(incoming_refs, existing_refs):
+            """Check if any parent references match between routes"""
+            for inc_ref in incoming_refs:
+              inc_name = inc_ref["name"]
+              inc_namespace = inc_ref.get("namespace")
+
+              for ex_ref in existing_refs:
+                if (inc_name == ex_ref["name"] and inc_namespace == ex_ref.get("namespace")):
+                  return True
+            return False
+
+        def path_conflict_exists(incoming_route, existing_route):
+            """Check if there's a path conflict between routes"""
+            for inc_rule in incoming_route["spec"]["rules"]:
+              for inc_match in inc_rule["matches"]:
+                # Only check Exact and PathPrefix types
+                inc_path_type = inc_match["path"]["type"]
+                if inc_path_type not in ["Exact", "PathPrefix"]:
+                  continue
+
+                inc_path = inc_match["path"]["value"].rstrip("/")
+                inc_headers = inc_match.get("headers", [])
+
+                for ex_rule in existing_route["spec"]["rules"]:
+                  for ex_match in ex_rule["matches"]:
+                    # Skip if path types don't match
+                    ex_path_type = ex_match["path"]["type"]
+                    if ex_path_type != inc_path_type:
+                      continue
+
+                    # Compare normalized paths
+                    ex_path = ex_match["path"]["value"].rstrip("/")
+                    if inc_path == ex_path:
+                      # Save headers for the next condition to check
+                      vars["headers_to_check"] = {
+                        "incoming": inc_headers,
+                        "existing": ex_match.get("headers", [])
+                      }
+                      return True
+            return False
+
+        compute_raw_match()
+        
+        print("ignore-condition")
+      value: ignore-condition
+
+    - name: check-headers-not-matching
+      engine: starlark
+      key: |
+        log.printf("Debug purposes: vars content: %v", vars)
+        
+        def check_headers_not_matching():
+          headers_to_check = vars.get("headers_to_check", {})
+        
+          # If no headers data stored, no conflict
+          if not headers_to_check:
+              return "path-headers-unique"
+        
+          incoming_headers = headers_to_check.get("incoming", [])
+          existing_headers = headers_to_check.get("existing", [])
+        
+          # Both empty headers = match
+          if len(incoming_headers) == 0 and len(existing_headers) == 0:
+              return "path-headers-duplicated"
+        
+          # Different count = no match
+          if len(incoming_headers) != len(existing_headers):
+              return "path-headers-unique"
+        
+          # Compare all headers
+          for inc_header in incoming_headers:
+              match_found = False
+        
+              inc_name = inc_header["name"]
+              inc_type = inc_header.get("type", "Exact")
+              inc_value = inc_header["value"]
+        
+              for ex_header in existing_headers:
+                  ex_type = ex_header.get("type", "Exact")
+        
+                  if (inc_name == ex_header["name"] and
+                      inc_type == ex_type and
+                      inc_value == ex_header["value"]):
+                      match_found = True
+                      break
+        
+              # If any header doesn't match, headers are unique
+              if not match_found:
+                  return "path-headers-unique"
+        
+          # All headers matched
+          return "path-headers-duplicated"
+      
+        evaluation_result = check_headers_not_matching()
+        print(evaluation_result)
+
+      value: path-headers-unique
+
+  message:
+    engine: starlark
+    template: |
+      def format_message():
+          existing_route = vars.get("existing_route", {})
+          return "Resource '{}' has some declared routes already existing in object '{}/{}'".format(
+              object["metadata"]["name"],
+              existing_route.get("namespace", ""),
+              existing_route.get("name", "")
+          )
+      
+      print(format_message())

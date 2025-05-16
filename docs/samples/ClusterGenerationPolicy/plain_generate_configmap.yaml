@@ -1,0 +1,40 @@
+apiVersion: admitik.freepik.com/v1alpha1
+kind: ClusterGenerationPolicy
+metadata:
+  name: plain-generate-configmap
+spec:
+
+  overwriteExisting: true
+
+  # Resources to be watched
+  watchedResources:
+    group: ""
+    version: v1
+    resource: namespaces
+    #name: ""
+    #namespace: ""
+
+  # Other resources to be retrieved for conditions templates.
+  # They will be included under .sources scope in the template
+  sources: []
+
+  conditions:
+    - name: first-condition
+      engine: cel
+      key: |
+        object.metadata.name
+      value: "default"
+
+  object:
+    clone: {}
+    definition:
+      engine: plain
+      template: |
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: whatever-config-plain
+          namespace: "default"
+        data:
+          FIRST_SOURCE_ITEM_NAME: "fixed-value"
+          FIRST_SOURCE_ITEM_NAMESPACE: "fixed-value-other"

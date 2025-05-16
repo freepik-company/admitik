@@ -19,6 +19,7 @@ package admission
 import (
 	"encoding/json"
 	"fmt"
+	"freepik.com/admitik/internal/common"
 	"io"
 	"net/http"
 	"strings"
@@ -119,7 +120,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 	// At this point, some extra params will be added to the object that will be injected in template
 	jsonPatchOperations := jsondiff.Patch{}
 
-	cmPolicyList := s.dependencies.ClusterMutationPoliciesRegistry.GetResources(resourcePattern)
+	cmPolicyList := s.dependencies.ClusterMutationPolicyRegistry.GetResources(resourcePattern)
 	for _, cmPolicyObj := range cmPolicyList {
 
 		// Automatically add some information to the logs
@@ -127,10 +128,10 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 
 		// Retrieve the sources declared per policy
 		specificTemplateInjectedObject := commonTemplateInjectedObject
-		specificTemplateInjectedObject["sources"] = s.fetchPolicySources(cmPolicyObj)
+		specificTemplateInjectedObject["sources"] = common.FetchPolicySources(cmPolicyObj, s.dependencies.SourcesRegistry)
 
 		// Evaluate template conditions
-		conditionsPassed, condErr := s.isPassingConditions(cmPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
+		conditionsPassed, condErr := common.IsPassingConditions(cmPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
 		if condErr != nil {
 			logger.Info(fmt.Sprintf("failed evaluating conditions: %s", condErr.Error()))
 		}
@@ -147,13 +148,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 		var parsedPatch string
 		var tmpJsonPatchOperations jsondiff.Patch
 
-		switch cmPolicyObj.Spec.Patch.Engine {
-		case v1alpha1.TemplateEngineStarlark:
-			parsedPatch, err = template.EvaluateTemplateStarlark(cmPolicyObj.Spec.Patch.Template, &specificTemplateInjectedObject)
-		default:
-			parsedPatch, err = template.EvaluateTemplate(cmPolicyObj.Spec.Patch.Template, &specificTemplateInjectedObject)
-		}
-
+		parsedPatch, err = template.EvaluateTemplate(cmPolicyObj.Spec.Patch.Engine, cmPolicyObj.Spec.Patch.Template, &specificTemplateInjectedObject)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed parsing patch template: %s", err.Error()))
 			kubeEventMessage = "Patch template failed. More info in controller logs."
@@ -171,7 +166,8 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 		continue
 
 	createKubeEvent:
-		err = createKubeEvent(request.Context(), "default", requestObject, *cmPolicyObj, kubeEventAction, kubeEventMessage)
+		err = common.CreateKubeEvent(request.Context(), "default", "admission-server",
+			requestObject, *cmPolicyObj, kubeEventAction, kubeEventMessage)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
 		}

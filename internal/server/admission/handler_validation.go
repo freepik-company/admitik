@@ -30,6 +30,7 @@ import (
 
 	//
 	"freepik.com/admitik/api/v1alpha1"
+	"freepik.com/admitik/internal/common"
 	"freepik.com/admitik/internal/template"
 )
 
@@ -118,7 +119,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 
 	// Loop over ClusterValidationPolicy resources performing actions
 	// At this point, some extra params will be added to the object that will be injected in template
-	caPolicyList := s.dependencies.ClusterValidationPoliciesRegistry.GetResources(resourcePattern)
+	caPolicyList := s.dependencies.ClusterValidationPolicyRegistry.GetResources(resourcePattern)
 
 	for _, caPolicyObj := range caPolicyList {
 
@@ -130,10 +131,10 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 
 		// Retrieve the sources declared per policy
 		specificTemplateInjectedObject := commonTemplateInjectedObject
-		specificTemplateInjectedObject["sources"] = s.fetchPolicySources(caPolicyObj)
+		specificTemplateInjectedObject["sources"] = common.FetchPolicySources(caPolicyObj, s.dependencies.SourcesRegistry)
 
 		// Evaluate template conditions
-		conditionsPassed, condErr := s.isPassingConditions(caPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
+		conditionsPassed, condErr := common.IsPassingConditions(caPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
 		if condErr != nil {
 			logger.Info(fmt.Sprintf("failed evaluating conditions: %s", condErr.Error()))
 		}
@@ -145,12 +146,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 
 		// When some condition is not met, evaluate message's template and emit a response
 		var parsedMessage string
-		if caPolicyObj.Spec.Message.Engine == v1alpha1.TemplateEngineStarlark {
-			parsedMessage, err = template.EvaluateTemplateStarlark(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
-		} else {
-			parsedMessage, err = template.EvaluateTemplate(caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
-		}
-
+		parsedMessage, err = template.EvaluateTemplate(caPolicyObj.Spec.Message.Engine, caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed parsing message template: %s", err.Error()))
 			parsedMessage = "Reason unavailable: message template failed. More info in controller logs."
@@ -170,7 +166,8 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 		}
 
 		// Create the Event in Kubernetes about involved object
-		err = createKubeEvent(request.Context(), "default", requestObject, *caPolicyObj, kubeEventAction, parsedMessage)
+		err = common.CreateKubeEvent(request.Context(), "default", "admission-server",
+			requestObject, *caPolicyObj, kubeEventAction, parsedMessage)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
 		}

@@ -62,41 +62,9 @@ spec:
                 type: array
               failureAction:
                 type: string
-              message:
-                properties:
-                  engine:
-                    type: string
-                  template:
-                    type: string
-                required:
-                - template
-                type: object
-              sources:
-                items:
-                  description: |-
-                    SourceT represents a group of sources being watched
-                    for later injection
-                  properties:
-                    group:
-                      type: string
-                    name:
-                      type: string
-                    namespace:
-                      type: string
-                    resource:
-                      type: string
-                    version:
-                      type: string
-                  required:
-                  - group
-                  - resource
-                  - version
-                  type: object
-                type: array
-              watchedResources:
-                description: |-
-                  WatchedResourceT represents a group of resources being watched
-                  for admission operations
+              interceptedResources:
+                description: AdmissionResourceGroupT represents a group of resources
+                  from Admission point of view
                 properties:
                   group:
                     type: string
@@ -115,11 +83,40 @@ spec:
                 - resource
                 - version
                 type: object
+              message:
+                properties:
+                  engine:
+                    type: string
+                  template:
+                    type: string
+                required:
+                - template
+                type: object
+              sources:
+                items:
+                  description: ResourceGroupT represents a group of resources
+                  properties:
+                    group:
+                      type: string
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                    resource:
+                      type: string
+                    version:
+                      type: string
+                  required:
+                  - group
+                  - resource
+                  - version
+                  type: object
+                type: array
             required:
             - conditions
+            - interceptedResources
             - message
             - sources
-            - watchedResources
             type: object
           status:
             description: ClusterValidationPolicyStatus defines the observed state

@@ -35,7 +35,7 @@ import (
 // for people who are already comfortable with Helm. Not all the extra functionality was added to keep this simpler.
 // Ref: https://github.com/helm/helm/blob/main/pkg/engine/funcs.go
 
-func EvaluateTemplate(templateString string, data *map[string]interface{}) (result string, err error) {
+func EvaluateTemplateGotmpl(templateString string, data *map[string]interface{}) (result string, err error) {
 
 	// setVar function is defined as clojure to intercept 'data'
 	// done this way as 'data' being passed as func param in later func map is not convenient

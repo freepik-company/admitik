@@ -1,0 +1,50 @@
+apiVersion: admitik.freepik.com/v1alpha1
+kind: ClusterValidationPolicy
+metadata:
+  name: gotmpl-confirm-existing-namespace-labels
+spec:
+  
+  failureAction: Enforce
+
+  # Resources to be intercepted before reaching the cluster
+  interceptedResources:
+    group: ""
+    version: v1
+    resource: namespaces
+    operations:
+      - CREATE
+      - UPDATE
+
+  # Other resources to be retrieved for conditions templates.
+  # They will be included under .sources scope in the template
+  sources: []
+
+  conditions:
+    - name: confirm-existing-label
+      engine: gotmpl
+
+      # The 'key' field is the place to write your template or code
+      # The result of this field will be compared with 'value' for equality
+      key: |
+        {{- $object := .object -}}
+        {{- $labels := $object.metadata.labels -}}
+        {{- $labelFound := false -}}
+
+        {{- range $labelKey, $labelValue := $labels -}}
+          {{- if eq $labelKey "admitik.freepik.com/label" -}}
+            {{- $labelFound := true -}}
+          {{- end -}}
+        {{- end -}}
+
+        {{- if $labelFound -}}
+          {{- printf "label-found" -}}
+        {{- else -}}
+          {{- printf "label-not-found" -}}
+        {{- end -}}
+
+      value: "label-found"
+
+  message:
+    engine: gotmpl
+    template: |
+      {{- logPrintf "hola" -}}

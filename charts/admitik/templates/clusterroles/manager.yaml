@@ -38,6 +38,32 @@ rules:
 - apiGroups:
     - admitik.freepik.com
   resources:
+    - clustergenerationpolicies
+  verbs:
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
+- apiGroups:
+    - admitik.freepik.com
+  resources:
+    - clustergenerationpolicies/finalizers
+  verbs:
+    - update
+- apiGroups:
+    - admitik.freepik.com
+  resources:
+    - clustergenerationpolicies/status
+  verbs:
+    - get
+    - patch
+    - update
+- apiGroups:
+    - admitik.freepik.com
+  resources:
     - clustermutationpolicies
   verbs:
     - create

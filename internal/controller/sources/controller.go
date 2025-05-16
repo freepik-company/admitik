@@ -36,8 +36,9 @@ import (
 
 	//
 	"freepik.com/admitik/internal/globals"
-	clusterMutationPoliciesRegistry "freepik.com/admitik/internal/registry/clustermutationpolicies"
-	clusterValidationPoliciesRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicies"
+	clusterGenerationPolicyRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicy"
+	clusterMutationPolicyRegistry "freepik.com/admitik/internal/registry/clustermutationpolicy"
+	clusterValidationPolicyRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicy"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
 )
 
@@ -74,9 +75,10 @@ type SourcesControllerDependencies struct {
 	Context *context.Context
 
 	//
-	ClusterValidationPoliciesRegistry *clusterValidationPoliciesRegistry.ClusterValidationPoliciesRegistry
-	ClusterMutationPoliciesRegistry   *clusterMutationPoliciesRegistry.ClusterMutationPoliciesRegistry
-	SourcesRegistry                   *sourcesRegistry.SourcesRegistry
+	ClusterGenerationPolicyRegistry *clusterGenerationPolicyRegistry.ClusterGenerationPolicyRegistry
+	ClusterMutationPolicyRegistry   *clusterMutationPolicyRegistry.ClusterMutationPolicyRegistry
+	ClusterValidationPolicyRegistry *clusterValidationPolicyRegistry.ClusterValidationPolicyRegistry
+	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
 }
 
 // SourcesController represents a controller that triggers parallel threads.
@@ -94,9 +96,10 @@ func (r *SourcesController) getSourcesFromRegistries() []string {
 
 	var referentCandidates []string
 
-	candidatesFromValidation := r.Dependencies.ClusterValidationPoliciesRegistry.GetRegisteredSourcesTypes()
-	candidatesFromMutation := r.Dependencies.ClusterMutationPoliciesRegistry.GetRegisteredSourcesTypes()
-	referentCandidates = slices.Concat(candidatesFromValidation, candidatesFromMutation)
+	candidatesFromGeneration := r.Dependencies.ClusterGenerationPolicyRegistry.GetRegisteredSourcesTypes()
+	candidatesFromMutation := r.Dependencies.ClusterMutationPolicyRegistry.GetRegisteredSourcesTypes()
+	candidatesFromValidation := r.Dependencies.ClusterValidationPolicyRegistry.GetRegisteredSourcesTypes()
+	referentCandidates = slices.Concat(candidatesFromGeneration, candidatesFromMutation, candidatesFromValidation)
 
 	// Filter duplicated items
 	slices.Sort(referentCandidates)
