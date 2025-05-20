@@ -19,6 +19,7 @@ package controller
 import (
 	"fmt"
 	"net/url"
+	"reflect"
 	"strings"
 
 	//
@@ -43,9 +44,7 @@ const (
 
 // GetWebhookClientConfig return a WebhookClientConfig filled according to if the remote server
 // is truly remote or inside Kubernetes
-func GetWebhookClientConfig(CABundle []byte, serverHostname string, serverPort int, serverPath string) (wcConfig *admissionregv1.WebhookClientConfig, err error) {
-
-	wcConfig = &admissionregv1.WebhookClientConfig{}
+func GetWebhookClientConfig(CABundle []byte, serverHostname string, serverPort int, serverPath string) (wcConfig admissionregv1.WebhookClientConfig, err error) {
 
 	wcConfig.CABundle = CABundle
 
@@ -55,7 +54,7 @@ func GetWebhookClientConfig(CABundle []byte, serverHostname string, serverPort i
 
 		hostnameParts := strings.Split(tmpWebhooksClientHostname, ".")
 		if len(hostnameParts) != 2 {
-			return nil, fmt.Errorf("invalid hostname for internal Kubernetes service. It must match 'x.x.svc' or 'y.y.svc.cluster.local'")
+			return wcConfig, fmt.Errorf("invalid hostname for internal Kubernetes service. It must match 'x.x.svc' or 'y.y.svc.cluster.local'")
 		}
 
 		webhooksClientPortConv := int32(serverPort)
@@ -79,4 +78,25 @@ func GetWebhookClientConfig(CABundle []byte, serverHostname string, serverPort i
 	}
 
 	return wcConfig, err
+}
+
+// GetSpecificWebhookClientConfigs receive a webhookClientConfig object, returning two copies with paths adapted
+// for validation and mutation admission endpoints
+func GetSpecificWebhookClientConfigs(wcConfig admissionregv1.WebhookClientConfig, validationPath, mutationPath string) (validationWcConfig, mutationWcConfig admissionregv1.WebhookClientConfig) {
+
+	//
+	validationWcConfig.DeepCopyInto(&wcConfig)
+	mutationWcConfig.DeepCopyInto(&wcConfig)
+
+	if !reflect.ValueOf(validationWcConfig.Service).IsZero() {
+		*validationWcConfig.Service.Path = *validationWcConfig.Service.Path + validationPath
+		*mutationWcConfig.Service.Path = *mutationWcConfig.Service.Path + mutationPath
+	}
+
+	if !reflect.ValueOf(validationWcConfig.URL).IsZero() {
+		*validationWcConfig.URL = *validationWcConfig.URL + validationPath
+		*mutationWcConfig.URL = *mutationWcConfig.URL + mutationPath
+	}
+
+	return validationWcConfig, mutationWcConfig
 }

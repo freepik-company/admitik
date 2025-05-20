@@ -350,6 +350,10 @@ func main() {
 		setupLog.Error(err, "failed generating webhooks client config: %s", err.Error())
 		os.Exit(1)
 	}
+	webhookClientConfigValidation, webhookClientConfigMutation := controller.GetSpecificWebhookClientConfigs(
+		webhookClientConfig,
+		admission.AdmissionServerValidationPath,
+		admission.AdmissionServerMutationPath)
 
 	// Create registries managers that will be used by several controllers
 	clusterGenerationPolicyReg := clusterGenerationPolicyRegistry.NewClusterGenerationPolicyRegistry()
@@ -412,14 +416,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	webhookClientConfigMutation := webhookClientConfig.DeepCopy()
-	*webhookClientConfigMutation.URL = *webhookClientConfigMutation.URL + admission.AdmissionServerMutationPath
 	if err = (&clustermutationpolicy.ClusterMutationPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 
 		Options: clustermutationpolicy.ClusterMutationPolicyControllerOptions{
-			WebhookClientConfig: *webhookClientConfigMutation,
+			WebhookClientConfig: webhookClientConfigMutation,
 			WebhookTimeout:      webhooksClientTimeout,
 		},
 		Dependencies: clustermutationpolicy.ClusterMutationPolicyControllerDependencies{
@@ -430,14 +432,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	webhookClientConfigValidation := webhookClientConfig.DeepCopy()
-	*webhookClientConfigValidation.URL = *webhookClientConfigValidation.URL + admission.AdmissionServerValidationPath
 	if err = (&clustervalidationpolicy.ClusterValidationPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 
 		Options: clustervalidationpolicy.ClusterValidationPolicyControllerOptions{
-			WebhookClientConfig: *webhookClientConfigValidation,
+			WebhookClientConfig: webhookClientConfigValidation,
 			WebhookTimeout:      webhooksClientTimeout,
 		},
 		Dependencies: clustervalidationpolicy.ClusterValidationPolicyControllerDependencies{
