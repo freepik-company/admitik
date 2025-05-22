@@ -1,0 +1,23 @@
+# permissions for end users to view clustergenerationpolicies.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: admitik
+    app.kubernetes.io/managed-by: kustomize
+  name: clustergenerationpolicy-viewer-role
+rules:
+- apiGroups:
+  - admitik.freepik.com
+  resources:
+  - clustergenerationpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - admitik.freepik.com
+  resources:
+  - clustergenerationpolicies/status
+  verbs:
+  - get

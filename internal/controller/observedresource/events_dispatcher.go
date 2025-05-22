@@ -16,7 +16,7 @@ limitations under the License.
 package observedresource
 
 import (
-	"freepik.com/admitik/internal/globals"
+	"fmt"
 	"time"
 
 	//
@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	//
+	"freepik.com/admitik/internal/globals"
 	clusterGenerationPolicyRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicy"
 	resourceObserverRegistry "freepik.com/admitik/internal/registry/resourceobserver"
 	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
@@ -75,13 +76,13 @@ func (d *EventDispatcher) syncKubeAvailableResources() {
 	logger := log.FromContext(globals.Application.Context)
 	logger = logger.WithValues("controller", controllerName)
 
-	logger.Info("Starting informers cleaner worker")
+	logger.Info("Starting kube available resources syncer worker")
 
 	for {
 		resources, err := fetchKubeAvailableResources()
 
 		if err != nil {
-			logger.Info("Failed fetching Kubernetes available resources list")
+			logger.Info(fmt.Sprintf("Failed fetching Kubernetes available resources list: %v", err.Error()))
 			goto takeANap
 		}
 

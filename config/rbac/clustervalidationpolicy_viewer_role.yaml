@@ -1,27 +1,23 @@
-# permissions for end users to edit clusteradmissionpolicies.
+# permissions for end users to view clustervalidationpolicies.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/name: admitik
     app.kubernetes.io/managed-by: kustomize
-  name: clusteradmissionpolicy-editor-role
+  name: clustervalidationpolicy-viewer-role
 rules:
 - apiGroups:
   - admitik.freepik.com
   resources:
-  - clusteradmissionpolicies
+  - clustervalidationpolicies
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - admitik.freepik.com
   resources:
-  - clusteradmissionpolicies/status
+  - clustervalidationpolicies/status
   verbs:
   - get
