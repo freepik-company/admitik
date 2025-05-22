@@ -85,8 +85,8 @@ func GetWebhookClientConfig(CABundle []byte, serverHostname string, serverPort i
 func GetSpecificWebhookClientConfigs(wcConfig admissionregv1.WebhookClientConfig, validationPath, mutationPath string) (validationWcConfig, mutationWcConfig admissionregv1.WebhookClientConfig) {
 
 	//
-	validationWcConfig.DeepCopyInto(&wcConfig)
-	mutationWcConfig.DeepCopyInto(&wcConfig)
+	wcConfig.DeepCopyInto(&validationWcConfig)
+	wcConfig.DeepCopyInto(&mutationWcConfig)
 
 	if !reflect.ValueOf(validationWcConfig.Service).IsZero() {
 		*validationWcConfig.Service.Path = *validationWcConfig.Service.Path + validationPath

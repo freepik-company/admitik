@@ -350,6 +350,7 @@ func main() {
 		setupLog.Error(err, "failed generating webhooks client config: %s", err.Error())
 		os.Exit(1)
 	}
+
 	webhookClientConfigValidation, webhookClientConfigMutation := controller.GetSpecificWebhookClientConfigs(
 		webhookClientConfig,
 		admission.AdmissionServerValidationPath,
