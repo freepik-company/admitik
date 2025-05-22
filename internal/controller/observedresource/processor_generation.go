@@ -201,10 +201,14 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 			goto createKubeEvent
 		}
 
-		_, err = resourceClient.Update(
+		_, err = resourceClient.Apply(
 			globals.Application.Context,
+			resultObjConverted.GetName(),
 			resultObjConverted,
-			metav1.UpdateOptions{},
+			metav1.ApplyOptions{
+				FieldManager: controllerName,
+				Force:        true,
+			},
 		)
 
 		if err != nil {
