@@ -22,9 +22,6 @@ import (
 	"strings"
 
 	//
-	admissionv1 "k8s.io/api/admission/v1"
-
-	//
 	"github.com/google/cel-go/cel"
 )
 
@@ -33,33 +30,7 @@ var (
 	CellBracketExpressionRegexCompiled = regexp.MustCompile(`{{cel:\s*(.*?)\s*}}`)
 )
 
-func EvaluateTemplateCel(template string, injectedValues *map[string]interface{}) (result string, err error) {
-
-	// Perform conversions before execution
-	var castedOk bool
-
-	injectedOperation, castedOk := (*injectedValues)["operation"].(string)
-	if !castedOk {
-		return "", fmt.Errorf("unexpected type for injected data 'operation'")
-	}
-
-	injectedObject, castedOk := (*injectedValues)["object"].(map[string]interface{})
-	if !castedOk {
-		return "", fmt.Errorf("unexpected type for injected data 'object'")
-	}
-
-	injectedOldObject := map[string]interface{}{}
-	if injectedOperation == string(admissionv1.Update) {
-		injectedOldObject, castedOk = (*injectedValues)["oldObject"].(map[string]interface{})
-		if !castedOk {
-			return "", fmt.Errorf("unexpected type for injected data 'oldObject': %T", (*injectedValues)["oldObject"])
-		}
-	}
-
-	injectedSources, castedOk := (*injectedValues)["sources"].(map[int][]map[string]interface{})
-	if !castedOk {
-		return "", fmt.Errorf("unexpected type for injected data 'sources'")
-	}
+func EvaluateTemplateCel(template string, injectedData *InjectedDataT) (result string, err error) {
 
 	// Create the environment
 	env, err := cel.NewEnv(
@@ -86,10 +57,10 @@ func EvaluateTemplateCel(template string, injectedValues *map[string]interface{}
 
 	// The `out` var contains the output of a successful evaluation.
 	out, _, err := prg.Eval(map[string]interface{}{
-		"operation": injectedOperation,
-		"object":    injectedObject,
-		"oldObject": injectedOldObject,
-		"sources":   injectedSources,
+		"operation": injectedData.Operation,
+		"object":    injectedData.Object,
+		"oldObject": injectedData.OldObject,
+		"sources":   injectedData.Sources,
 	})
 
 	if err != nil {
@@ -103,7 +74,7 @@ func EvaluateTemplateCel(template string, injectedValues *map[string]interface{}
 
 // EvaluateAndReplaceCelExpressions finds {{cel: ... }} patterns and evaluates each using EvaluateTemplateCel
 // replacing them with their output
-func EvaluateAndReplaceCelExpressions(input string, injectedValues *map[string]interface{}) (string, error) {
+func EvaluateAndReplaceCelExpressions(input string, injectedData *InjectedDataT) (string, error) {
 
 	// Find all CEL expression matches
 	matches := CellBracketExpressionRegexCompiled.FindAllStringSubmatch(input, -1)
@@ -117,7 +88,7 @@ func EvaluateAndReplaceCelExpressions(input string, injectedValues *map[string]i
 		expression := match[1]
 
 		// Evaluate the CEL expression using your provided function
-		evaluatedResult, err := EvaluateTemplateCel(expression, injectedValues)
+		evaluatedResult, err := EvaluateTemplateCel(expression, injectedData)
 		if err != nil {
 			return "", fmt.Errorf("error evaluating CEL expression '%s': %w", expression, err)
 		}

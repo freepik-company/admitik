@@ -35,21 +35,12 @@ import (
 // for people who are already comfortable with Helm. Not all the extra functionality was added to keep this simpler.
 // Ref: https://github.com/helm/helm/blob/main/pkg/engine/funcs.go
 
-func EvaluateTemplateGotmpl(templateString string, data *map[string]interface{}) (result string, err error) {
+func EvaluateTemplateGotmpl(templateString string, injectedData *InjectedDataT) (result string, err error) {
 
 	// setVar function is defined as clojure to intercept 'data'
-	// done this way as 'data' being passed as func param in later func map is not convenient
+	// done this way as 'injectedData' being passed as func param in later func map is not convenient
 	setVar := func(key string, value interface{}) string {
-
-		// Init data['vars'] when needed
-		vars, ok := (*data)["vars"].(map[string]interface{})
-		if !ok || vars == nil {
-			vars = make(map[string]interface{})
-			(*data)["vars"] = vars
-		}
-
-		// Store data inside
-		vars[key] = value
+		injectedData.Vars[key] = value
 		return ""
 	}
 
@@ -65,7 +56,7 @@ func EvaluateTemplateGotmpl(templateString string, data *map[string]interface{})
 	// Create a new buffer to store the templating result
 	buffer := new(bytes.Buffer)
 
-	err = parsedTemplate.Execute(buffer, data)
+	err = parsedTemplate.Execute(buffer, injectedData.ToMap())
 	if err != nil {
 		return result, err
 	}

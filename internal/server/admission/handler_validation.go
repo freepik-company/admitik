@@ -102,20 +102,9 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 		requestObj.Request.Operation)
 
 	// Create an object that will be injected in conditions/message
-	// in later Golang's template evaluation stage
-	commonTemplateInjectedObject := map[string]interface{}{}
-	commonTemplateInjectedObject, err = s.extractAdmissionRequestData(&requestObj)
-	if err != nil {
-		logger.Info(fmt.Sprintf("failed extracting data from AdmissionReview: %s", err.Error()))
-		return
-	}
-
-	//
-	requestObject, ok := commonTemplateInjectedObject["object"].(map[string]interface{})
-	if !ok {
-		logger.Info("failed converting types for presented resource")
-		return
-	}
+	// in later template evaluation stage
+	commonTemplateInjectedObject := template.InjectedDataT{}
+	commonTemplateInjectedObject.Initialize()
 
 	// Loop over ClusterValidationPolicy resources performing actions
 	// At this point, some extra params will be added to the object that will be injected in template
@@ -131,7 +120,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 
 		// Retrieve the sources declared per policy
 		specificTemplateInjectedObject := commonTemplateInjectedObject
-		specificTemplateInjectedObject["sources"] = common.FetchPolicySources(caPolicyObj, s.dependencies.SourcesRegistry)
+		specificTemplateInjectedObject.Sources = common.FetchPolicySources(caPolicyObj, s.dependencies.SourcesRegistry)
 
 		// Evaluate template conditions
 		conditionsPassed, condErr := common.IsPassingConditions(caPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
@@ -167,7 +156,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 
 		// Create the Event in Kubernetes about involved object
 		err = common.CreateKubeEvent(request.Context(), "default", "admission-server",
-			requestObject, *caPolicyObj, kubeEventAction, parsedMessage)
+			commonTemplateInjectedObject.Object, *caPolicyObj, kubeEventAction, parsedMessage)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
 		}

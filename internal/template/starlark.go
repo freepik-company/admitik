@@ -19,12 +19,13 @@ package template
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime"
 	"runtime/debug"
 	"strings"
 
 	//
-	admissionv1 "k8s.io/api/admission/v1"
+	//"freepik.com/admitik/internal/temporary"
 
 	//
 	starletconv "github.com/1set/starlet/dataconv"
@@ -38,7 +39,7 @@ import (
 	starlarktime "go.starlark.net/lib/time"
 )
 
-func EvaluateTemplateStarlark(template string, injectedValues *map[string]interface{}) (result string, err error) {
+func EvaluateTemplateStarlark(template string, injectedData *InjectedDataT) (result string, err error) {
 
 	// As Starlark interpreter is super resource intensive in some injection-related scenarios
 	// a garbage collection is triggered to free memory as fast as possible after evaluation
@@ -66,27 +67,22 @@ vars = __rawVars
 ` + template
 
 	//
-	operation := (*injectedValues)["operation"].(string)
-	operationStarlark := starlark.String(operation)
+	operationStarlark := starlark.String(injectedData.Operation)
 	operationStarlark.Freeze()
 
-	//var oldObjectStarlark starlark.Value = starlark.None
-	var oldObjectStarlark starlark.Value = starlark.NewDict(0)
-	if admissionv1.Operation(operation) == admissionv1.Update {
-		oldObjectStarlark, err = starletconv.GoToStarlarkViaJSON((*injectedValues)["oldObject"])
-		if err != nil {
-			return result, fmt.Errorf("error converting 'oldObject' into Starlark: %v", err)
-		}
-		oldObjectStarlark.Freeze()
+	oldObjectStarlark, err := starletconv.GoToStarlarkViaJSON(injectedData.OldObject)
+	if err != nil {
+		return result, fmt.Errorf("error converting 'oldObject' into Starlark: %v", err)
 	}
+	oldObjectStarlark.Freeze()
 
-	objectStarlark, err := starletconv.GoToStarlarkViaJSON((*injectedValues)["object"])
+	objectStarlark, err := starletconv.GoToStarlarkViaJSON(injectedData.Object)
 	if err != nil {
 		return result, fmt.Errorf("error converting 'object' into Starlark: %v", err)
 	}
 	objectStarlark.Freeze()
 
-	sourcesStarlark, err := starletconv.GoToStarlarkViaJSON((*injectedValues)["sources"])
+	sourcesStarlark, err := starletconv.GoToStarlarkViaJSON(injectedData.Sources)
 	if err != nil {
 		return result, fmt.Errorf("error converting 'sources' into Starlark: %v", err)
 	}
@@ -95,8 +91,8 @@ vars = __rawVars
 	// Convert user-defined vars into Starlark types
 	var convErr error
 	var varsStarlark starlark.Value = starlark.NewDict(0)
-	if _, varsPresent := (*injectedValues)["vars"]; varsPresent {
-		varsStarlark, convErr = starletconv.Marshal((*injectedValues)["vars"])
+	if !reflect.ValueOf(injectedData.Vars).IsZero() {
+		varsStarlark, convErr = starletconv.Marshal(injectedData.Vars)
 		if convErr != nil {
 			return result, fmt.Errorf("failed converting injected 'vars' into Starlark: %v", convErr.Error())
 		}
@@ -142,6 +138,7 @@ vars = __rawVars
 	}
 
 	// Convert Starlark's global 'vars' back to Go types when present to store it in injectedValues
+	// TODO: Review this conversions
 	if executionGlobals.Has("vars") {
 
 		var varsConvertedBack interface{}
@@ -149,7 +146,12 @@ vars = __rawVars
 		if convErr != nil {
 			return result, fmt.Errorf("failed converting Starlark 'vars' global into Golang types: %v", convErr.Error())
 		}
-		(*injectedValues)["vars"] = varsConvertedBack
+
+		varsUltraConvertedBack, ok := varsConvertedBack.(map[string]interface{})
+		if !ok {
+			return result, fmt.Errorf("failed converting Starlark 'vars' global into Golang types")
+		}
+		injectedData.Vars = varsUltraConvertedBack
 	}
 
 	executionOutput := strings.Join(starlarkPrints, "")

@@ -17,32 +17,32 @@ limitations under the License.
 package template
 
 const (
-	EngineCel      string = "cel"
-	EngineGotmpl   string = "gotmpl"
-	EnginePlain    string = "plain"
-	EngineStarlark string = "starlark"
-
+	EngineCel          string = "cel"
+	EngineGotmpl       string = "gotmpl"
+	EnginePlain        string = "plain"
+	EngineStarlark     string = "starlark"
 	EnginePlainWithCel string = "plain+cel"
 )
 
-func EvaluateTemplate(engine string, template string, data *map[string]interface{}) (result string, err error) {
+func EvaluateTemplate(engine string, template string, injectedData *InjectedDataT) (result string, err error) {
+
 	switch engine {
 	case EngineCel:
-		result, err = EvaluateTemplateCel(template, data)
+		result, err = EvaluateTemplateCel(template, injectedData)
 	case EngineGotmpl:
-		result, err = EvaluateTemplateGotmpl(template, data)
+		result, err = EvaluateTemplateGotmpl(template, injectedData)
 	case EnginePlain:
-		result, err = EvaluateTemplateCel(template, data)
+		result, err = EvaluateTemplatePlain(template, injectedData)
 	case EngineStarlark:
-		result, err = EvaluateTemplateStarlark(template, data)
+		result, err = EvaluateTemplateStarlark(template, injectedData)
 
 	// Separated as it's a compound type
 	case EnginePlainWithCel:
-		result, err = EvaluateAndReplaceCelExpressions(template, data)
+		result, err = EvaluateAndReplaceCelExpressions(template, injectedData)
 
 	// Default is repeated to make it super explicit
 	default:
-		result, err = EvaluateTemplateCel(template, data)
+		result, err = EvaluateTemplateCel(template, injectedData)
 	}
 
 	return result, err

@@ -17,13 +17,10 @@ package observedresource
 
 import (
 	"fmt"
-	"freepik.com/admitik/api/v1alpha1"
-	"freepik.com/admitik/internal/common"
-	"freepik.com/admitik/internal/globals"
-	clusterGenerationPolicyRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicy"
-	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
-	"freepik.com/admitik/internal/template"
 	"gopkg.in/yaml.v3"
+	"strings"
+
+	//
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,7 +28,14 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"strings"
+
+	//
+	"freepik.com/admitik/api/v1alpha1"
+	"freepik.com/admitik/internal/common"
+	"freepik.com/admitik/internal/globals"
+	clusterGenerationPolicyRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicy"
+	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
+	"freepik.com/admitik/internal/template"
 )
 
 type GenerationProcessorDependencies struct {
@@ -58,11 +62,16 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 
 	var err error
 
-	commonTemplateInjectedObject := map[string]interface{}{}
-	commonTemplateInjectedObject["operation"] = string(eventType)
-	commonTemplateInjectedObject["object"] = &object[0]
-	if eventType == watch.Modified {
-		commonTemplateInjectedObject["oldObject"] = &object[1]
+	// Create an object that will be injected in conditions/message
+	// in later template evaluation stage
+	commonTemplateInjectedObject := template.InjectedDataT{}
+	commonTemplateInjectedObject.Initialize()
+
+	commonTemplateInjectedObject.Operation = common.GetNormalizedOperation(eventType)
+	commonTemplateInjectedObject.Object = object[0]
+
+	if commonTemplateInjectedObject.Operation == common.NormalizedOperationUpdate {
+		commonTemplateInjectedObject.OldObject = object[1]
 	}
 
 	//
@@ -74,7 +83,7 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 
 		// Retrieve the sources declared per policy
 		specificTemplateInjectedObject := commonTemplateInjectedObject
-		specificTemplateInjectedObject["sources"] = common.FetchPolicySources(policyObj, p.dependencies.SourcesRegistry)
+		specificTemplateInjectedObject.Sources = common.FetchPolicySources(policyObj, p.dependencies.SourcesRegistry)
 
 		//Evaluate template conditions
 		conditionsPassed, condErr := common.IsPassingConditions(policyObj.Spec.Conditions, &specificTemplateInjectedObject)

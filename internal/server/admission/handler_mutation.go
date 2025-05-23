@@ -103,17 +103,15 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 		requestObj.Request.Operation)
 
 	// Create an object that will be injected in conditions/message
-	// in later Golang's template evaluation stage
-	commonTemplateInjectedObject := map[string]interface{}{}
-	commonTemplateInjectedObject, err = s.extractAdmissionRequestData(&requestObj)
+	// in later template evaluation stage
+	commonTemplateInjectedObject := template.InjectedDataT{}
+	commonTemplateInjectedObject.Initialize()
+
+	//commonTemplateInjectedObject := map[string]interface{}{}
+	err = s.extractAdmissionRequestData(&requestObj, &commonTemplateInjectedObject)
 	if err != nil {
 		logger.Info(fmt.Sprintf("failed extracting data from AdmissionReview: %s", err.Error()))
 		return
-	}
-
-	requestObject, ok := commonTemplateInjectedObject["object"].(map[string]interface{})
-	if !ok {
-		logger.Info("failed converting types for presented resource. Kubernetes Event creation skipped")
 	}
 
 	// Loop over ClusterMutationPolicy objects collecting the patches to apply
@@ -128,7 +126,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 
 		// Retrieve the sources declared per policy
 		specificTemplateInjectedObject := commonTemplateInjectedObject
-		specificTemplateInjectedObject["sources"] = common.FetchPolicySources(cmPolicyObj, s.dependencies.SourcesRegistry)
+		specificTemplateInjectedObject.Sources = common.FetchPolicySources(cmPolicyObj, s.dependencies.SourcesRegistry)
 
 		// Evaluate template conditions
 		conditionsPassed, condErr := common.IsPassingConditions(cmPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
@@ -167,7 +165,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 
 	createKubeEvent:
 		err = common.CreateKubeEvent(request.Context(), "default", "admission-server",
-			requestObject, *cmPolicyObj, kubeEventAction, kubeEventMessage)
+			commonTemplateInjectedObject.Object, *cmPolicyObj, kubeEventAction, kubeEventMessage)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
 		}

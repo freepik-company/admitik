@@ -19,35 +19,32 @@ package admission
 import (
 	"encoding/json"
 	"fmt"
+	"freepik.com/admitik/internal/common"
+	"freepik.com/admitik/internal/template"
+
 	//
 	admissionv1 "k8s.io/api/admission/v1"
 )
 
 // extractAdmissionRequestData TODO
-func (s *HttpServer) extractAdmissionRequestData(adReview *admissionv1.AdmissionReview) (results map[string]interface{}, err error) {
-
-	results = make(map[string]interface{})
+func (s *HttpServer) extractAdmissionRequestData(adReview *admissionv1.AdmissionReview, injectedData *template.InjectedDataT) (err error) {
 
 	// Store desired operation
-	results["operation"] = string(adReview.Request.Operation)
+	injectedData.Operation = common.GetNormalizedOperation(adReview.Request.Operation)
 
 	// Store the previous object on updates
-	if adReview.Request.Operation == admissionv1.Update {
-		requestOldObject := map[string]interface{}{}
-		err = json.Unmarshal(adReview.Request.OldObject.Raw, &requestOldObject)
+	if injectedData.Operation == common.NormalizedOperationUpdate {
+		err = json.Unmarshal(adReview.Request.OldObject.Raw, &injectedData.OldObject)
 		if err != nil {
-			return results, fmt.Errorf("failed decoding JSON field 'request.oldObject': %s", err.Error())
+			return fmt.Errorf("failed decoding JSON field 'request.oldObject': %s", err.Error())
 		}
-		results["oldObject"] = requestOldObject
 	}
 
 	// Store the object that is being touched
-	requestObject := map[string]interface{}{}
-	err = json.Unmarshal(adReview.Request.Object.Raw, &requestObject)
+	err = json.Unmarshal(adReview.Request.Object.Raw, &injectedData.Object)
 	if err != nil {
-		return results, fmt.Errorf("failed decoding JSON field 'request.object': %s", err.Error())
+		return fmt.Errorf("failed decoding JSON field 'request.object': %s", err.Error())
 	}
-	results["object"] = requestObject
 
-	return results, nil
+	return nil
 }
