@@ -17,10 +17,16 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	"net/url"
 	"reflect"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
+	"time"
 
 	//
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
@@ -99,4 +105,36 @@ func GetSpecificWebhookClientConfigs(wcConfig admissionregv1.WebhookClientConfig
 	}
 
 	return validationWcConfig, mutationWcConfig
+}
+
+// UpdateWithRetry fetches the object, applies a mutation, and updates it with retry-on-conflict using exponential backoff.
+func UpdateWithRetry(
+	ctx context.Context,
+	client client.Client,
+	object client.Object,
+	mutate func(obj client.Object) error) error {
+
+	key := types.NamespacedName{
+		Namespace: object.GetNamespace(),
+		Name:      object.GetName(),
+	}
+
+	reasonableBackoff := wait.Backoff{
+		Steps:    5,
+		Duration: 200 * time.Millisecond,
+		Factor:   2.0,
+		Jitter:   0.2,
+	}
+
+	return retry.RetryOnConflict(reasonableBackoff, func() error {
+		if err := client.Get(ctx, key, object); err != nil {
+			return err
+		}
+
+		if err := mutate(object); err != nil {
+			return err
+		}
+
+		return client.Update(ctx, object)
+	})
 }
