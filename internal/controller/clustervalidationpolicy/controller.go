@@ -96,8 +96,10 @@ func (r *ClusterValidationPolicyReconciler) Reconcile(ctx context.Context, req c
 			}
 
 			// Remove the finalizers on the resource
-			controllerutil.RemoveFinalizer(objectManifest, controller.ResourceFinalizer)
-			err = r.Update(ctx, objectManifest)
+			err = controller.UpdateWithRetry(ctx, r.Client, objectManifest, func(object client.Object) error {
+				controllerutil.RemoveFinalizer(object, controller.ResourceFinalizer)
+				return nil
+			})
 			if err != nil {
 				logger.Info(fmt.Sprintf(controller.ResourceFinalizersUpdateError, controller.ClusterValidationPolicyResourceType, req.Name, err.Error()))
 			}
@@ -109,8 +111,10 @@ func (r *ClusterValidationPolicyReconciler) Reconcile(ctx context.Context, req c
 
 	// 4. Add finalizer to the resource
 	if !controllerutil.ContainsFinalizer(objectManifest, controller.ResourceFinalizer) {
-		controllerutil.AddFinalizer(objectManifest, controller.ResourceFinalizer)
-		err = r.Update(ctx, objectManifest)
+		err = controller.UpdateWithRetry(ctx, r.Client, objectManifest, func(object client.Object) error {
+			controllerutil.AddFinalizer(objectManifest, controller.ResourceFinalizer)
+			return nil
+		})
 		if err != nil {
 			return result, err
 		}
@@ -118,7 +122,9 @@ func (r *ClusterValidationPolicyReconciler) Reconcile(ctx context.Context, req c
 
 	// 5. Update the status before the requeue
 	defer func() {
-		err = r.Status().Update(ctx, objectManifest)
+		err = controller.UpdateWithRetry(ctx, r.Client, objectManifest, func(object client.Object) error {
+			return nil
+		})
 		if err != nil {
 			logger.Info(fmt.Sprintf(controller.ResourceConditionUpdateError, controller.ClusterValidationPolicyResourceType, req.Name, err.Error()))
 		}
