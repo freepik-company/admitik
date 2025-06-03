@@ -34,11 +34,11 @@ spec:
       key: |
         # 'vars' have all the things stored by the user, even through the template engines when possible
         # Let's show all of them in logs
-        log.printf("Available variables: {}".format( vars ))
+        log.debug("Available variables: {}".format( vars ))
         
         # vars["your-key"] has 'your-value' inside
         # Let's show it in logs
-        log.printf("Specific variable: {}".format( vars["your-key"] ))
+        log.debug("Specific variable: {}".format( vars["your-key"] ))
         
         print("pass")
       value: "pass"

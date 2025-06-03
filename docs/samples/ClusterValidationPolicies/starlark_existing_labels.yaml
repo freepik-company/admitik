@@ -46,7 +46,7 @@ spec:
         isPresent = isLabelPresent("admitik.freepik.com/label")
         
         # It's possible to throw messages to the logs
-        log.printf("Is the label present?: %v\n", isPresent)
+        log.debug("Is the label present?: ", present=isPresent)
         
         # Printing is the way to return the result for comparing to 'value'
         print(isPresent)
