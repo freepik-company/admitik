@@ -25,18 +25,27 @@ import (
 	"strings"
 
 	//
-	//"freepik.com/admitik/internal/temporary"
-
-	//
 	starletconv "github.com/1set/starlet/dataconv"
 	"go.starlark.net/starlark"
 	starlarksyntax "go.starlark.net/syntax"
 
-	//
-	starlarklog "freepik.com/admitik/internal/template/starlarkmods/log"
-	starlarkjson "go.starlark.net/lib/json"
-	starlarkmath "go.starlark.net/lib/math"
-	starlarktime "go.starlark.net/lib/time"
+	// Starlark official modules
+	// Ref: https://github.com/google/starlark-go/blob/master/lib
+	modStarlarkJson "go.starlark.net/lib/json"
+	modStarlarkMath "go.starlark.net/lib/math"
+	modStarlarkTime "go.starlark.net/lib/time"
+
+	// Starlet modules
+	// Ref: https://github.com/1set/starlet/blob/master/lib
+	modStarletBase64 "github.com/1set/starlet/lib/base64"
+	modStarletCsv "github.com/1set/starlet/lib/csv"
+	modStarletHashlib "github.com/1set/starlet/lib/hashlib"
+	modStarletHttp "github.com/1set/starlet/lib/http"
+	modStarletLog "github.com/1set/starlet/lib/log"
+	modStarletNet "github.com/1set/starlet/lib/net"
+	modStarletRandom "github.com/1set/starlet/lib/random"
+	modStarletRe "github.com/1set/starlet/lib/re"
+	modStarletString "github.com/1set/starlet/lib/string"
 )
 
 func EvaluateTemplateStarlark(template string, injectedData *InjectedDataT) (result string, err error) {
@@ -55,7 +64,8 @@ func EvaluateTemplateStarlark(template string, injectedData *InjectedDataT) (res
 
 # Ref [Specifications]: https://starlark-lang.org/spec.html
 # Ref [Playground]: https://starlark-lang.org/playground.html
-# Ref [Extra Libs]: https://github.com/google/starlark-go/tree/master/lib
+# Ref [Extra Libs: Official]: https://github.com/google/starlark-go/tree/master/lib
+# Ref [Extra Libs: Starlet]: https://github.com/1set/starlet/blob/master/lib
 
 operation = __rawOperation
 oldObject = __rawOldObject
@@ -98,16 +108,36 @@ vars = __rawVars
 		}
 	}
 
-	// This dictionary defines the pre-declared environment.
+	// This dictionary defines the pre-declared environment (injected libraries included).
+	starletBase64, _ := modStarletBase64.LoadModule()
+	starletCsv, _ := modStarletCsv.LoadModule()
+	starletHashlib, _ := modStarletHashlib.LoadModule()
+	starletHttp, _ := modStarletHttp.LoadModule()
+	starletLog, _ := modStarletLog.LoadModule()
+	starletNet, _ := modStarletNet.LoadModule()
+	starletRandom, _ := modStarletRandom.LoadModule()
+	starletRe, _ := modStarletRe.LoadModule()
+	starletString, _ := modStarletString.LoadModule()
+
 	predeclared := starlark.StringDict{
 		// TODO: Implement modules for YAML, TOML, Logging, etc
 		// Another potential approach is to load them using Starlet instead
 
 		// Injected functions
-		"math": starlarkmath.Module,
-		"json": starlarkjson.Module,
-		"time": starlarktime.Module,
-		"log":  starlarklog.Module,
+		"math": modStarlarkMath.Module,
+		"json": modStarlarkJson.Module,
+		"time": modStarlarkTime.Module,
+
+		//
+		"base64":  starletBase64["base64"],
+		"csv":     starletCsv["csv"],
+		"hashlib": starletHashlib["hashlib"],
+		"http":    starletHttp["http"],
+		"log":     starletLog["log"],
+		"net":     starletNet["net"],
+		"random":  starletRandom["random"],
+		"re":      starletRe["re"],
+		"string":  starletString["string"],
 
 		// Injected data
 		"__rawOperation": operationStarlark, // Frozen

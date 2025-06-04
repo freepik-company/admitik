@@ -121,7 +121,7 @@ spec:
     - name: check-headers-not-matching
       engine: starlark
       key: |
-        log.printf("Debug purposes: vars content: %v", vars)
+        log.debug("Debug purposes: vars content: ", variables=vars)
         
         def check_headers_not_matching():
           headers_to_check = vars.get("headers_to_check", {})
