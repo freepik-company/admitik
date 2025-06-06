@@ -10,12 +10,12 @@ spec:
 
   # Resources to be intercepted before reaching the cluster
   interceptedResources:
-    group: gateway.networking.k8s.io
-    operations:
-      - CREATE
-      - UPDATE
-    resource: httproutes
-    version: v1
+    - group: gateway.networking.k8s.io
+      version: v1
+      resource: httproutes
+      operations:
+        - CREATE
+        - UPDATE
 
   # Other resources to be retrieved for conditions templates.
   # They will be included under .sources scope in the template
