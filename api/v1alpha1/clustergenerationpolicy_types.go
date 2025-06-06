@@ -41,7 +41,7 @@ type ClusterGenerationPolicySpec struct {
 	OverwriteExisting bool `json:"overwriteExisting,omitempty"`
 
 	//
-	WatchedResources ResourceGroupT   `json:"watchedResources"`
+	WatchedResources []ResourceGroupT `json:"watchedResources"`
 	Sources          []ResourceGroupT `json:"sources"`
 
 	//

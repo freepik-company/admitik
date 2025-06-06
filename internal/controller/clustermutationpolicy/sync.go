@@ -61,47 +61,51 @@ var (
 func (r *ClusterMutationPolicyReconciler) ReconcileClusterMutationPolicy(ctx context.Context, eventType watch.EventType, resourceManifest *v1alpha1.ClusterMutationPolicy) (err error) {
 	logger := log.FromContext(ctx)
 
-	// Replace wildcards in operations
-	if slices.Contains(resourceManifest.Spec.InterceptedResources.Operations, admissionregv1.OperationAll) {
-		resourceManifest.Spec.InterceptedResources.Operations = MutationOperations
-	}
-
 	// Update the registry
 	var desiredWatchedTypes []string
-	for _, operation := range resourceManifest.Spec.InterceptedResources.Operations {
+	for _, intercResourceGroup := range resourceManifest.Spec.InterceptedResources {
 
-		// Skip unsupported operations
-		if !slices.Contains(MutationOperations, operation) {
-			continue
+		// Replace wildcards in operations
+		if slices.Contains(intercResourceGroup.Operations, admissionregv1.OperationAll) {
+			intercResourceGroup.Operations = MutationOperations
 		}
 
-		// Create the key-pattern and store it for later cleaning
-		// Duplicated operations will be skipped
-		watchedType := strings.Join([]string{
-			resourceManifest.Spec.InterceptedResources.Group,
-			resourceManifest.Spec.InterceptedResources.Version,
-			resourceManifest.Spec.InterceptedResources.Resource,
-			string(operation),
-		}, "/")
+		//
+		for _, operation := range intercResourceGroup.Operations {
 
-		if slices.Contains(desiredWatchedTypes, watchedType) {
-			continue
-		}
-		desiredWatchedTypes = append(desiredWatchedTypes, watchedType)
+			// Skip unsupported operations
+			if !slices.Contains(MutationOperations, operation) {
+				continue
+			}
 
-		// Handle deletion requests
-		if eventType == watch.Deleted {
-			logger.Info(resourceDeletionMessage, "watcher", watchedType)
+			// Create the key-pattern and store it for later cleaning
+			// Duplicated operations will be skipped
+			watchedType := strings.Join([]string{
+				intercResourceGroup.Group,
+				intercResourceGroup.Version,
+				intercResourceGroup.Resource,
+				string(operation),
+			}, "/")
 
-			r.Dependencies.ClusterMutationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
-		}
+			if slices.Contains(desiredWatchedTypes, watchedType) {
+				continue
+			}
+			desiredWatchedTypes = append(desiredWatchedTypes, watchedType)
 
-		// Handle creation/update requests
-		if eventType == watch.Modified {
-			logger.Info(resourceUpdatedMessage, "watcher", watchedType)
+			// Handle deletion requests
+			if eventType == watch.Deleted {
+				logger.Info(resourceDeletionMessage, "watcher", watchedType)
 
-			r.Dependencies.ClusterMutationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
-			r.Dependencies.ClusterMutationPolicyRegistry.AddResource(watchedType, resourceManifest)
+				r.Dependencies.ClusterMutationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
+			}
+
+			// Handle creation/update requests
+			if eventType == watch.Modified {
+				logger.Info(resourceUpdatedMessage, "watcher", watchedType)
+
+				r.Dependencies.ClusterMutationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
+				r.Dependencies.ClusterMutationPolicyRegistry.AddResource(watchedType, resourceManifest)
+			}
 		}
 	}
 
