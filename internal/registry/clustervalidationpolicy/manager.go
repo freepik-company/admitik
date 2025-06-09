@@ -95,7 +95,7 @@ func (m *ClusterValidationPolicyRegistry) GetRegisteredSourcesTypes() []Resource
 
 	sourceTypes := []ResourceTypeName{}
 
-	// Loop over all notifications collecting extra resources
+	// Loop over all objects collecting extra resources
 	for _, resourceList := range m.registry {
 		for _, resourceObj := range resourceList {
 			for _, source := range resourceObj.Spec.Sources {
