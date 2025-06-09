@@ -34,12 +34,23 @@ func NewClusterMutationPolicyRegistry() *ClusterMutationPolicyRegistry {
 	}
 }
 
-// AddResource add a ClusterMutationPolicy of provided type into registry
-func (m *ClusterMutationPolicyRegistry) AddResource(rt ResourceTypeName, clusterMutationPolicy *v1alpha1.ClusterMutationPolicy) {
+// AddOrUpdateResource adds a ClusterMutationPolicy of provided type into registry.
+// When the policy already exists, updates it
+func (m *ClusterMutationPolicyRegistry) AddOrUpdateResource(rt ResourceTypeName, policy *v1alpha1.ClusterMutationPolicy) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.registry[rt] = append(m.registry[rt], clusterMutationPolicy)
+	// Replace it when found
+	policies := m.registry[rt]
+	for itemIndex, itemObject := range policies {
+		if itemObject.Name == policy.Name {
+			m.registry[rt][itemIndex] = policy
+			return
+		}
+	}
+
+	// Create it when missing
+	m.registry[rt] = append(m.registry[rt], policy)
 }
 
 // RemoveResource delete a ClusterMutationPolicy of provided type
@@ -59,7 +70,7 @@ func (m *ClusterMutationPolicyRegistry) RemoveResource(rt ResourceTypeName, clus
 		m.registry[rt] = append(clusterMutationPolicies[:index], clusterMutationPolicies[index+1:]...)
 	}
 
-	// Delete index from registry when no more ClusterMutationPolicy resource is needing it
+	// Delete resource type from registry when no more ClusterMutationPolicy resource is needing it
 	if len(m.registry[rt]) == 0 {
 		delete(m.registry, rt)
 	}

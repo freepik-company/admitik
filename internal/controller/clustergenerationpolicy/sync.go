@@ -70,7 +70,7 @@ func (r *ClusterGenerationPolicyReconciler) ReconcileClusterGenerationPolicy(ctx
 				continue
 			}
 			desiredWatchedGroups = append(desiredWatchedGroups, watchedType)
-			r.Dependencies.ClusterGenerationPolicyRegistry.AddResource(watchedType, resourceManifest)
+			r.Dependencies.ClusterGenerationPolicyRegistry.AddOrUpdateResource(watchedType, resourceManifest)
 		}
 	}
 

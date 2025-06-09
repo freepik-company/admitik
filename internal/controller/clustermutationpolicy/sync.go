@@ -103,7 +103,7 @@ func (r *ClusterMutationPolicyReconciler) ReconcileClusterMutationPolicy(ctx con
 					continue
 				}
 				desiredWatchedTypes = append(desiredWatchedTypes, watchedType)
-				r.Dependencies.ClusterMutationPolicyRegistry.AddResource(watchedType, resourceManifest)
+				r.Dependencies.ClusterMutationPolicyRegistry.AddOrUpdateResource(watchedType, resourceManifest)
 			}
 		}
 	}

@@ -46,6 +46,9 @@ import (
 	modStarletRandom "github.com/1set/starlet/lib/random"
 	modStarletRe "github.com/1set/starlet/lib/re"
 	modStarletString "github.com/1set/starlet/lib/string"
+
+	// own modules
+	modSelfYaml "freepik.com/admitik/internal/template/starlarkmods/yaml"
 )
 
 func EvaluateTemplateStarlark(template string, injectedData *InjectedDataT) (result string, err error) {
@@ -120,8 +123,6 @@ vars = __rawVars
 	starletString, _ := modStarletString.LoadModule()
 
 	predeclared := starlark.StringDict{
-		// TODO: Implement modules for YAML, TOML, Logging, etc
-		// Another potential approach is to load them using Starlet instead
 
 		// Injected functions
 		"math": modStarlarkMath.Module,
@@ -138,6 +139,10 @@ vars = __rawVars
 		"random":  starletRandom["random"],
 		"re":      starletRe["re"],
 		"string":  starletString["string"],
+
+		//
+		// TODO: Implement missing modules for YAML, TOML, etc
+		"yaml": modSelfYaml.Module,
 
 		// Injected data
 		"__rawOperation": operationStarlark, // Frozen

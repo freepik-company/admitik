@@ -34,11 +34,22 @@ func NewClusterGenerationPolicyRegistry() *ClusterGenerationPolicyRegistry {
 	}
 }
 
-// AddResource add a ClusterGenerationPolicy of provided type into registry
-func (m *ClusterGenerationPolicyRegistry) AddResource(rt ResourceTypeName, policy *v1alpha1.ClusterGenerationPolicy) {
+// AddOrUpdateResource add a ClusterGenerationPolicy of provided type into registry.
+// When the policy already exists, updates it
+func (m *ClusterGenerationPolicyRegistry) AddOrUpdateResource(rt ResourceTypeName, policy *v1alpha1.ClusterGenerationPolicy) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Replace it when found
+	policies := m.registry[rt]
+	for itemIndex, itemObject := range policies {
+		if itemObject.Name == policy.Name {
+			m.registry[rt][itemIndex] = policy
+			return
+		}
+	}
+
+	// Create it when missing
 	m.registry[rt] = append(m.registry[rt], policy)
 }
 
@@ -47,8 +58,8 @@ func (m *ClusterGenerationPolicyRegistry) RemoveResource(rt ResourceTypeName, po
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	policies := m.registry[rt]
 	index := -1
+	policies := m.registry[rt]
 	for itemIndex, itemObject := range policies {
 		if itemObject.Name == policy.Name {
 			index = itemIndex
@@ -59,7 +70,7 @@ func (m *ClusterGenerationPolicyRegistry) RemoveResource(rt ResourceTypeName, po
 		m.registry[rt] = append(policies[:index], policies[index+1:]...)
 	}
 
-	// Delete index from registry when no more ClusterGenerationPolicy resource is needing it
+	// Delete resource type from registry when no more ClusterGenerationPolicy resource is needing it
 	if len(m.registry[rt]) == 0 {
 		delete(m.registry, rt)
 	}

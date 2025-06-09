@@ -103,7 +103,7 @@ func (r *ClusterValidationPolicyReconciler) ReconcileClusterValidationPolicy(ctx
 					continue
 				}
 				desiredWatchedTypes = append(desiredWatchedTypes, watchedType)
-				r.Dependencies.ClusterValidationPolicyRegistry.AddResource(watchedType, resourceManifest)
+				r.Dependencies.ClusterValidationPolicyRegistry.AddOrUpdateResource(watchedType, resourceManifest)
 			}
 		}
 	}

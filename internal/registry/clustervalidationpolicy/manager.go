@@ -34,12 +34,23 @@ func NewClusterValidationPolicyRegistry() *ClusterValidationPolicyRegistry {
 	}
 }
 
-// AddResource add a ClusterValidationPolicy of provided type into registry
-func (m *ClusterValidationPolicyRegistry) AddResource(rt ResourceTypeName, clusterValidationPolicy *v1alpha1.ClusterValidationPolicy) {
+// AddOrUpdateResource add a ClusterValidationPolicy of provided type into registry.
+// When the policy already exists, updates it
+func (m *ClusterValidationPolicyRegistry) AddOrUpdateResource(rt ResourceTypeName, policy *v1alpha1.ClusterValidationPolicy) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.registry[rt] = append(m.registry[rt], clusterValidationPolicy)
+	// Replace it when found
+	policies := m.registry[rt]
+	for itemIndex, itemObject := range policies {
+		if itemObject.Name == policy.Name {
+			m.registry[rt][itemIndex] = policy
+			return
+		}
+	}
+
+	// Create it when missing
+	m.registry[rt] = append(m.registry[rt], policy)
 }
 
 // RemoveResource delete a ClusterValidationPolicy of provided type
@@ -59,7 +70,7 @@ func (m *ClusterValidationPolicyRegistry) RemoveResource(rt ResourceTypeName, cl
 		m.registry[rt] = append(clusterValidationPolicies[:index], clusterValidationPolicies[index+1:]...)
 	}
 
-	// Delete index from registry when no more ClusterValidationPolicy resource is needing it
+	// Delete resource type from registry when no more ClusterValidationPolicy resource is needing it
 	if len(m.registry[rt]) == 0 {
 		delete(m.registry, rt)
 	}
