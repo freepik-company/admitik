@@ -78,8 +78,7 @@ func (r *ClusterMutationPolicyReconciler) ReconcileClusterMutationPolicy(ctx con
 				continue
 			}
 
-			// Create the key-pattern and store it for later cleaning
-			// Duplicated operations will be skipped
+			//
 			watchedType := strings.Join([]string{
 				intercResourceGroup.Group,
 				intercResourceGroup.Version,
@@ -87,23 +86,23 @@ func (r *ClusterMutationPolicyReconciler) ReconcileClusterMutationPolicy(ctx con
 				string(operation),
 			}, "/")
 
-			if slices.Contains(desiredWatchedTypes, watchedType) {
-				continue
-			}
-			desiredWatchedTypes = append(desiredWatchedTypes, watchedType)
-
 			// Handle deletion requests
 			if eventType == watch.Deleted {
 				logger.Info(resourceDeletionMessage, "watcher", watchedType)
-
 				r.Dependencies.ClusterMutationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
+				continue
 			}
 
 			// Handle creation/update requests
 			if eventType == watch.Modified {
 				logger.Info(resourceUpdatedMessage, "watcher", watchedType)
 
-				r.Dependencies.ClusterMutationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
+				// Avoid adding those already added.
+				// This prevents user from defining the group more than once per manifest
+				if slices.Contains(desiredWatchedTypes, watchedType) {
+					continue
+				}
+				desiredWatchedTypes = append(desiredWatchedTypes, watchedType)
 				r.Dependencies.ClusterMutationPolicyRegistry.AddResource(watchedType, resourceManifest)
 			}
 		}

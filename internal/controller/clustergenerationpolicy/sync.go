@@ -18,8 +18,10 @@ package clustergenerationpolicy
 
 import (
 	"context"
+	"slices"
 	"strings"
 
+	//
 	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -38,8 +40,10 @@ const (
 func (r *ClusterGenerationPolicyReconciler) ReconcileClusterGenerationPolicy(ctx context.Context, eventType watch.EventType, resourceManifest *v1alpha1.ClusterGenerationPolicy) (err error) {
 	logger := log.FromContext(ctx)
 
+	desiredWatchedGroups := []string{}
 	// Update the registry
 	for _, watchedResourceGroup := range resourceManifest.Spec.WatchedResources {
+
 		// Create the key-pattern and store it for later cleaning
 		watchedType := strings.Join([]string{
 			watchedResourceGroup.Group,
@@ -52,26 +56,32 @@ func (r *ClusterGenerationPolicyReconciler) ReconcileClusterGenerationPolicy(ctx
 		// Handle deletion requests
 		if eventType == watch.Deleted {
 			logger.Info(resourceDeletionMessage, "watcher", watchedType)
-
 			r.Dependencies.ClusterGenerationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
+			continue
 		}
 
 		// Handle creation/update requests
 		if eventType == watch.Modified {
 			logger.Info(resourceUpdatedMessage, "watcher", watchedType)
 
-			for _, registeredResourceType := range r.Dependencies.ClusterGenerationPolicyRegistry.GetRegisteredResourceTypes() {
-				r.Dependencies.ClusterGenerationPolicyRegistry.RemoveResource(registeredResourceType, resourceManifest)
+			// Avoid adding those already added.
+			// This prevents user from defining the group more than once per manifest
+			if slices.Contains(desiredWatchedGroups, watchedType) {
+				continue
 			}
-
+			desiredWatchedGroups = append(desiredWatchedGroups, watchedType)
 			r.Dependencies.ClusterGenerationPolicyRegistry.AddResource(watchedType, resourceManifest)
 		}
 	}
 
-	// TODO: Discuss
-	// Some ClusterGenerationPolicy changed,
-	// do we want to update all watched resources to reconcile everything retroactively,
-	// or just admit future events?
+	// Clean non-desired watched types. This is needed for updates where the user
+	// changes watched resources
+	for _, registeredResourceType := range r.Dependencies.ClusterGenerationPolicyRegistry.GetRegisteredResourceTypes() {
+		if !slices.Contains(desiredWatchedGroups, registeredResourceType) {
+			r.Dependencies.ClusterGenerationPolicyRegistry.RemoveResource(registeredResourceType, resourceManifest)
+			continue
+		}
+	}
 
 	return nil
 }
