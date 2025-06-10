@@ -20,7 +20,7 @@ spec:
   conditions: []
 
   patch:
-    type: jsonpatch # JsonPatch | StrategicMerge
+    type: jsonpatch # JsonPatch | JsonMerge
     engine: plain+cel
     template: |
       [

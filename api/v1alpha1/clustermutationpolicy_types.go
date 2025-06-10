@@ -21,8 +21,9 @@ import (
 )
 
 const (
-	MutationPatchTypeJson  string = "jsonpatch"
-	MutationPatchTypeMerge string = "strategicmerge"
+	MutationPatchTypeJson           string = "jsonpatch"
+	MutationPatchTypeMerge          string = "jsonmerge"
+	MutationPatchTypeStrategicMerge string = "strategicmerge"
 )
 
 type PatchT struct {
