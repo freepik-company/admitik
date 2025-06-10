@@ -19,7 +19,6 @@ package admission
 import (
 	"encoding/json"
 	"fmt"
-	"freepik.com/admitik/internal/common"
 	"io"
 	"net/http"
 	"strings"
@@ -29,10 +28,16 @@ import (
 	"github.com/wI2L/jsondiff"
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/yaml"
 
 	//
 	"freepik.com/admitik/api/v1alpha1"
+	"freepik.com/admitik/internal/common"
+	"freepik.com/admitik/internal/globals"
 	"freepik.com/admitik/internal/template"
 )
 
@@ -181,7 +186,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 
 // generateJsonPatchOperations return a group of JsonPatch operations to mutate an object from its original
 // state to a final state. It's compatible with 'jsonpatch' and 'strategicmerge' patch types.
-func generateJsonPatchOperations(objectToPatch []byte, patchType string, patch []byte) (results jsondiff.Patch, err error) {
+func generateJsonPatchOperations(objectToPatch []byte, patchType string, patch []byte) (jsonPatchOperations jsondiff.Patch, err error) {
 
 	var patchedObjectBytes []byte
 	patchType = strings.ToLower(patchType)
@@ -189,7 +194,13 @@ func generateJsonPatchOperations(objectToPatch []byte, patchType string, patch [
 	// Apply user-defined patch to the entering object
 	switch patchType {
 	case v1alpha1.MutationPatchTypeMerge:
-		patchedObjectBytes, err = jsonpatch.MergePatch(objectToPatch, patch)
+		var tmpPatchBytes []byte
+		tmpPatchBytes, err = yaml.YAMLToJSON(patch)
+		if err != nil {
+			return nil, err
+		}
+
+		patchedObjectBytes, err = jsonpatch.MergePatch(objectToPatch, tmpPatchBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -216,4 +227,53 @@ func generateJsonPatchOperations(objectToPatch []byte, patchType string, patch [
 	}
 
 	return tmpJsonPatchOperations, nil
+}
+
+// dryRunPatchedObject use a dynamic client for validating the patched object through dry-run
+// TODO: Implement this DRY-RUN as a test before sending the patch to Kubernetes
+func dryRunPatchedObject(req *admissionv1.AdmissionRequest, patched []byte) error {
+	var err error
+
+	// Ignore operations different from CREATE or UPDATE
+	if req.Operation != admissionv1.Create && req.Operation != admissionv1.Update {
+		return nil
+	}
+
+	// Transform patched object
+	var obj unstructured.Unstructured
+	if err := json.Unmarshal(patched, &obj.Object); err != nil {
+		return fmt.Errorf("failed to unmarshal patched object: %w", err)
+	}
+
+	// Rebuild GVR for the resource
+	gvr := schema.GroupVersionResource{
+		Group:    req.Resource.Group,
+		Version:  req.Resource.Version,
+		Resource: req.Resource.Resource,
+	}
+	namespace := req.Namespace
+
+	//
+	resourceClient := globals.Application.KubeRawClient.Resource(gvr)
+	var resource dynamic.ResourceInterface = resourceClient
+	if namespace != "" {
+		resource = resourceClient.Namespace(namespace)
+	}
+
+	switch req.Operation {
+	case admissionv1.Create:
+		_, err = resource.Create(globals.Application.Context, &obj, metav1.CreateOptions{
+			DryRun: []string{metav1.DryRunAll},
+		})
+	case admissionv1.Update:
+		_, err = resource.Update(globals.Application.Context, &obj, metav1.UpdateOptions{
+			DryRun: []string{metav1.DryRunAll},
+		})
+	}
+
+	if err != nil {
+		return fmt.Errorf("dry-run failed: %w", err)
+	}
+
+	return nil
 }

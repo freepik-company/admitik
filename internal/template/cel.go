@@ -27,7 +27,7 @@ import (
 
 var (
 	// CellBracketExpressionRegexCompiled represents a compiled regex to find {{cel: ...}} patterns
-	CellBracketExpressionRegexCompiled = regexp.MustCompile(`{{cel:\s*(.*?)\s*}}`)
+	CellBracketExpressionRegexCompiled = regexp.MustCompile(`{{cel:\s*([\s\S]*?)\s*}}`)
 )
 
 func EvaluateTemplateCel(template string, injectedData *InjectedDataT) (result string, err error) {
