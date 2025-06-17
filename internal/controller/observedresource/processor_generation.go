@@ -18,8 +18,6 @@ package observedresource
 import (
 	"fmt"
 	"gopkg.in/yaml.v3"
-	"strings"
-
 	//
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -103,13 +101,12 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 		// FIXME: Arrange everything to avoid declaring no-sense vars here
 		//////////////////////////////////////////////////////////////////////////
 		var resultObject map[string]any
-		var resultObjectBasicData map[string]any
+		var resultObjectBasicData globals.ObjectBasicData
 
 		var tmpGroup, tmpVersion string
 		var resultObjConverted *unstructured.Unstructured
 		var tmpResource string
 		var tmpGvrnn *v1alpha1.ResourceGroupT
-		var tmpApiVersionParts []string
 		var resourceClient dynamic.ResourceInterface
 		//////////////////////////////////////////////////////////////////////////
 
@@ -141,17 +138,10 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 		}
 
 		// Craft a metadata object for client-go to perform actions
-		tmpVersion = resultObjectBasicData["apiVersion"].(string)
-		tmpApiVersionParts = strings.Split(tmpVersion, "/")
-		if len(tmpApiVersionParts) == 2 {
-			tmpGroup = tmpApiVersionParts[0]
-			tmpVersion = tmpApiVersionParts[1]
-		}
-
 		tmpResource = getResourceFromGvk(p.dependencies.KubeAvailableResourceList, schema.GroupVersionKind{
-			Group:   tmpGroup,
-			Version: tmpVersion,
-			Kind:    resultObjectBasicData["kind"].(string),
+			Group:   resultObjectBasicData.Group,
+			Version: resultObjectBasicData.Version,
+			Kind:    resultObjectBasicData.Kind,
 		})
 
 		if tmpResource == "" {
@@ -166,15 +156,15 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 				Version:  tmpVersion,
 				Resource: tmpResource,
 			},
-			Name:      resultObjectBasicData["name"].(string),
-			Namespace: resultObjectBasicData["namespace"].(string),
+			Name:      resultObjectBasicData.Name,
+			Namespace: resultObjectBasicData.Namespace,
 		}
 		logger.WithValues(
 			"group", tmpGvrnn.Group,
 			"version", tmpGvrnn.Version,
 			"resource", tmpGvrnn.Resource,
-			"name", resultObjectBasicData["name"].(string),
-			"namespace", resultObjectBasicData["namespace"].(string))
+			"name", resultObjectBasicData.Name,
+			"namespace", resultObjectBasicData.Namespace)
 
 		resultObjConverted = &unstructured.Unstructured{
 			Object: resultObject,

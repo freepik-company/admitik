@@ -141,6 +141,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 
 		// Conditions are not met, skip patching the resource
 		if !conditionsPassed {
+			// TODO: Should we log, or throw an event, when conditions are not met?
 			continue
 		}
 
@@ -158,7 +159,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 			goto createKubeEvent
 		}
 
-		tmpJsonPatchOperations, err = generateJsonPatchOperations(requestObj.Request.Object.Raw, cmPolicyObj.Spec.Patch.Type, []byte(parsedPatch))
+		tmpJsonPatchOperations, err = s.generateJsonPatchOperations(requestObj.Request.Object.Raw, cmPolicyObj.Spec.Patch.Type, []byte(parsedPatch))
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed generating canonical jsonPatch operations for Kube API server: %s", err.Error()))
 			kubeEventMessage = "Generated patch is invalid. More info in controller logs."
@@ -185,8 +186,8 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 }
 
 // generateJsonPatchOperations return a group of JsonPatch operations to mutate an object from its original
-// state to a final state. It's compatible with 'jsonpatch' and 'strategicmerge' patch types.
-func generateJsonPatchOperations(objectToPatch []byte, patchType string, patch []byte) (jsonPatchOperations jsondiff.Patch, err error) {
+// state to a final state. It's compatible with 'jsonpatch', 'jsonmerge' and 'strategicmerge' patch types.
+func (s *HttpServer) generateJsonPatchOperations(objectToPatch []byte, patchType string, patch []byte) (jsonPatchOperations jsondiff.Patch, err error) {
 
 	var patchedObjectBytes []byte
 	patchType = strings.ToLower(patchType)
@@ -194,26 +195,19 @@ func generateJsonPatchOperations(objectToPatch []byte, patchType string, patch [
 	// Apply user-defined patch to the entering object
 	switch patchType {
 	case v1alpha1.MutationPatchTypeMerge:
-		var tmpPatchBytes []byte
-		tmpPatchBytes, err = yaml.YAMLToJSON(patch)
+		patchedObjectBytes, err = s.generateJsonMergePatch(objectToPatch, patch)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("jsonmerge patch failed: %v", err)
 		}
-
-		patchedObjectBytes, err = jsonpatch.MergePatch(objectToPatch, tmpPatchBytes)
+	case v1alpha1.MutationPatchTypeStrategicMerge:
+		patchedObjectBytes, err = s.generateStrategicMergePatch(objectToPatch, patch)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("strategicmerge patch failed: %v", err)
 		}
 	default:
-		var tmpPatch jsonpatch.Patch
-		tmpPatch, err = jsonpatch.DecodePatch(patch)
+		patchedObjectBytes, err = s.generateJsonPatchPatch(objectToPatch, patch)
 		if err != nil {
-			return nil, err
-		}
-
-		patchedObjectBytes, err = tmpPatch.Apply(objectToPatch)
-		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("jsonpatch patch failed: %v", err)
 		}
 	}
 
@@ -227,6 +221,97 @@ func generateJsonPatchOperations(objectToPatch []byte, patchType string, patch [
 	}
 
 	return tmpJsonPatchOperations, nil
+}
+
+// generateJsonPatchPatch patches the object using JSONPath strategy and returns the resulting object
+// Patch must be expressed in JSON
+func (s *HttpServer) generateJsonPatchPatch(objectToPatch []byte, patch []byte) (patchedObjectBytes []byte, err error) {
+
+	var tmpPatch jsonpatch.Patch
+	tmpPatch, err = jsonpatch.DecodePatch(patch)
+	if err != nil {
+		return nil, err
+	}
+
+	patchedObjectBytes, err = tmpPatch.Apply(objectToPatch)
+	if err != nil {
+		return nil, err
+	}
+
+	return patchedObjectBytes, nil
+}
+
+// generateJsonMergePatch patches the object using JSONMerge strategy and returns the resulting object
+// Patch must be expressed in YAML
+func (s *HttpServer) generateJsonMergePatch(objectToPatch []byte, patch []byte) (patchedObjectBytes []byte, err error) {
+
+	var tmpPatchBytes []byte
+	tmpPatchBytes, err = yaml.YAMLToJSON(patch)
+	if err != nil {
+		return nil, err
+	}
+
+	patchedObjectBytes, err = jsonpatch.MergePatch(objectToPatch, tmpPatchBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return patchedObjectBytes, nil
+}
+
+// generateStrategicMergePatch patches the object using StrategicMerge strategy and returns the resulting object
+// Patch must be expressed in YAML
+func (s *HttpServer) generateStrategicMergePatch(objectToPatch []byte, patch []byte) (patchedObjectBytes []byte, err error) {
+
+	var tmpPatchBytes []byte
+	tmpPatchBytes, err = yaml.YAMLToJSON(patch)
+	if err != nil {
+		return nil, err
+	}
+
+	//
+	tmpPatchObject := map[string]any{}
+	err = json.Unmarshal(tmpPatchBytes, &tmpPatchObject)
+	if err != nil {
+		return nil, err
+	}
+
+	tmpOriginalObject := map[string]any{}
+	err = json.Unmarshal(objectToPatch, &tmpOriginalObject)
+	if err != nil {
+		return nil, err
+	}
+
+	// Take original GVK as default. Overwrite it when the patch specifies another.
+	desiredGvk, err := globals.GetObjectGVK(&tmpOriginalObject)
+	if err != nil {
+		return nil, err
+	}
+
+	patchGVK, err := globals.GetObjectGVK(&tmpPatchObject)
+	if err == nil {
+		desiredGvk = patchGVK
+	}
+
+	//
+	initialSchema := s.strategicMergePatcher.GetSchemaByGVK(schema.GroupVersionKind{
+		Group:   desiredGvk.Group,
+		Version: desiredGvk.Version,
+		Kind:    desiredGvk.Kind,
+	})
+
+	patchedObject := map[string]any{}
+	patchedObject, err = s.strategicMergePatcher.StrategicMerge(tmpOriginalObject, tmpPatchObject, initialSchema)
+	if err != nil {
+		return nil, err
+	}
+
+	patchedObjectBytes, err = json.Marshal(patchedObject)
+	if err != nil {
+		return nil, err
+	}
+
+	return patchedObjectBytes, nil
 }
 
 // dryRunPatchedObject use a dynamic client for validating the patched object through dry-run

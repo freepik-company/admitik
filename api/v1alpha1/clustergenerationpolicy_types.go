@@ -40,13 +40,30 @@ type ObjectT struct {
 type ClusterGenerationPolicySpec struct {
 	OverwriteExisting bool `json:"overwriteExisting,omitempty"`
 
-	//
+	// WatchedResources represents a list of resource-groups that will be watched to be evaluated
+	// +listType=map
+	// +listMapKey=group
+	// +listMapKey=version
+	// +listMapKey=resource
+	// +listMapKey=name
+	// +listMapKey=namespace
 	WatchedResources []ResourceGroupT `json:"watchedResources"`
-	Sources          []ResourceGroupT `json:"sources"`
 
-	//
+	// Sources represents a list of extra resource-groups to watch and inject in templates
+	// +listType=map
+	// +listMapKey=group
+	// +listMapKey=version
+	// +listMapKey=resource
+	// +listMapKey=name
+	// +listMapKey=namespace
+	Sources []ResourceGroupT `json:"sources"`
+
+	// Conditions represents a list of conditions that must be passed to meet the policy
+	// +listType=map
+	// +listMapKey=name
 	Conditions []ConditionT `json:"conditions"`
-	Object     ObjectT      `json:"object"`
+
+	Object ObjectT `json:"object"`
 }
 
 // ClusterGenerationPolicyStatus defines the observed state of ClusterGenerationPolicy

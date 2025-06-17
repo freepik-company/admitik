@@ -19,6 +19,7 @@ package globals
 import (
 	"errors"
 	"os"
+	"strings"
 
 	//
 	"k8s.io/client-go/discovery"
@@ -85,35 +86,79 @@ func GetCurrentNamespace() (string, error) {
 	return namespace, nil
 }
 
-// GetObjectBasicData extracts basic data (apiVersion, kind, namespace and name) from the object
-func GetObjectBasicData(object *map[string]any) (objectData map[string]any, err error) {
+type ObjectGVK struct {
+	Group   string
+	Version string
+	Kind    string
+}
 
-	metadata, ok := (*object)["metadata"].(map[string]any)
+// GetObjectGVK extracts GVK from an object
+func GetObjectGVK(object *map[string]any) (objectData ObjectGVK, err error) {
+
+	objectData = ObjectGVK{}
+
+	value, ok := (*object)["apiVersion"]
 	if !ok {
-		err = errors.New("metadata not found or not in expected format")
+		err = errors.New("apiVersion not found")
 		return
 	}
 
-	objectData = make(map[string]any)
+	apiVersion := value.(string)
 
-	objectData["apiVersion"] = ""
-	if value, ok := (*object)["apiVersion"]; ok {
-		objectData["apiVersion"] = value.(string)
+	apiVersionParts := strings.Split(apiVersion, "/")
+	if len(apiVersionParts) == 2 {
+		objectData.Group = apiVersionParts[0]
+		objectData.Version = apiVersionParts[1]
+	} else {
+		objectData.Version = apiVersionParts[0]
 	}
 
-	objectData["kind"] = ""
-	if value, ok := (*object)["kind"]; ok {
-		objectData["kind"] = value.(string)
+	//
+	value, ok = (*object)["kind"]
+	if !ok {
+		err = errors.New("kind not found")
+		return
+	}
+	objectData.Kind = value.(string)
+
+	return objectData, nil
+}
+
+type ObjectBasicData struct {
+	Group     string
+	Version   string
+	Kind      string
+	Name      string
+	Namespace string
+}
+
+// GetObjectBasicData extracts basic data (apiVersion, kind, namespace and name) from the object
+func GetObjectBasicData(object *map[string]any) (objectData ObjectBasicData, err error) {
+
+	metadata, ok := (*object)["metadata"].(map[string]any)
+	if !ok {
+		err = errors.New("field not found or not in expected format: metadata")
+		return
 	}
 
-	objectData["name"] = ""
+	gvk, err := GetObjectGVK(object)
+	if err != nil {
+		err = errors.New("field not found or not in expected format: group, version, kind")
+		return
+	}
+
+	objectData = ObjectBasicData{
+		Group:   gvk.Group,
+		Version: gvk.Version,
+		Kind:    gvk.Kind,
+	}
+
 	if value, ok := metadata["name"]; ok {
-		objectData["name"] = value
+		objectData.Name = value.(string)
 	}
 
-	objectData["namespace"] = ""
 	if value, ok := metadata["namespace"]; ok {
-		objectData["namespace"] = value
+		objectData.Namespace = value.(string)
 	}
 
 	return objectData, nil

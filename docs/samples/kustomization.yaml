@@ -39,6 +39,7 @@ resources:
 
 # Plain+CEL examples
 - ClusterMutationPolicy/plain_with_cel_add_some_labels.yaml
+- ClusterMutationPolicy/plain_with_cel_use_strategicmerge_patch.yaml
 
 #####################################
 ## ClusterGenerationPolicy

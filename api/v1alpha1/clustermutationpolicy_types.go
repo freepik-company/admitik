@@ -34,13 +34,29 @@ type PatchT struct {
 
 // ClusterMutationPolicySpec defines the desired state of ClusterMutationPolicy
 type ClusterMutationPolicySpec struct {
-	//
-	InterceptedResources []AdmissionResourceGroupT `json:"interceptedResources"`
-	Sources              []ResourceGroupT          `json:"sources"`
 
-	//
+	// InterceptedResources represents a list of resource-groups that will be sent to the admissions server to be evaluated
+	// +listType=map
+	// +listMapKey=group
+	// +listMapKey=version
+	// +listMapKey=resource
+	InterceptedResources []AdmissionResourceGroupT `json:"interceptedResources"`
+
+	// Sources represents a list of extra resource-groups to watch and inject in templates
+	// +listType=map
+	// +listMapKey=group
+	// +listMapKey=version
+	// +listMapKey=resource
+	// +listMapKey=name
+	// +listMapKey=namespace
+	Sources []ResourceGroupT `json:"sources"`
+
+	// Conditions represents a list of conditions that must be passed to meet the policy
+	// +listType=map
+	// +listMapKey=name
 	Conditions []ConditionT `json:"conditions"`
-	Patch      PatchT       `json:"patch"`
+
+	Patch PatchT `json:"patch"`
 }
 
 // ClusterMutationPolicyStatus defines the observed state of ClusterMutationPolicy

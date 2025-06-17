@@ -21,22 +21,29 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ResourceGroupT represents a group of resources
+// ResourceGroupT represents a resource-group that will be watched to be evaluated
 type ResourceGroupT struct {
 	metav1.GroupVersionResource `json:",inline"`
 
-	Name      string `json:"name,omitempty"`
+	// +default=""
+	// +kubebuilder:default=""
+	Name string `json:"name,omitempty"`
+
+	// +default=""
+	// +kubebuilder:default=""
 	Namespace string `json:"namespace,omitempty"`
 }
 
-// AdmissionResourceGroupT represents a group of resources from Admission point of view
+// AdmissionResourceGroupT represents a resource-group that will be sent to the admissions server to be evaluated
 type AdmissionResourceGroupT struct {
 	metav1.GroupVersionResource `json:",inline"`
 
+	// Conditions represents a list of conditions that must be passed to meet the policy
+	// +listType=set
 	Operations []admissionV1.OperationType `json:"operations"`
 }
 
-// ConditionT represents a canonical Kubernetes status condition for a resource
+// ConditionT represents a condition that must be passed to meet the policy
 type ConditionT struct {
 	Name   string `json:"name"`
 	Engine string `json:"engine,omitempty"`

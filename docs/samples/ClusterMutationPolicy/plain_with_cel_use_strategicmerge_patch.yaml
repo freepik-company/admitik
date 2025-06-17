@@ -1,7 +1,7 @@
 apiVersion: admitik.freepik.com/v1alpha1
 kind: ClusterMutationPolicy
 metadata:
-  name: plain-with-cel-add-some-labels
+  name: plain-with-cel-use-strategicmerge-patch
 spec:
 
   # Resources to be intercepted before reaching the cluster
@@ -20,12 +20,11 @@ spec:
   conditions: []
 
   patch:
-    type: jsonpatch # JsonPatch | JsonMerge | StrategicMerge
+    type: strategicmerge # JsonPatch | JsonMerge | StrategicMerge
     engine: plain+cel
     template: |
-      [
-        { "op": "add", "path": "/metadata/annotations", "value": {} },
-        { "op": "add", "path": "/metadata/annotations/object-operation", "value": "{{cel: operation }}" },
-        { "op": "add", "path": "/metadata/annotations/object-kind", "value": "{{cel: object.kind }}" },
-        { "op": "add", "path": "/metadata/annotations/object-name", "value": "{{cel: object.metadata.name }}" }
-      ]
+      apiVersion: v1                                                                                                                                                                                 
+      kind: Namespace
+      metadata:
+        labels:
+          custom-label/namespace: "{{cel: object.metadata.name }}"

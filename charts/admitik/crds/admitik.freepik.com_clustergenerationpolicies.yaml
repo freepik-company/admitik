@@ -42,9 +42,11 @@ spec:
               ClusterGenerationPolicy
             properties:
               conditions:
+                description: Conditions represents a list of conditions that must
+                  be passed to meet the policy
                 items:
-                  description: ConditionT represents a canonical Kubernetes status
-                    condition for a resource
+                  description: ConditionT represents a condition that must be passed
+                    to meet the policy
                   properties:
                     engine:
                       type: string
@@ -60,6 +62,9 @@ spec:
                   - value
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
               object:
                 description: ObjectT TODO
                 properties:
@@ -83,14 +88,19 @@ spec:
               overwriteExisting:
                 type: boolean
               sources:
+                description: Sources represents a list of extra resource-groups to
+                  watch and inject in templates
                 items:
-                  description: ResourceGroupT represents a group of resources
+                  description: ResourceGroupT represents a resource-group that will
+                    be watched to be evaluated
                   properties:
                     group:
                       type: string
                     name:
+                      default: ""
                       type: string
                     namespace:
+                      default: ""
                       type: string
                     resource:
                       type: string
@@ -102,15 +112,27 @@ spec:
                   - version
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - group
+                - version
+                - resource
+                - name
+                - namespace
+                x-kubernetes-list-type: map
               watchedResources:
+                description: WatchedResources represents a list of resource-groups
+                  that will be watched to be evaluated
                 items:
-                  description: ResourceGroupT represents a group of resources
+                  description: ResourceGroupT represents a resource-group that will
+                    be watched to be evaluated
                   properties:
                     group:
                       type: string
                     name:
+                      default: ""
                       type: string
                     namespace:
+                      default: ""
                       type: string
                     resource:
                       type: string
@@ -122,6 +144,13 @@ spec:
                   - version
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - group
+                - version
+                - resource
+                - name
+                - namespace
+                x-kubernetes-list-type: map
             required:
             - conditions
             - object

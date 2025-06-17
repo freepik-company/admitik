@@ -42,9 +42,11 @@ spec:
               ClusterValidationPolicy
             properties:
               conditions:
+                description: Conditions represents a list of conditions that must
+                  be passed to meet the policy
                 items:
-                  description: ConditionT represents a canonical Kubernetes status
-                    condition for a resource
+                  description: ConditionT represents a condition that must be passed
+                    to meet the policy
                   properties:
                     engine:
                       type: string
@@ -60,20 +62,28 @@ spec:
                   - value
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
               failureAction:
                 type: string
               interceptedResources:
+                description: InterceptedResources represents a list of resource-groups
+                  that will be sent to the admissions server to be evaluated
                 items:
-                  description: AdmissionResourceGroupT represents a group of resources
-                    from Admission point of view
+                  description: AdmissionResourceGroupT represents a resource-group
+                    that will be sent to the admissions server to be evaluated
                   properties:
                     group:
                       type: string
                     operations:
+                      description: Conditions represents a list of conditions that
+                        must be passed to meet the policy
                       items:
                         description: OperationType specifies an operation for a request.
                         type: string
                       type: array
+                      x-kubernetes-list-type: set
                     resource:
                       type: string
                     version:
@@ -85,6 +95,11 @@ spec:
                   - version
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - group
+                - version
+                - resource
+                x-kubernetes-list-type: map
               message:
                 properties:
                   engine:
@@ -95,14 +110,19 @@ spec:
                 - template
                 type: object
               sources:
+                description: Sources represents a list of extra resource-groups to
+                  watch and inject in templates
                 items:
-                  description: ResourceGroupT represents a group of resources
+                  description: ResourceGroupT represents a resource-group that will
+                    be watched to be evaluated
                   properties:
                     group:
                       type: string
                     name:
+                      default: ""
                       type: string
                     namespace:
+                      default: ""
                       type: string
                     resource:
                       type: string
@@ -114,6 +134,13 @@ spec:
                   - version
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - group
+                - version
+                - resource
+                - name
+                - namespace
+                x-kubernetes-list-type: map
             required:
             - conditions
             - interceptedResources
