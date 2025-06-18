@@ -29,7 +29,7 @@ spec:
       value: "mutate-it"
 
   patch:
-    type: jsonpatch # JsonPatch | JsonMerge
+    type: jsonpatch # JsonPatch | JsonMerge | StrategicMerge
     engine: starlark
     template: |
       def check_operation():

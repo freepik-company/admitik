@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	//
@@ -136,10 +137,10 @@ func CreateKubeEvent(ctx context.Context, namespace string, reporter string, obj
 		Reason:              eventReason,
 
 		Regarding: corev1.ObjectReference{
-			APIVersion: objectData["apiVersion"].(string),
-			Kind:       objectData["kind"].(string),
-			Name:       objectData["name"].(string),
-			Namespace:  objectData["namespace"].(string),
+			APIVersion: strings.Join([]string{objectData.Group, objectData.Version}, "/"),
+			Kind:       objectData.Kind,
+			Name:       objectData.Name,
+			Namespace:  objectData.Namespace,
 		},
 
 		Related: &corev1.ObjectReference{

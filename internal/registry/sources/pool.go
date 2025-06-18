@@ -69,7 +69,7 @@ func (m *SourcesRegistry) RemoveResource(rt ResourceTypeName, resource *map[stri
 		}
 
 		//
-		if objectData["name"] == resourceData["name"] && objectData["namespace"] == resourceData["namespace"] {
+		if objectData.Name == resourceData.Name && objectData.Namespace == resourceData.Namespace {
 			index = itemIndex
 			break
 		}

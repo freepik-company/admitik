@@ -102,7 +102,10 @@ func (as *AdmissionServer) Start(ctx context.Context) {
 // runWebserver prepares and runs the HTTP server
 func (as *AdmissionServer) runWebserver() (err error) {
 
-	customServer := NewHttpServer(&as.dependencies)
+	customServer, err := NewHttpServer(&as.dependencies)
+	if err != nil {
+		return err
+	}
 
 	// Create the webserver to serve the requests
 	mux := http.NewServeMux()

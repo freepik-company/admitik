@@ -17,6 +17,8 @@ limitations under the License.
 package admission
 
 import (
+	"freepik.com/admitik/internal/globals"
+	"freepik.com/admitik/internal/strategicmerge"
 	"net/http"
 )
 
@@ -26,14 +28,28 @@ type HttpServer struct {
 
 	// Injected dependencies
 	dependencies *AdmissionServerDependencies
+
+	// Carried-stuff
+	strategicMergePatcher *strategicmerge.StrategicMergePatcher
 }
 
 // NewHttpServer creates a new HttpServer
-func NewHttpServer(dependencies *AdmissionServerDependencies) *HttpServer {
-	return &HttpServer{
-		&http.Server{},
-		dependencies,
+func NewHttpServer(dependencies *AdmissionServerDependencies) (*HttpServer, error) {
+
+	var err error
+	httpServer := &HttpServer{}
+	httpServer.Server = &http.Server{}
+
+	httpServer.dependencies = dependencies
+
+	httpServer.strategicMergePatcher, err = strategicmerge.NewStrategicMergePatcher(&strategicmerge.StrategicMergePatcherDependencies{
+		DiscoveryClient: globals.Application.KubeDiscoveryClient,
+	})
+	if err != nil {
+		return nil, err
 	}
+
+	return httpServer, nil
 }
 
 // setAddr sets the address for the server
