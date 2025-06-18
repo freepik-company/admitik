@@ -25,7 +25,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	//
-	"freepik.com/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/api/v1alpha1"
 )
 
 func NewClusterMutationPolicyRegistry() *ClusterMutationPolicyRegistry {

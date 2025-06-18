@@ -36,11 +36,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	//
-	"freepik.com/admitik/internal/globals"
-	clusterGenerationPolicyRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicy"
-	resourceInformerRegistry "freepik.com/admitik/internal/registry/resourceinformer"
-	resourceObserverRegistry "freepik.com/admitik/internal/registry/resourceobserver"
-	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
+	"github.com/freepik-company/admitik/internal/globals"
+	clusterGenerationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustergenerationpolicy"
+	resourceInformerRegistry "github.com/freepik-company/admitik/internal/registry/resourceinformer"
+	resourceObserverRegistry "github.com/freepik-company/admitik/internal/registry/resourceobserver"
+	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
 )
 
 const (

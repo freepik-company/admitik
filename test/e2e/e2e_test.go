@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"freepik.com/admitik/test/utils"
+	"github.com/freepik-company/admitik/test/utils"
 )
 
 const namespace = "admitik-system"

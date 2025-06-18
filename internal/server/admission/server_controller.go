@@ -26,9 +26,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	//
-	clusterMutationpolicyRegistry "freepik.com/admitik/internal/registry/clustermutationpolicy"
-	clusterValidationpolicyRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicy"
-	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
+	clusterMutationpolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustermutationpolicy"
+	clusterValidationpolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustervalidationpolicy"
+	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
 )
 
 const (

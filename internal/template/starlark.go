@@ -48,7 +48,7 @@ import (
 	modStarletString "github.com/1set/starlet/lib/string"
 
 	// own modules
-	modSelfYaml "freepik.com/admitik/internal/template/starlarkmods/yaml"
+	modSelfYaml "github.com/freepik-company/admitik/internal/template/starlarkmods/yaml"
 )
 
 func EvaluateTemplateStarlark(template string, injectedData *InjectedDataT) (result string, err error) {

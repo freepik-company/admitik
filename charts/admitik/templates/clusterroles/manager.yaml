@@ -36,7 +36,7 @@ rules:
     - update
     - watch
 - apiGroups:
-    - admitik.freepik.com
+    - admitik.dev
   resources:
     - clustergenerationpolicies
   verbs:
@@ -48,13 +48,13 @@ rules:
     - update
     - watch
 - apiGroups:
-    - admitik.freepik.com
+    - admitik.dev
   resources:
     - clustergenerationpolicies/finalizers
   verbs:
     - update
 - apiGroups:
-    - admitik.freepik.com
+    - admitik.dev
   resources:
     - clustergenerationpolicies/status
   verbs:
@@ -62,7 +62,7 @@ rules:
     - patch
     - update
 - apiGroups:
-    - admitik.freepik.com
+    - admitik.dev
   resources:
     - clustermutationpolicies
   verbs:
@@ -74,13 +74,13 @@ rules:
     - update
     - watch
 - apiGroups:
-    - admitik.freepik.com
+    - admitik.dev
   resources:
     - clustermutationpolicies/finalizers
   verbs:
     - update
 - apiGroups:
-    - admitik.freepik.com
+    - admitik.dev
   resources:
     - clustermutationpolicies/status
   verbs:
@@ -88,7 +88,7 @@ rules:
     - patch
     - update
 - apiGroups:
-    - admitik.freepik.com
+    - admitik.dev
   resources:
     - clustervalidationpolicies
   verbs:
@@ -100,13 +100,13 @@ rules:
     - update
     - watch
 - apiGroups:
-    - admitik.freepik.com
+    - admitik.dev
   resources:
     - clustervalidationpolicies/finalizers
   verbs:
     - update
 - apiGroups:
-    - admitik.freepik.com
+    - admitik.dev
   resources:
     - clustervalidationpolicies/status
   verbs:

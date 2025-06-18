@@ -11,13 +11,14 @@ home: https://github.com/freepik-company/admitik
 sources:
   - https://github.com/freepik-company/admitik
 keywords:
-  - freepik
-  - prosimcorp
   - admitik
-  - gitops
+  - cloud-native
+  - freepik
+  - kubernetes
+  - policy
 maintainers:
   - name: Alby Hernández
-    email: ahernandez@freepik.com
+    email: ahernandez@admitik.dev
     url: https://github.com/freepik-company/admitik
   - name: prosimcorp
     url: https://github.com/prosimcorp

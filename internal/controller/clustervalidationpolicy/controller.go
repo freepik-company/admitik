@@ -30,9 +30,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	//
-	"freepik.com/admitik/api/v1alpha1"
-	"freepik.com/admitik/internal/controller"
-	clusterValidationPolicyRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicy"
+	"github.com/freepik-company/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/internal/controller"
+	clusterValidationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustervalidationpolicy"
 )
 
 type ClusterValidationPolicyControllerOptions struct {
@@ -54,9 +54,9 @@ type ClusterValidationPolicyReconciler struct {
 	Dependencies ClusterValidationPolicyControllerDependencies
 }
 
-// +kubebuilder:rbac:groups=admitik.freepik.com,resources=clustervalidationpolicies,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=admitik.freepik.com,resources=clustervalidationpolicies/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=admitik.freepik.com,resources=clustervalidationpolicies/finalizers,verbs=update
+// +kubebuilder:rbac:groups=admitik.dev,resources=clustervalidationpolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=admitik.dev,resources=clustervalidationpolicies/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=admitik.dev,resources=clustervalidationpolicies/finalizers,verbs=update
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;create;update;patch;delete;watch
 // +kubebuilder:rbac:groups="*",resources="*",verbs="*"
 

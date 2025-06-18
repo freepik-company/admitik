@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.15.0
-  name: clustervalidationpolicies.admitik.freepik.com
+  name: clustermutationpolicies.admitik.dev
 spec:
-  group: admitik.freepik.com
+  group: admitik.dev
   names:
-    kind: ClusterValidationPolicy
-    listKind: ClusterValidationPolicyList
-    plural: clustervalidationpolicies
-    singular: clustervalidationpolicy
+    kind: ClusterMutationPolicy
+    listKind: ClusterMutationPolicyList
+    plural: clustermutationpolicies
+    singular: clustermutationpolicy
   scope: Cluster
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ClusterValidationPolicy is the Schema for the clustervalidationpolicies
+        description: ClusterMutationPolicy is the Schema for the clustermutationpolicies
           API
         properties:
           apiVersion:
@@ -38,8 +38,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: ClusterValidationPolicySpec defines the desired state of
-              ClusterValidationPolicy
+            description: ClusterMutationPolicySpec defines the desired state of ClusterMutationPolicy
             properties:
               conditions:
                 description: Conditions represents a list of conditions that must
@@ -65,8 +64,6 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
-              failureAction:
-                type: string
               interceptedResources:
                 description: InterceptedResources represents a list of resource-groups
                   that will be sent to the admissions server to be evaluated
@@ -100,14 +97,17 @@ spec:
                 - version
                 - resource
                 x-kubernetes-list-type: map
-              message:
+              patch:
                 properties:
                   engine:
                     type: string
                   template:
                     type: string
+                  type:
+                    type: string
                 required:
                 - template
+                - type
                 type: object
               sources:
                 description: Sources represents a list of extra resource-groups to
@@ -144,12 +144,12 @@ spec:
             required:
             - conditions
             - interceptedResources
-            - message
+            - patch
             - sources
             type: object
           status:
-            description: ClusterValidationPolicyStatus defines the observed state
-              of ClusterValidationPolicy
+            description: ClusterMutationPolicyStatus defines the observed state of
+              ClusterMutationPolicy
             properties:
               conditions:
                 description: Conditions represent the latest available observations

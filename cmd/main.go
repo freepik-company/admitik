@@ -42,22 +42,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	//
-	"freepik.com/admitik/api/v1alpha1"
-	"freepik.com/admitik/internal/certificates"
-	"freepik.com/admitik/internal/controller"
-	"freepik.com/admitik/internal/controller/clustergenerationpolicy"
-	"freepik.com/admitik/internal/controller/clustermutationpolicy"
-	"freepik.com/admitik/internal/controller/clustervalidationpolicy"
-	"freepik.com/admitik/internal/controller/observedresource"
-	"freepik.com/admitik/internal/controller/sources"
-	"freepik.com/admitik/internal/globals"
-	clusterGenerationPolicyRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicy"
-	clusterMutationPolicyRegistry "freepik.com/admitik/internal/registry/clustermutationpolicy"
-	clusterValidationPolicyRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicy"
-	resourceInformerRegistry "freepik.com/admitik/internal/registry/resourceinformer"
-	resourceObserverRegistry "freepik.com/admitik/internal/registry/resourceobserver"
-	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
-	"freepik.com/admitik/internal/server/admission"
+	"github.com/freepik-company/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/internal/certificates"
+	"github.com/freepik-company/admitik/internal/controller"
+	"github.com/freepik-company/admitik/internal/controller/clustergenerationpolicy"
+	"github.com/freepik-company/admitik/internal/controller/clustermutationpolicy"
+	"github.com/freepik-company/admitik/internal/controller/clustervalidationpolicy"
+	"github.com/freepik-company/admitik/internal/controller/observedresource"
+	"github.com/freepik-company/admitik/internal/controller/sources"
+	"github.com/freepik-company/admitik/internal/globals"
+	clusterGenerationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustergenerationpolicy"
+	clusterMutationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustermutationpolicy"
+	clusterValidationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustervalidationpolicy"
+	resourceInformerRegistry "github.com/freepik-company/admitik/internal/registry/resourceinformer"
+	resourceObserverRegistry "github.com/freepik-company/admitik/internal/registry/resourceobserver"
+	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
+	"github.com/freepik-company/admitik/internal/server/admission"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -182,7 +182,7 @@ func main() {
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "9ee19594.freepik.com",
+		LeaderElectionID:       "9ee19594.admitik.dev",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly

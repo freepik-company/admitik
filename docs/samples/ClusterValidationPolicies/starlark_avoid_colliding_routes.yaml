@@ -1,6 +1,6 @@
 ---
 # Source: fc-custom-manifests/templates/admitik/cluster-admission-policy.yaml
-apiVersion: admitik.freepik.com/v1alpha1
+apiVersion: admitik.dev/v1alpha1
 kind: ClusterValidationPolicy
 metadata:
   name: starlark-avoid-colliding-routes

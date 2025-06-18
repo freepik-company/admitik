@@ -29,9 +29,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	//
-	"freepik.com/admitik/api/v1alpha1"
-	"freepik.com/admitik/internal/common"
-	"freepik.com/admitik/internal/template"
+	"github.com/freepik-company/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/internal/common"
+	"github.com/freepik-company/admitik/internal/template"
 )
 
 // handleValidationRequest handles the incoming validation requests

@@ -35,10 +35,10 @@ import (
 	"sigs.k8s.io/yaml"
 
 	//
-	"freepik.com/admitik/api/v1alpha1"
-	"freepik.com/admitik/internal/common"
-	"freepik.com/admitik/internal/globals"
-	"freepik.com/admitik/internal/template"
+	"github.com/freepik-company/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/internal/common"
+	"github.com/freepik-company/admitik/internal/globals"
+	"github.com/freepik-company/admitik/internal/template"
 )
 
 // handleRequest handles the incoming requests
