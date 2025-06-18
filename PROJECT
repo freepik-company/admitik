@@ -13,26 +13,23 @@ resources:
     namespaced: false
   controller: true
   domain: admitik.dev
-  group: admitik
   kind: ClusterValidationPolicy
   path: github.com/freepik-company/admitik/api/v1alpha1
   version: v1alpha1
- - api:
-     crdVersion: v1
-     namespaced: false
-   controller: true
-   domain: admitik.dev
-   group: admitik
-   kind: ClusterMutationPolicy
-   path: github.com/freepik-company/admitik/api/v1alpha1
-   version: v1alpha1
-  - api:
-      crdVersion: v1
-      namespaced: false
-    controller: true
-    domain: admitik.dev
-    group: admitik
-    kind: ClusterGenerationPolicy
-    path: github.com/freepik-company/admitik/api/v1alpha1
-    version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: false
+  controller: true
+  domain: admitik.dev
+  kind: ClusterMutationPolicy
+  path: github.com/freepik-company/admitik/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: false
+  controller: true
+  domain: admitik.dev
+  kind: ClusterGenerationPolicy
+  path: github.com/freepik-company/admitik/api/v1alpha1
+  version: v1alpha1
 version: "3"
