@@ -1,0 +1,121 @@
+# logging-mutate-pod-fluentbit-sidecar-v1 is a policy that mutates the pods which have the label admitik.policy.v1/logging set to true
+# and has a configmap with the name in the annotation admitik.policy.v1/fluentbitConfigmap.
+
+# This policy adds a init container to the pod with the fluentbit sidecar to send the logs to a fluentd instance.
+# Resources can be customized using the annotation admitik.policy.v1/fluentbitResources with JSON format.
+# Example: '{"limits":{"memory":"100Mi"},"requests":{"cpu":"100m","memory":"50Mi"}}'
+apiVersion: admitik.dev/v1alpha1
+kind: ClusterMutationPolicy
+metadata:
+  name: logging-mutate-fluentbit-pod-sidecar-v1
+
+spec:
+
+# Resources to be intercepted before reaching the cluster
+interceptedResources:
+    - group: ""
+    version: v1
+    resource: pods
+    operations:
+        - CREATE
+
+# Other resources to be retrieved for conditions templates.
+# They will be included under .sources scope in the template
+sources: []
+
+# Conditions are optional, so no-conditions means they are always met
+conditions:
+    - name: apply-on-specific-mark
+    engine: cel
+    key: |              
+        (has(object.metadata.labels) &&
+        object.metadata.labels.exists(label, label == 'admitik.policy.v1/logging')) ||
+        
+        (has(object.metadata.annotations) &&
+        object.metadata.annotations.exists(label, label == 'admitik.policy.v1/logging') &&
+        object.metadata.annotations.exists(label, label == 'admitik.policy.v1/fluentbitConfigmap'))
+
+    value: "true"
+
+patch:
+    type: jsonmerge # JsonPatch | JsonMerge
+    engine: starlark
+    template: |           
+    def define_init_container():
+    
+        # Default resources
+        default_resources = {
+            "limits": {
+                "memory": "50Mi"
+            },
+            "requests": {
+                "cpu": "50m",
+                "memory": "50Mi"
+            }
+        }
+        
+        # Check if custom resources are provided via annotation
+        custom_resources = default_resources
+        if object["metadata"].get("annotations", {}).get("admitik.policy.v1/fluentbitResources"):
+            custom_resources = json.decode(object["metadata"]["annotations"]["admitik.policy.v1/fluentbitResources"])
+    
+        # Init containers
+        existing_init_containers = object["spec"].get("initContainers", [])
+        
+        new_container = [
+            {
+                "name": "fluentbit-sidecar",
+                "image": "fluent/fluent-bit:4.0.2",
+                "restartPolicy": "Always",
+                "imagePullPolicy": "IfNotPresent",
+                "command": ["/fluent-bit/bin/fluent-bit"],
+                "args": ["--config=/fluent-bit/etc/fluentbit.conf"],
+                "resources": custom_resources,
+                "volumeMounts": [
+                    {"name": "fluentbit-config", "mountPath": "/fluent-bit/etc/", "readOnly": True},
+                    {"name": "k8s-container-logs", "mountPath": "/var/log/containers", "readOnly": True},
+                    {"name": "k8s-pods-logs", "mountPath": "/var/log/pods", "readOnly": True},
+                    {"name": "fluentbit-pos", "mountPath": "/fluent-bit/pos"}
+                ],
+                "securityContext": {
+                    "runAsNonRoot": True,
+                    "runAsUser": 1000,
+                    "allowPrivilegeEscalation": False,
+                    "capabilities": {
+                        "drop": ["ALL"]
+                    },
+                    "readOnlyRootFilesystem": True
+                }
+            }
+        ]
+
+        # Exclude init container if it already exists
+        existing_container_names = [container["name"] for container in existing_init_containers]
+        if "fluentbit-sidecar" not in existing_container_names:
+            init_containers = existing_init_containers + new_container
+        else:
+            init_containers = existing_init_containers
+
+        # Volumes
+        existing_volumes = object["spec"].get("volumes", [])
+
+        new_volumes = [
+            {
+                "name": "fluentbit-config",
+                "configMap": {
+                    "name": object["metadata"]["annotations"]["admitik.policy.v1/fluentbitConfigmap"]
+                }
+            },
+            {"name": "k8s-container-logs", "hostPath": {"path": "/var/log/containers"}},
+            {"name": "k8s-pods-logs", "hostPath": {"path": "/var/log/pods"}},
+            {"name": "fluentbit-pos", "emptyDir": {}}
+        ]
+
+        # Exclude volumes if they already exist
+        existing_volume_names = [volume["name"] for volume in existing_volumes]
+        new_volumes_filtered = [volume for volume in new_volumes if volume["name"] not in existing_volume_names]
+        volumes = existing_volumes + new_volumes_filtered
+
+        return {"spec": {"initContainers": init_containers, "volumes": volumes}}
+
+    print(define_init_container())
