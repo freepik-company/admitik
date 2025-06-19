@@ -4,7 +4,7 @@
 # This policy adds a init container to the pod with the fluentbit sidecar to send the logs to a fluentd instance.
 # Resources can be customized using the annotation admitik.policy.v1/fluentbitResources with JSON format.
 # Example: '{"limits":{"memory":"100Mi"},"requests":{"cpu":"100m","memory":"50Mi"}}'
-apiVersion: admitik.freepik.com/v1alpha1
+apiVersion: admitik.dev/v1alpha1
 kind: ClusterMutationPolicy
 metadata:
   name: logging-mutate-fluentbit-pod-sidecar-v1
