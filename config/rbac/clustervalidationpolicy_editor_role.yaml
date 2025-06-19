@@ -8,7 +8,7 @@ metadata:
   name: clustervalidationpolicy-editor-role
 rules:
 - apiGroups:
-  - admitik.freepik.com
+  - admitik.dev
   resources:
   - clustervalidationpolicies
   verbs:
@@ -20,7 +20,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - admitik.freepik.com
+  - admitik.dev
   resources:
   - clustervalidationpolicies/status
   verbs:

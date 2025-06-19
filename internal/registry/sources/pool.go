@@ -20,7 +20,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	//
-	"freepik.com/admitik/internal/globals"
+	"github.com/freepik-company/admitik/internal/globals"
 )
 
 // GetResources return all the objects of provided type

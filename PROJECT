@@ -2,37 +2,34 @@
 # This file is used to track the info used to scaffold your project
 # and allow the plugins properly work.
 # More info: https://book.kubebuilder.io/reference/project-config.html
-domain: freepik.com
+domain: admitik.dev
 layout:
 - go.kubebuilder.io/v4
 projectName: admitik
-repo: freepik.com/admitik
+repo: github.com/freepik-company/admitik
 resources:
 - api:
     crdVersion: v1
     namespaced: false
   controller: true
-  domain: freepik.com
-  group: admitik
+  domain: admitik.dev
   kind: ClusterValidationPolicy
-  path: freepik.com/admitik/api/v1alpha1
+  path: github.com/freepik-company/admitik/api/v1alpha1
   version: v1alpha1
- - api:
-     crdVersion: v1
-     namespaced: false
-   controller: true
-   domain: freepik.com
-   group: admitik
-   kind: ClusterMutationPolicy
-   path: freepik.com/admitik/api/v1alpha1
-   version: v1alpha1
-  - api:
-      crdVersion: v1
-      namespaced: false
-    controller: true
-    domain: freepik.com
-    group: admitik
-    kind: ClusterGenerationPolicy
-    path: freepik.com/admitik/api/v1alpha1
-    version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: false
+  controller: true
+  domain: admitik.dev
+  kind: ClusterMutationPolicy
+  path: github.com/freepik-company/admitik/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: false
+  controller: true
+  domain: admitik.dev
+  kind: ClusterGenerationPolicy
+  path: github.com/freepik-company/admitik/api/v1alpha1
+  version: v1alpha1
 version: "3"

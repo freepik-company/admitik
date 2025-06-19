@@ -8,7 +8,7 @@ metadata:
   name: clustergenerationpolicy-viewer-role
 rules:
 - apiGroups:
-  - admitik.freepik.com
+  - admitik.dev
   resources:
   - clustergenerationpolicies
   verbs:
@@ -16,7 +16,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - admitik.freepik.com
+  - admitik.dev
   resources:
   - clustergenerationpolicies/status
   verbs:

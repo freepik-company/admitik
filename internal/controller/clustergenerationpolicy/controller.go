@@ -29,9 +29,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	//
-	"freepik.com/admitik/api/v1alpha1"
-	"freepik.com/admitik/internal/controller"
-	clusterGenerationPolicyRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicy"
+	"github.com/freepik-company/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/internal/controller"
+	clusterGenerationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustergenerationpolicy"
 )
 
 type ClusterGenerationPolicyControllerOptions struct {
@@ -51,9 +51,9 @@ type ClusterGenerationPolicyReconciler struct {
 	Dependencies ClusterGenerationPolicyControllerDependencies
 }
 
-// +kubebuilder:rbac:groups=admitik.freepik.com,resources=clustergenerationpolicies,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=admitik.freepik.com,resources=clustergenerationpolicies/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=admitik.freepik.com,resources=clustergenerationpolicies/finalizers,verbs=update
+// +kubebuilder:rbac:groups=admitik.dev,resources=clustergenerationpolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=admitik.dev,resources=clustergenerationpolicies/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=admitik.dev,resources=clustergenerationpolicies/finalizers,verbs=update
 // +kubebuilder:rbac:groups="*",resources="*",verbs="*"
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to

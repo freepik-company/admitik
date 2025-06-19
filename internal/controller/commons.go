@@ -45,7 +45,7 @@ const (
 	ResourceReconcileError        = "Can not reconcile %s '%s': %s"
 
 	//
-	ResourceFinalizer = "admitik.freepik.com/finalizer"
+	ResourceFinalizer = "admitik.dev/finalizer"
 )
 
 // GetWebhookClientConfig return a WebhookClientConfig filled according to if the remote server

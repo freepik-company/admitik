@@ -1,23 +1,22 @@
 apiVersion: v2
 name: admitik
 type: application
-description: >-
-  A Helm chart for Admitik, an admission controller for Kubernetes
-  that allow resources entrance if conditions are met (realtime)
-version: 1.5.0
-appVersion: "1.5.0" # application version
+description: >- 
+  Cloud native policy engine for Kubernetes: validates, mutates, generates, clean (and more) 
+  based on conditions defined on powerful templates
+version: 1.6.0
+appVersion: "1.6.0" # application version
 kubeVersion: ">=1.22.0-0" # kubernetes version
 home: https://github.com/freepik-company/admitik
 sources:
   - https://github.com/freepik-company/admitik
 keywords:
-  - freepik
-  - prosimcorp
   - admitik
-  - gitops
+  - cloud-native
+  - freepik
+  - kubernetes
+  - policy
 maintainers:
   - name: Alby Hernández
     email: ahernandez@freepik.com
     url: https://github.com/freepik-company/admitik
-  - name: prosimcorp
-    url: https://github.com/prosimcorp

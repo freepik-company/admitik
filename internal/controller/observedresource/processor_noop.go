@@ -16,7 +16,7 @@ limitations under the License.
 package observedresource
 
 import (
-	"freepik.com/admitik/internal/globals"
+	"github.com/freepik-company/admitik/internal/globals"
 	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )

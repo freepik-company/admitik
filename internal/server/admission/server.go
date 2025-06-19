@@ -17,8 +17,8 @@ limitations under the License.
 package admission
 
 import (
-	"freepik.com/admitik/internal/globals"
-	"freepik.com/admitik/internal/strategicmerge"
+	"github.com/freepik-company/admitik/internal/globals"
+	"github.com/freepik-company/admitik/internal/strategicmerge"
 	"net/http"
 )
 

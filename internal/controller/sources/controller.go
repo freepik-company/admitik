@@ -35,11 +35,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	//
-	"freepik.com/admitik/internal/globals"
-	clusterGenerationPolicyRegistry "freepik.com/admitik/internal/registry/clustergenerationpolicy"
-	clusterMutationPolicyRegistry "freepik.com/admitik/internal/registry/clustermutationpolicy"
-	clusterValidationPolicyRegistry "freepik.com/admitik/internal/registry/clustervalidationpolicy"
-	sourcesRegistry "freepik.com/admitik/internal/registry/sources"
+	"github.com/freepik-company/admitik/internal/globals"
+	clusterGenerationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustergenerationpolicy"
+	clusterMutationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustermutationpolicy"
+	clusterValidationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustervalidationpolicy"
+	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
 )
 
 const (

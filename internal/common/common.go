@@ -28,10 +28,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	//
-	"freepik.com/admitik/api/v1alpha1"
-	"freepik.com/admitik/internal/globals"
-	"freepik.com/admitik/internal/registry/sources"
-	"freepik.com/admitik/internal/template"
+	"github.com/freepik-company/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/internal/globals"
+	"github.com/freepik-company/admitik/internal/registry/sources"
+	"github.com/freepik-company/admitik/internal/template"
 )
 
 // IsPassingConditions iterate over a list of templated conditions and return whether they are passing or not

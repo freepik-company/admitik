@@ -19,8 +19,8 @@ package admission
 import (
 	"encoding/json"
 	"fmt"
-	"freepik.com/admitik/internal/common"
-	"freepik.com/admitik/internal/template"
+	"github.com/freepik-company/admitik/internal/common"
+	"github.com/freepik-company/admitik/internal/template"
 
 	//
 	admissionv1 "k8s.io/api/admission/v1"

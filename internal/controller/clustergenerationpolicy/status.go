@@ -20,8 +20,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	//
-	"freepik.com/admitik/api/v1alpha1"
-	"freepik.com/admitik/internal/controller"
+	"github.com/freepik-company/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/internal/controller"
 )
 
 func (r *ClusterGenerationPolicyReconciler) UpdateConditionSuccess(cPolicy *v1alpha1.ClusterGenerationPolicy) {
