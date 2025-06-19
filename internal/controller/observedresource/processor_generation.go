@@ -103,7 +103,6 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 		var resultObject map[string]any
 		var resultObjectBasicData globals.ObjectBasicData
 
-		var tmpGroup, tmpVersion string
 		var resultObjConverted *unstructured.Unstructured
 		var tmpResource string
 		var tmpGvrnn *v1alpha1.ResourceGroupT
@@ -152,17 +151,17 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 
 		tmpGvrnn = &v1alpha1.ResourceGroupT{
 			GroupVersionResource: metav1.GroupVersionResource{
-				Group:    tmpGroup,
-				Version:  tmpVersion,
+				Group:    resultObjectBasicData.Group,
+				Version:  resultObjectBasicData.Version,
 				Resource: tmpResource,
 			},
 			Name:      resultObjectBasicData.Name,
 			Namespace: resultObjectBasicData.Namespace,
 		}
-		logger.WithValues(
-			"group", tmpGvrnn.Group,
-			"version", tmpGvrnn.Version,
-			"resource", tmpGvrnn.Resource,
+		logger = logger.WithValues(
+			"group", tmpGvrnn.GroupVersionResource.Group,
+			"version", tmpGvrnn.GroupVersionResource.Version,
+			"resource", tmpGvrnn.GroupVersionResource.Resource,
 			"name", resultObjectBasicData.Name,
 			"namespace", resultObjectBasicData.Namespace)
 
