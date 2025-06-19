@@ -104,7 +104,7 @@ spec:
 ---
 
 # For cronjobs, we need to mutate the jobTemplate.spec.template.metadata.annotations and labels instead of the spec.template.metadata.annotations and labels
-apiVersion: admitik.freepik.com/v1alpha1
+apiVersion: admitik.dev/v1alpha1
 kind: ClusterMutationPolicy
 metadata:
   name: logging-mutate-fluentbit-cronjob-configmap-name-v1
