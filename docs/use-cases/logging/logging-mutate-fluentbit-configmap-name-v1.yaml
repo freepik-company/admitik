@@ -5,7 +5,7 @@
 # This policy adds the name of the configmap to the annotations of the child object.
 # If the admitik.policy.v1/loggingSidecarResources annotation is present, it will be propagated as admitik.policy.v1/fluentbitResources to the pod template.
 
-apiVersion: admitik.freepik.com/v1alpha1
+apiVersion: admitik.dev/v1alpha1
 kind: ClusterMutationPolicy
 metadata:
   name: logging-mutate-fluentbit-configmap-name-v1
