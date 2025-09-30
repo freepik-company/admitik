@@ -18,7 +18,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "admitik.selectorLabels" . | nindent 8 }}
+        {{- include "admitik.labels" . | nindent 8 }}
     spec:
       {{- with .Values.controller.imagePullSecrets }}
       imagePullSecrets:

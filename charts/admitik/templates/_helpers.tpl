@@ -40,6 +40,9 @@ helm.sh/chart: {{ include "admitik.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+
+# Following labels are included to avoid chicken-egg scenarios
+{{ include "admitik.sensitiveLabels" . }}
 {{- end }}
 
 {{/*
@@ -48,6 +51,13 @@ Selector labels
 {{- define "admitik.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "admitik.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Sensitive labels
+*/}}
+{{- define "admitik.sensitiveLabels" -}}
+admitik.dev/ignore-admission: "true"
 {{- end }}
 
 {{/*
