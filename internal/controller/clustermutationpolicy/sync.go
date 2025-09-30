@@ -19,12 +19,14 @@ package clustermutationpolicy
 import (
 	"context"
 	"fmt"
+	"github.com/freepik-company/admitik/internal/controller"
 	"slices"
 	"strings"
 
 	//
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -201,6 +203,28 @@ func (r *ClusterMutationPolicyReconciler) getMergedMutatingWebhookConfiguration(
 	tmpWebhookObj.ClientConfig = r.Options.WebhookClientConfig
 	tmpWebhookObj.Rules = currentVwcRules
 	tmpWebhookObj.TimeoutSeconds = &timeoutSecondsConverted
+
+	// Ignore sensitive namespaces to avoid breaking Kubernetes essential services or chicken-egg scenarios
+	selectedNamespaces := strings.Split(r.Options.ExcludedAdmissionNamespaces, ",")
+	if r.Options.ExcludeAdmissionSelfNamespace {
+		selectedNamespaces = append(selectedNamespaces, r.Options.CurrentNamespace)
+	}
+
+	tmpWebhookObj.NamespaceSelector = &v1.LabelSelector{}
+	tmpWebhookObj.NamespaceSelector.MatchExpressions = []v1.LabelSelectorRequirement{{
+		Key:      "kubernetes.io/metadata.name",
+		Operator: v1.LabelSelectorOpNotIn,
+		Values:   selectedNamespaces,
+	}}
+
+	// Ignore admission for resources meeting a special label
+	if r.Options.EnableSpecialLabels {
+		tmpWebhookObj.ObjectSelector = &v1.LabelSelector{}
+		tmpWebhookObj.ObjectSelector.MatchExpressions = []v1.LabelSelectorRequirement{{
+			Key:      controller.IgnoreAdmissionLabel,
+			Operator: v1.LabelSelectorOpExists,
+		}}
+	}
 
 	sideEffectsClass := admissionregv1.SideEffectClass(admissionregv1.SideEffectClassNone)
 	tmpWebhookObj.SideEffects = &sideEffectsClass

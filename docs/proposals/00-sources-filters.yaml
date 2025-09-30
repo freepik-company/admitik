@@ -1,0 +1,60 @@
+apiVersion: admitik.freepik.com/v1alpha1
+kind: ClusterMutationPolicy
+metadata:
+  name: plain-with-cel-use-strategicmerge-patch
+spec:
+
+  # Resources to be intercepted before reaching the cluster
+  interceptedResources:
+    - group: ""
+      version: v1
+      resource: namespaces
+      operations:
+        - CREATE
+
+  # key -> []any
+  # key: /group/v1/secrets/
+  # Other resources to be retrieved for conditions templates.
+  # They will be included under .sources scope in the template
+  sources:
+    - group: ""
+      version: v1
+      resource: secrets
+
+      # Even when Admitik will watch the entire GVR list, it's possible to filter a subset to be passed
+      # to the policy at evaluation-time. This will consume MUCH LESS memory than passing the entire list.
+      # Moreover, it's possible to use
+      filters:
+        namespace:
+          matchList:
+            - kube-system
+            - {{trigger: object.metadata.namespace }}
+          # matchRegex:
+          #   negative: true
+          #   expression: "^(default|kube-system|kube-public)$"
+
+        name:
+          matchList:
+            - {{trigger: object.metadata.name }}
+          # matchRegex:
+          #   negative: false
+          #   expression: "^({{trigger: object.metadata.name }})-.*$"
+
+        metadata:
+          matchLabels:
+            managed-by: custom-operator
+          matchAnnotations:
+            managed-by: custom-operator
+
+  # Conditions are optional, so no-conditions means they are always met
+  conditions: []
+
+  patch:
+    type: strategicmerge # JsonPatch | JsonMerge | StrategicMerge
+    engine: plain+cel
+    template: |
+      apiVersion: v1                                                                                                                                                                                 
+      kind: Namespace
+      metadata:
+        labels:
+          custom-label/namespace: "{{cel: object.metadata.name }}"

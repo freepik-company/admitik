@@ -101,6 +101,10 @@ func main() {
 	var kubeClientQps float64
 	var kubeClientBurst int
 
+	var enableSpecialLabels bool
+	var excludeAdmissionSelfNamespace bool
+	var excludedAdmissionNamespaces string
+
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metric endpoint binds to. "+
 		"Use the port :8080. If not set, it will be 0 in order to disable the metrics server")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -143,6 +147,14 @@ func main() {
 		"The QPS rate of communication between controller and the API Server")
 	flag.IntVar(&kubeClientBurst, "kube-client-burst", 10,
 		"The burst capacity of communication between the controller and the API Server")
+
+	// Exclusion related flags
+	flag.BoolVar(&enableSpecialLabels, "enable-special-labels", false,
+		"Enable labels that perform sensitive actions")
+	flag.BoolVar(&excludeAdmissionSelfNamespace, "exclude-admission-self-namespace", false,
+		"Exclude Admitik resources from admission evaluations")
+	flag.StringVar(&excludedAdmissionNamespaces, "excluded-admission-namespaces", "",
+		"Comma-separated list of namespaces to be excluded from admission evaluations. Commonly used for 'kube-system'")
 
 	opts := zap.Options{
 		Development: true,
@@ -194,6 +206,8 @@ func main() {
 		// if you are doing or is intended to do any operation such as perform cleanups
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
+
+		//LeaderElectionNamespace: "kube-system",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -218,6 +232,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	currentNamespace, err := globals.GetCurrentNamespace()
+	if err != nil {
+		setupLog.Error(err, "unable to get current namespace")
+		os.Exit(1)
+	}
+
 	///////////////////////////////////
 	// Get/Generate certificates needed by admission webhooks server
 	// TODO: Extract this entire block to a different function
@@ -226,12 +246,6 @@ func main() {
 	if (webhooksServerCA != "" || webhooksServerCertificate != "" || webhooksServerPrivateKey != "") &&
 		(webhooksServerCertsSecretName != "") {
 		setupLog.Error(err, "getting certificates from files and from Secret objects are mutually exclusive")
-		os.Exit(1)
-	}
-
-	currentNamespace, err := globals.GetCurrentNamespace()
-	if err != nil {
-		setupLog.Error(err, "unable to get current namespace")
 		os.Exit(1)
 	}
 
@@ -422,6 +436,11 @@ func main() {
 		Scheme: mgr.GetScheme(),
 
 		Options: clustermutationpolicy.ClusterMutationPolicyControllerOptions{
+			CurrentNamespace:              currentNamespace,
+			EnableSpecialLabels:           enableSpecialLabels,
+			ExcludeAdmissionSelfNamespace: excludeAdmissionSelfNamespace,
+			ExcludedAdmissionNamespaces:   excludedAdmissionNamespaces,
+
 			WebhookClientConfig: webhookClientConfigMutation,
 			WebhookTimeout:      webhooksClientTimeout,
 		},
@@ -438,6 +457,11 @@ func main() {
 		Scheme: mgr.GetScheme(),
 
 		Options: clustervalidationpolicy.ClusterValidationPolicyControllerOptions{
+			CurrentNamespace:              currentNamespace,
+			EnableSpecialLabels:           enableSpecialLabels,
+			ExcludeAdmissionSelfNamespace: excludeAdmissionSelfNamespace,
+			ExcludedAdmissionNamespaces:   excludedAdmissionNamespaces,
+
 			WebhookClientConfig: webhookClientConfigValidation,
 			WebhookTimeout:      webhooksClientTimeout,
 		},
@@ -449,6 +473,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// +kubebuilder:scaffold:builder
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

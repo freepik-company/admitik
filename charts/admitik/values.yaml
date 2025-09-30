@@ -35,6 +35,9 @@ controller:
   extraArgs:
   - --webhook-server-autogenerate-certs=true
   - --webhook-server-certs-secret-name=webhook-server-certs
+  - --exclude-admission-self-namespace
+  - --excluded-admission-namespaces=kube-system
+  - --enable-special-labels
 
   # Define a list of environment variables used inside the controller
   # Ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/#use-configmap-defined-environment-variables-in-pod-commands
@@ -83,7 +86,7 @@ controller:
 
   autoscaling:
     enabled: false
-    minReplicas: 2
+    minReplicas: 3
     maxReplicas: 10
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
@@ -92,7 +95,36 @@ controller:
 
   tolerations: []
 
-  affinity: {}
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - admitik
+            topologyKey: kubernetes.io/hostname
+
+  podDisruptionBudget:
+    # Enable PodDisruptionBudget.
+    # Will always be enabled if replicas > 1.
+    # This non-declarative behavior should ideally be avoided, but changing it now would be breaking.
+    enabled: false
+
+    # Configures the minimum available pods for disruptions.
+    # Cannot be used if `maxUnavailable` is set.
+    minAvailable: 1
+
+    # Configures the maximum unavailable pods for disruptions.
+    # Cannot be used if `minAvailable` is set.
+    maxUnavailable:
+
+    # Unhealthy pod eviction policy to be used.
+    # Possible values are `IfHealthyBudget` or `AlwaysAllow`.
+    unhealthyPodEvictionPolicy:
 
   metrics:
     # Specify whether metrics should be exposed or not

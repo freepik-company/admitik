@@ -46,6 +46,9 @@ const (
 
 	//
 	ResourceFinalizer = "admitik.dev/finalizer"
+
+	//
+	IgnoreAdmissionLabel = "admitik.dev/ignore-admission"
 )
 
 // GetWebhookClientConfig return a WebhookClientConfig filled according to if the remote server

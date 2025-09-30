@@ -1,0 +1,24 @@
+{{- if or .Values.controller.podDisruptionBudget.enabled (gt (int .Values.controller.replicaCount) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "admitik.fullname" . }}
+  labels:
+    {{- include "admitik.labels" . | nindent 4 }}
+spec:
+  {{- with .Values.controller.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ . }}
+  {{- end }}
+
+  {{- with .Values.controller.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ . }}
+  {{- end }}
+
+  {{- with .Values.controller.podDisruptionBudget.unhealthyPodEvictionPolicy }}
+  unhealthyPodEvictionPolicy: {{ . }}
+  {{- end }}
+
+  selector:
+    matchLabels:
+      {{- include "admitik.selectorLabels" . | nindent 6 }}
+{{- end -}}

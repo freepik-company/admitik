@@ -37,6 +37,11 @@ import (
 )
 
 type ClusterMutationPolicyControllerOptions struct {
+	CurrentNamespace              string
+	EnableSpecialLabels           bool
+	ExcludeAdmissionSelfNamespace bool
+	ExcludedAdmissionNamespaces   string
+
 	WebhookClientConfig admissionregv1.WebhookClientConfig
 	WebhookTimeout      int
 }
