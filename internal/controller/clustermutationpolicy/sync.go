@@ -222,7 +222,7 @@ func (r *ClusterMutationPolicyReconciler) getMergedMutatingWebhookConfiguration(
 		tmpWebhookObj.ObjectSelector = &v1.LabelSelector{}
 		tmpWebhookObj.ObjectSelector.MatchExpressions = []v1.LabelSelectorRequirement{{
 			Key:      controller.IgnoreAdmissionLabel,
-			Operator: v1.LabelSelectorOpExists,
+			Operator: v1.LabelSelectorOpDoesNotExist,
 		}}
 	}
 
