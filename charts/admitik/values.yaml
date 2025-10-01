@@ -33,6 +33,7 @@ controller:
   # - --webhook-server-certs-secret-name=webhook-server-certs
   # - --webhook-client-timeout=15
   extraArgs:
+  - --leader-elect
   - --webhook-server-autogenerate-certs=true
   - --webhook-server-certs-secret-name=webhook-server-certs
   - --enable-special-labels

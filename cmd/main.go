@@ -164,6 +164,30 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	// Define the context separated as it will be used by our custom controller too.
+	// This will synchronize goroutine death when the main controller is killed
+	globals.Application.Context = ctrl.SetupSignalHandler()
+
+	// Create and store raw Kubernetes clients from client-go
+	// They are used by non kubebuilder processes and controllers
+	globals.Application.KubeRawClient,
+		globals.Application.KubeRawCoreClient,
+		globals.Application.KubeDiscoveryClient,
+		err = globals.NewKubernetesClient(&rest.Config{
+		QPS:   float32(kubeClientQps),
+		Burst: kubeClientBurst,
+	})
+	if err != nil {
+		setupLog.Error(err, "unable to set up kubernetes clients")
+		os.Exit(1)
+	}
+
+	currentNamespace, err := globals.GetCurrentNamespace()
+	if err != nil {
+		setupLog.Error(err, "unable to get current namespace")
+		os.Exit(1)
+	}
+
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
 	// prevent from being vulnerable to the HTTP/2 Stream Cancellation and
@@ -195,6 +219,7 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "9ee19594.admitik.dev",
+
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
@@ -207,34 +232,10 @@ func main() {
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
 
-		//LeaderElectionNamespace: "kube-system",
+		LeaderElectionNamespace: currentNamespace,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
-		os.Exit(1)
-	}
-
-	// Define the context separated as it will be used by our custom controller too.
-	// This will synchronize goroutine death when the main controller is killed
-	globals.Application.Context = ctrl.SetupSignalHandler()
-
-	// Create and store raw Kubernetes clients from client-go
-	// They are used by non kubebuilder processes and controllers
-	globals.Application.KubeRawClient,
-		globals.Application.KubeRawCoreClient,
-		globals.Application.KubeDiscoveryClient,
-		err = globals.NewKubernetesClient(&rest.Config{
-		QPS:   float32(kubeClientQps),
-		Burst: kubeClientBurst,
-	})
-	if err != nil {
-		setupLog.Error(err, "unable to set up kubernetes clients")
-		os.Exit(1)
-	}
-
-	currentNamespace, err := globals.GetCurrentNamespace()
-	if err != nil {
-		setupLog.Error(err, "unable to get current namespace")
 		os.Exit(1)
 	}
 
@@ -378,8 +379,10 @@ func main() {
 	resourceObserverReg := resourceObserverRegistry.NewResourceObserverRegistry()
 	resourceInformerReg := resourceInformerRegistry.NewResourceInformerRegistry()
 
-	// Init basic controllers
-	// These controllers manage user-facing resources
+	// Init internal registries controllers
+	// Following controllers manage internal registries for user-facing resources.
+	// IMPORTANT: All the replicas are able to process and leader is not chosen for this.
+	// TODO: Create a common controller to update all the registries at once (deduplicate code)
 	if err = (&clustergenerationpolicy.ClusterGenerationPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
@@ -463,7 +466,7 @@ func main() {
 	// This controller is in charge of launching watchers to cache sources expressed in some CRs in background.
 	// This way we avoid retrieving them from Kubernetes on each request done by other controllers
 	// such as AdmissionServer or BackgroundController.
-	// All the replicas are able to process and leader is not chosen for this.
+	// IMPORTANT: All the replicas are able to process and leader is not chosen for this.
 	sourcesController := sources.SourcesController{
 		Client: mgr.GetClient(),
 		Options: sources.SourcesControllerOptions{
@@ -483,7 +486,7 @@ func main() {
 	}
 
 	// Init AdmissionServer to process incoming validation/mutation events.
-	// All the replicas are able to process and leader is not chosen for this.
+	// IMPORTANT: All the replicas are able to process and leader is not chosen for this.
 	admissionServer := admission.NewAdmissionServer(
 		admission.AdmissionServerOptions{
 			//
