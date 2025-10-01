@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	//
 	"github.com/freepik-company/admitik/internal/globals"
@@ -57,7 +58,7 @@ const (
 	controllerName = "observedresource"
 
 	//
-	controllerContextFinishedMessage = "ObservedResourceController finished by context"
+	controllerContextFinishedMessage = "Controller finished by context"
 	controllerInformerStartedMessage = "Informer for '%s' has been started"
 	controllerInformerKilledMessage  = "Informer for resource type '%s' killed by StopSignal"
 
@@ -86,6 +87,11 @@ type ObservedResourceControllerDependencies struct {
 // These threads process coming events against the conditions defined in TODO
 // Each thread is an informer in charge of a group of resources GVRNN (Group + Version + Resource + Namespace + Name)
 type ObservedResourceController struct {
+	// Following interface is just needed to register this controller into Controller Runtime manager and let it
+	// launch the controller across all the Admitik replicas or just in the elected leader.
+	manager.LeaderElectionRunnable
+
+	//
 	Client client.Client
 
 	Options      ObservedResourceControllerOptions
@@ -94,6 +100,12 @@ type ObservedResourceController struct {
 	// Carried stuff
 	kubeAvailableResourceList *[]GVKR // TODO: Time to wrap processors?
 	dispatcher                *EventDispatcher
+}
+
+// NeedLeaderElection implements manager.LeaderElectionRunnable.
+// This is needed to inform Controller Runtime manager whether this controller needs a leader or not.
+func (r *ObservedResourceController) NeedLeaderElection() bool {
+	return true
 }
 
 // getResourcesFromPolicyRegistries returns a list of observers for each type of resource that is required to be watched
@@ -119,10 +131,9 @@ func (r *ObservedResourceController) getResourcesFromPolicyRegistries() map[stri
 // It disables the informers that are not needed and delete them from ResourcesRegistry
 // This function is intended to be used as goroutine
 func (r *ObservedResourceController) informersCleanerWorker() {
-	logger := log.FromContext(*r.Dependencies.Context)
-	logger = logger.WithValues("controller", controllerName)
+	logger := log.FromContext(*r.Dependencies.Context).WithValues("controller", controllerName)
 
-	logger.Info("Starting informers cleaner worker")
+	logger.Info("Starting Worker", "worker", "InformersCleaner")
 
 	for {
 		referentCandidates := r.getResourcesFromPolicyRegistries()
@@ -146,9 +157,9 @@ func (r *ObservedResourceController) informersCleanerWorker() {
 
 // Start launches the ObservedResourceController and keeps it alive
 // It kills the controller on application's context death, and rerun the process when failed
-func (r *ObservedResourceController) Start() {
-	logger := log.FromContext(*r.Dependencies.Context)
-	logger = logger.WithValues("controller", controllerName)
+func (r *ObservedResourceController) Start(ctx context.Context) error {
+	logger := log.FromContext(*r.Dependencies.Context).WithValues("controller", controllerName)
+	logger.Info("Starting Controller")
 
 	// Create an event dispatcher for later usage
 	r.dispatcher = NewEventDispatcher(EventDispatcherDependencies{
@@ -165,7 +176,7 @@ func (r *ObservedResourceController) Start() {
 		select {
 		case <-(*r.Dependencies.Context).Done():
 			logger.Info(controllerContextFinishedMessage)
-			return
+			return nil
 		default:
 			r.reconcileInformers()
 			time.Sleep(secondsToReconcileInformersAgain)
@@ -176,8 +187,7 @@ func (r *ObservedResourceController) Start() {
 // reconcileInformers checks each registered 'watchedResource' type and triggers informers
 // for those that are not already started.
 func (r *ObservedResourceController) reconcileInformers() {
-	logger := log.FromContext(*r.Dependencies.Context)
-	logger = logger.WithValues("controller", controllerName)
+	logger := log.FromContext(*r.Dependencies.Context).WithValues("controller", controllerName)
 
 	watcherCandidates := r.getResourcesFromPolicyRegistries()
 
@@ -211,8 +221,7 @@ func (r *ObservedResourceController) reconcileInformers() {
 // launchInformerForType creates and runs a Kubernetes informer for the specified
 // resource type, and triggers processing for each event
 func (r *ObservedResourceController) launchInformerForType(resourceType string) {
-	logger := log.FromContext(*r.Dependencies.Context)
-	logger = logger.WithValues("controller", controllerName)
+	logger := log.FromContext(*r.Dependencies.Context).WithValues("controller", controllerName)
 
 	informer, informerExists := r.Dependencies.ResourceInformerRegistry.GetInformer(resourceType)
 	if !informerExists {

@@ -378,46 +378,8 @@ func main() {
 	resourceObserverReg := resourceObserverRegistry.NewResourceObserverRegistry()
 	resourceInformerReg := resourceInformerRegistry.NewResourceInformerRegistry()
 
-	// Init ResourcesController.
-	// This controller is in charge of launching watchers to TODO.
-	observedResourceController := observedresource.ObservedResourceController{
-		Client: mgr.GetClient(),
-		Options: observedresource.ObservedResourceControllerOptions{
-			InformerDurationToResync: sourcesTimeToResyncInformers,
-		},
-		Dependencies: observedresource.ObservedResourceControllerDependencies{
-			Context:                         &globals.Application.Context,
-			ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
-			SourcesRegistry:                 sourcesReg,
-			ResourceInformerRegistry:        resourceInformerReg,
-			ResourceObserverRegistry:        resourceObserverReg,
-		},
-	}
-	setupLog.Info("starting observed resources controller")
-	go observedResourceController.Start()
-
-	// Init SourcesController.
-	// This controller is in charge of launching watchers to cache sources expressed in some CRs in background.
-	// This way we avoid retrieving them from Kubernetes on each request to the Validation/Mutation controllers.
-	sourcesController := sources.SourcesController{
-		Client: mgr.GetClient(),
-		Options: sources.SourcesControllerOptions{
-			InformerDurationToResync: sourcesTimeToResyncInformers,
-		},
-		Dependencies: sources.SourcesControllerDependencies{
-			Context:                         &globals.Application.Context,
-			ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
-			ClusterMutationPolicyRegistry:   clusterMutationPolicyReg,
-			ClusterValidationPolicyRegistry: clusterValidationPolicyReg,
-			SourcesRegistry:                 sourcesReg,
-		},
-	}
-	setupLog.Info("starting sources controller")
-	go sourcesController.Start()
-
-	// Init primary controllers
-	// ATTENTION: This controller may be replaced by a custom one in the future doing the same tasks
-	// to simplify this project's dependencies and maintainability
+	// Init basic controllers
+	// These controllers manage user-facing resources
 	if err = (&clustergenerationpolicy.ClusterGenerationPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
@@ -474,18 +436,54 @@ func main() {
 	}
 
 	// +kubebuilder:scaffold:builder
-	// +kubebuilder:scaffold:builder
 
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
+	// Init ObservedResourceController.
+	// This controller launches watchers for resource types expressed in 'watchedResources' section of some CRs,
+	// and executes suitable processors for them.
+	// This is used in resources such as ClusterGenerationPolicy, ClusterCleanPolicy, etc.
+	observedResourceController := observedresource.ObservedResourceController{
+		Client: mgr.GetClient(),
+		Options: observedresource.ObservedResourceControllerOptions{
+			InformerDurationToResync: sourcesTimeToResyncInformers,
+		},
+		Dependencies: observedresource.ObservedResourceControllerDependencies{
+			Context:                         &globals.Application.Context,
+			ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
+			SourcesRegistry:                 sourcesReg,
+			ResourceInformerRegistry:        resourceInformerReg,
+			ResourceObserverRegistry:        resourceObserverReg,
+		},
+	}
+	if err = mgr.Add(&observedResourceController); err != nil {
+		setupLog.Error(err, "failed adding observed resources controller to manager")
 		os.Exit(1)
 	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
+
+	// Init SourcesController.
+	// This controller is in charge of launching watchers to cache sources expressed in some CRs in background.
+	// This way we avoid retrieving them from Kubernetes on each request done by other controllers
+	// such as AdmissionServer or BackgroundController.
+	// All the replicas are able to process and leader is not chosen for this.
+	sourcesController := sources.SourcesController{
+		Client: mgr.GetClient(),
+		Options: sources.SourcesControllerOptions{
+			InformerDurationToResync: sourcesTimeToResyncInformers,
+		},
+		Dependencies: sources.SourcesControllerDependencies{
+			Context:                         &globals.Application.Context,
+			ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
+			ClusterMutationPolicyRegistry:   clusterMutationPolicyReg,
+			ClusterValidationPolicyRegistry: clusterValidationPolicyReg,
+			SourcesRegistry:                 sourcesReg,
+		},
+	}
+	if err = mgr.Add(&sourcesController); err != nil {
+		setupLog.Error(err, "failed adding sources controller to manager")
 		os.Exit(1)
 	}
 
-	// Init admissions server to process incoming validation/mutation events
+	// Init AdmissionServer to process incoming validation/mutation events.
+	// All the replicas are able to process and leader is not chosen for this.
 	admissionServer := admission.NewAdmissionServer(
 		admission.AdmissionServerOptions{
 			//
@@ -502,8 +500,20 @@ func main() {
 			ClusterValidationPolicyRegistry: clusterValidationPolicyReg,
 			ClusterMutationPolicyRegistry:   clusterMutationPolicyReg,
 		})
-	setupLog.Info("starting admission server")
-	go admissionServer.Start(globals.Application.Context)
+	if err = mgr.Add(admissionServer); err != nil {
+		setupLog.Error(err, "failed adding admission server controller to manager")
+		os.Exit(1)
+	}
+
+	//
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		setupLog.Error(err, "unable to set up health check")
+		os.Exit(1)
+	}
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		setupLog.Error(err, "unable to set up ready check")
+		os.Exit(1)
+	}
 
 	//
 	setupLog.Info("starting manager")

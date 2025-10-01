@@ -70,13 +70,12 @@ func NewEventDispatcher(deps EventDispatcherDependencies) *EventDispatcher {
 	return evDispatcher
 }
 
-// kubeAvailableResourcesWorker review the TODO
+// syncKubeAvailableResources TODO
 // This function is intended to be used as goroutine
 func (d *EventDispatcher) syncKubeAvailableResources() {
-	logger := log.FromContext(globals.Application.Context)
-	logger = logger.WithValues("controller", controllerName)
+	logger := log.FromContext(globals.Application.Context).WithValues("controller", controllerName)
 
-	logger.Info("Starting kube available resources syncer worker")
+	logger.Info("Starting Worker", "worker", "KubeAvailableResourcesSyncer")
 
 	for {
 		resources, err := fetchKubeAvailableResources()

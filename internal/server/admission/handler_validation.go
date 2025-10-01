@@ -36,7 +36,7 @@ import (
 
 // handleValidationRequest handles the incoming validation requests
 func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, request *http.Request) {
-	logger := log.FromContext(request.Context())
+	logger := log.FromContext(request.Context()).WithValues("controller", "admissionserver")
 
 	var err error
 

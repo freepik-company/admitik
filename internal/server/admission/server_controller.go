@@ -18,12 +18,14 @@ package admission
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	//
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	//
 	clusterMutationpolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustermutationpolicy"
@@ -36,7 +38,7 @@ const (
 	AdmissionServerMutationPath   = "/mutate"
 
 	//
-	controllerContextFinishedMessage = "admission.AdmissionController finished by context"
+	controllerContextFinishedMessage = "Controller finished by context"
 )
 
 // AdmissionServerDependencies represents the dependencies needed by the AdmissionServer to work
@@ -62,6 +64,10 @@ type AdmissionServerOptions struct {
 // AdmissionServer represents the server that process coming events against
 // the conditions defined in Cluster{Validation|Mutation}Policy CRs
 type AdmissionServer struct {
+	// Following interface is just needed to register this controller into Controller Runtime manager and let it
+	// launch the controller across all the Admitik replicas or just in the elected leader.
+	manager.LeaderElectionRunnable
+
 	//
 	options AdmissionServerOptions
 
@@ -69,7 +75,6 @@ type AdmissionServer struct {
 	dependencies AdmissionServerDependencies
 }
 
-// TODO
 func NewAdmissionServer(options AdmissionServerOptions,
 	dependencies AdmissionServerDependencies) *AdmissionServer {
 
@@ -79,29 +84,18 @@ func NewAdmissionServer(options AdmissionServerOptions,
 	}
 }
 
-// Start launches the AdmissionServer and keeps it alive
-// It kills the server on application context death, and rerun the process when failed
-func (as *AdmissionServer) Start(ctx context.Context) {
-	logger := log.FromContext(ctx)
-
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Info(controllerContextFinishedMessage)
-			return
-		default:
-			logger.Info(fmt.Sprintf("Starting HTTP server: %s:%d", as.options.ServerAddr, as.options.ServerPort))
-			err := as.runWebserver()
-			logger.Info(fmt.Sprintf("HTTP server failed: %s", err.Error()))
-		}
-
-		time.Sleep(2 * time.Second)
-	}
+// NeedLeaderElection implements manager.LeaderElectionRunnable.
+// This is needed to inform Controller Runtime manager whether this controller needs a leader or not.
+func (as *AdmissionServer) NeedLeaderElection() bool {
+	return false
 }
 
-// runWebserver prepares and runs the HTTP server
-func (as *AdmissionServer) runWebserver() (err error) {
+// Start prepares and runs the HTTP server.
+// It gracefully drains connections on application context death.
+func (as *AdmissionServer) Start(ctx context.Context) (err error) {
+	logger := log.FromContext(ctx).WithValues("controller", "admissionserver")
 
+	logger.Info("Starting Server", "address", as.options.ServerAddr, "port", as.options.ServerPort)
 	customServer, err := NewHttpServer(&as.dependencies)
 	if err != nil {
 		return err
@@ -116,10 +110,35 @@ func (as *AdmissionServer) runWebserver() (err error) {
 	customServer.setAddr(fmt.Sprintf("%s:%d", as.options.ServerAddr, as.options.ServerPort))
 	customServer.setHandler(mux)
 
+	// Manage context cancellation gracefully for pending HTTP connections
+	shutdownComplete := make(chan struct{})
+	go func() {
+		<-ctx.Done()
+		logger.Info(controllerContextFinishedMessage)
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := customServer.Shutdown(shutdownCtx); err != nil {
+			logger.Error(err, "Error during server shutdown")
+		}
+		close(shutdownComplete)
+	}()
+
+	// Finally, launch the server
 	if as.options.TLSCertificate != "" && as.options.TLSPrivateKey != "" {
 		err = customServer.ListenAndServeTLS(as.options.TLSCertificate, as.options.TLSPrivateKey)
 	} else {
 		err = customServer.ListenAndServe()
+	}
+
+	// When Shutdown is called, ListenAndServe immediately returns ErrServerClosed
+	// Make sure we wait for Shutdown to complete
+	if errors.Is(err, http.ErrServerClosed) {
+		logger.Info("Waiting for shutdown to complete")
+		<-shutdownComplete
+		logger.Info("Shutdown completed")
+		return nil
 	}
 
 	return err

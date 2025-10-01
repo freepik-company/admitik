@@ -33,6 +33,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	//
 	"github.com/freepik-company/admitik/internal/globals"
@@ -56,7 +57,7 @@ const (
 	controllerName = "sources"
 
 	//
-	controllerContextFinishedMessage = "SourcesController finished by context"
+	controllerContextFinishedMessage = "Controller finished by context"
 	controllerInformerStartedMessage = "Informer for '%s' has been started"
 	controllerInformerKilledMessage  = "Informer for resource type '%s' killed by StopSignal"
 
@@ -85,10 +86,21 @@ type SourcesControllerDependencies struct {
 // These threads watch resources defined in 'sources' section of several object types stored in registries.
 // Each thread is an informer in charge of a group of resources GVRNN (Group + Version + Resource + Namespace + Name)
 type SourcesController struct {
+	// Following interface is just needed to register this controller into Controller Runtime manager and let it
+	// launch the controller across all the Admitik replicas or just in the elected leader.
+	manager.LeaderElectionRunnable
+
+	//
 	Client client.Client
 
 	Options      SourcesControllerOptions
 	Dependencies SourcesControllerDependencies
+}
+
+// NeedLeaderElection implements manager.LeaderElectionRunnable.
+// This is needed to inform Controller Runtime manager whether this controller needs a leader or not.
+func (r *SourcesController) NeedLeaderElection() bool {
+	return false
 }
 
 // getSourcesFromRegistries returns a list of sources with all the types registered in suitable registries
@@ -115,7 +127,7 @@ func (r *SourcesController) informersCleanerWorker() {
 	logger := log.FromContext(*r.Dependencies.Context)
 	logger = logger.WithValues("controller", controllerName)
 
-	logger.Info("Starting informers cleaner worker")
+	logger.Info("Starting Worker", "worker", "InformersCleaner")
 
 	for {
 		//
@@ -138,9 +150,9 @@ func (r *SourcesController) informersCleanerWorker() {
 
 // Start launches the SourcesController and keeps it alive
 // It kills the controller on application's context death, and rerun the process when failed
-func (r *SourcesController) Start() {
-	logger := log.FromContext(*r.Dependencies.Context)
-	logger = logger.WithValues("controller", controllerName)
+func (r *SourcesController) Start(ctx context.Context) error {
+	logger := log.FromContext(*r.Dependencies.Context).WithValues("controller", controllerName)
+	logger.Info("Starting Controller")
 
 	// Start cleaner for dead informers
 	go r.informersCleanerWorker()
@@ -150,7 +162,7 @@ func (r *SourcesController) Start() {
 		select {
 		case <-(*r.Dependencies.Context).Done():
 			logger.Info(controllerContextFinishedMessage)
-			return
+			return nil
 		default:
 			r.reconcileInformers()
 			time.Sleep(secondsToReconcileInformersAgain)
@@ -161,8 +173,7 @@ func (r *SourcesController) Start() {
 // reconcileInformers checks each registered extra-resource type and triggers informers
 // for those that are not already started.
 func (r *SourcesController) reconcileInformers() {
-	logger := log.FromContext(*r.Dependencies.Context)
-	logger = logger.WithValues("controller", controllerName)
+	logger := log.FromContext(*r.Dependencies.Context).WithValues("controller", controllerName)
 
 	sourcesCandidates := r.getSourcesFromRegistries()
 
@@ -191,8 +202,7 @@ func (r *SourcesController) reconcileInformers() {
 // launchInformerForType creates and runs a Kubernetes informer for the specified
 // resource type, and triggers processing for each event
 func (r *SourcesController) launchInformerForType(resourceType sourcesRegistry.ResourceTypeName) {
-	logger := log.FromContext(*r.Dependencies.Context)
-	logger = logger.WithValues("controller", controllerName)
+	logger := log.FromContext(*r.Dependencies.Context).WithValues("controller", controllerName)
 
 	informer, informerExists := r.Dependencies.SourcesRegistry.GetInformer(resourceType)
 	if !informerExists {
