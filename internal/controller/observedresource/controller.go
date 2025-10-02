@@ -37,8 +37,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	//
+	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/globals"
-	clusterGenerationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustergenerationpolicy"
+	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 	resourceInformerRegistry "github.com/freepik-company/admitik/internal/registry/resourceinformer"
 	resourceObserverRegistry "github.com/freepik-company/admitik/internal/registry/resourceobserver"
 	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
@@ -77,7 +78,7 @@ type ObservedResourceControllerDependencies struct {
 	Context *context.Context
 
 	//
-	ClusterGenerationPolicyRegistry *clusterGenerationPolicyRegistry.ClusterGenerationPolicyRegistry
+	ClusterGenerationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterGenerationPolicy]
 	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
 	ResourceInformerRegistry        *resourceInformerRegistry.ResourceInformerRegistry
 	ResourceObserverRegistry        *resourceObserverRegistry.ResourceObserverRegistry
@@ -115,7 +116,7 @@ func (r *ObservedResourceController) getResourcesFromPolicyRegistries() map[stri
 
 	results := make(map[string][]string)
 
-	candidatesFromGeneration := r.Dependencies.ClusterGenerationPolicyRegistry.GetRegisteredResourceTypes()
+	candidatesFromGeneration := r.Dependencies.ClusterGenerationPolicyRegistry.GetCollectionNames()
 	for _, resourceType := range candidatesFromGeneration {
 		if !slices.Contains(results[resourceType], ObserverTypeClusterGenerationPolicies) {
 			results[resourceType] = append(results[resourceType], ObserverTypeClusterGenerationPolicies)

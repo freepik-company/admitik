@@ -51,9 +51,7 @@ import (
 	"github.com/freepik-company/admitik/internal/controller/observedresource"
 	"github.com/freepik-company/admitik/internal/controller/sources"
 	"github.com/freepik-company/admitik/internal/globals"
-	clusterGenerationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustergenerationpolicy"
-	clusterMutationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustermutationpolicy"
-	clusterValidationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustervalidationpolicy"
+	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 	resourceInformerRegistry "github.com/freepik-company/admitik/internal/registry/resourceinformer"
 	resourceObserverRegistry "github.com/freepik-company/admitik/internal/registry/resourceobserver"
 	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
@@ -372,9 +370,9 @@ func main() {
 		admission.AdmissionServerMutationPath)
 
 	// Create registries managers that will be used by several controllers
-	clusterGenerationPolicyReg := clusterGenerationPolicyRegistry.NewClusterGenerationPolicyRegistry()
-	clusterMutationPolicyReg := clusterMutationPolicyRegistry.NewClusterMutationPolicyRegistry()
-	clusterValidationPolicyReg := clusterValidationPolicyRegistry.NewClusterValidationPolicyRegistry()
+	clusterValidationPolicyReg := policyStore.NewPolicyStore[*v1alpha1.ClusterValidationPolicy]()
+	clusterMutationPolicyReg := policyStore.NewPolicyStore[*v1alpha1.ClusterMutationPolicy]()
+	clusterGenerationPolicyReg := policyStore.NewPolicyStore[*v1alpha1.ClusterGenerationPolicy]()
 	sourcesReg := sourcesRegistry.NewSourcesRegistry()
 	resourceObserverReg := resourceObserverRegistry.NewResourceObserverRegistry()
 	resourceInformerReg := resourceInformerRegistry.NewResourceInformerRegistry()

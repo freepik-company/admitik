@@ -35,7 +35,7 @@ import (
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/controller"
-	clusterMutationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustermutationpolicy"
+	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 )
 
 type ClusterMutationPolicyControllerOptions struct {
@@ -49,7 +49,7 @@ type ClusterMutationPolicyControllerOptions struct {
 }
 
 type ClusterMutationPolicyControllerDependencies struct {
-	ClusterMutationPolicyRegistry *clusterMutationPolicyRegistry.ClusterMutationPolicyRegistry
+	ClusterMutationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterMutationPolicy]
 }
 
 // ClusterMutationPolicyReconciler reconciles a ClusterMutationPolicy object

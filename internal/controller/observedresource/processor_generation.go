@@ -18,6 +18,7 @@ package observedresource
 import (
 	"fmt"
 	"gopkg.in/yaml.v3"
+
 	//
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,13 +32,13 @@ import (
 	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/common"
 	"github.com/freepik-company/admitik/internal/globals"
-	clusterGenerationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustergenerationpolicy"
+	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
 	"github.com/freepik-company/admitik/internal/template"
 )
 
 type GenerationProcessorDependencies struct {
-	ClusterGenerationPolicyRegistry *clusterGenerationPolicyRegistry.ClusterGenerationPolicyRegistry
+	ClusterGenerationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterGenerationPolicy]
 	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
 
 	//
@@ -55,8 +56,7 @@ func NewGenerationProcessor(deps GenerationProcessorDependencies) *GenerationPro
 }
 
 func (p *GenerationProcessor) Process(resourceType string, eventType watch.EventType, object ...map[string]interface{}) {
-	logger := log.FromContext(globals.Application.Context)
-	logger = logger.WithValues("processor", ObserverTypeClusterGenerationPolicies)
+	logger := log.FromContext(globals.Application.Context).WithValues("processor", ObserverTypeClusterGenerationPolicies)
 
 	var err error
 

@@ -21,6 +21,39 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type SourceGroupFiltersRegexT struct {
+	Negative   bool   `json:"negative"`
+	Expression string `json:"expression"`
+}
+
+type SourceGroupFiltersNamespaceT struct {
+	MatchList  []string                  `json:"matchList,omitempty"`
+	MatchRegex *SourceGroupFiltersRegexT `json:"matchRegex,omitempty"`
+}
+
+type SourceGroupFiltersNameT struct {
+	MatchList  []string                  `json:"matchList,omitempty"`
+	MatchRegex *SourceGroupFiltersRegexT `json:"matchRegex,omitempty"`
+}
+
+type SourceGroupFiltersMetadataT struct {
+	MatchLabels      map[string]string `json:"matchLabels,omitempty"`
+	MatchAnnotations map[string]string `json:"matchAnnotations,omitempty"`
+}
+
+type SourceGroupFiltersT struct {
+	Namespace *SourceGroupFiltersNamespaceT `json:"namespace,omitempty"`
+	Name      *SourceGroupFiltersNameT      `json:"name,omitempty"`
+	Metadata  *SourceGroupFiltersMetadataT  `json:"metadata,omitempty"`
+}
+
+// SourceGroupT represents a TODO
+type SourceGroupT struct {
+	metav1.GroupVersionResource `json:",inline"`
+
+	Filters *SourceGroupFiltersT `json:"filters,omitempty"`
+}
+
 // ResourceGroupT represents a resource-group that will be watched to be evaluated
 type ResourceGroupT struct {
 	metav1.GroupVersionResource `json:",inline"`

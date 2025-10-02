@@ -112,7 +112,7 @@ func (r *ClusterValidationPolicyReconciler) ReconcileClusterValidationPolicy(ctx
 
 	// Clean non-desired watched types. This is needed for updates where the user
 	// reduces the amount of watched operations on watched resources
-	for _, registeredResourceType := range r.Dependencies.ClusterValidationPolicyRegistry.GetRegisteredResourceTypes() {
+	for _, registeredResourceType := range r.Dependencies.ClusterValidationPolicyRegistry.GetCollectionNames() {
 		if !slices.Contains(desiredWatchedTypes, registeredResourceType) {
 			r.Dependencies.ClusterValidationPolicyRegistry.RemoveResource(registeredResourceType, resourceManifest)
 		}
@@ -153,7 +153,7 @@ func (r *ClusterValidationPolicyReconciler) getMergedValidatingWebhookConfigurat
 
 	// Craft ValidatingWebhookConfiguration rules based on the pool keys
 	currentVwcRules := []admissionregv1.RuleWithOperations{}
-	InterceptedResourcesPatterns := r.Dependencies.ClusterValidationPolicyRegistry.GetRegisteredResourceTypes()
+	InterceptedResourcesPatterns := r.Dependencies.ClusterValidationPolicyRegistry.GetCollectionNames()
 
 	for _, resourcePattern := range InterceptedResourcesPatterns {
 
@@ -205,17 +205,22 @@ func (r *ClusterValidationPolicyReconciler) getMergedValidatingWebhookConfigurat
 	tmpWebhookObj.TimeoutSeconds = &timeoutSecondsConverted
 
 	// Ignore sensitive namespaces to avoid breaking Kubernetes essential services or chicken-egg scenarios
-	selectedNamespaces := strings.Split(r.Options.ExcludedAdmissionNamespaces, ",")
+	selectedNamespaces := []string{}
+	if !strings.EqualFold(r.Options.ExcludedAdmissionNamespaces, "") {
+		selectedNamespaces = strings.Split(r.Options.ExcludedAdmissionNamespaces, ",")
+	}
 	if r.Options.ExcludeAdmissionSelfNamespace {
 		selectedNamespaces = append(selectedNamespaces, r.Options.CurrentNamespace)
 	}
 
-	tmpWebhookObj.NamespaceSelector = &v1.LabelSelector{}
-	tmpWebhookObj.NamespaceSelector.MatchExpressions = []v1.LabelSelectorRequirement{{
-		Key:      "kubernetes.io/metadata.name",
-		Operator: v1.LabelSelectorOpNotIn,
-		Values:   selectedNamespaces,
-	}}
+	if len(selectedNamespaces) > 0 {
+		tmpWebhookObj.NamespaceSelector = &v1.LabelSelector{}
+		tmpWebhookObj.NamespaceSelector.MatchExpressions = []v1.LabelSelectorRequirement{{
+			Key:      "kubernetes.io/metadata.name",
+			Operator: v1.LabelSelectorOpNotIn,
+			Values:   selectedNamespaces,
+		}}
+	}
 
 	// Ignore admission for resources meeting a special label
 	if r.Options.EnableSpecialLabels {

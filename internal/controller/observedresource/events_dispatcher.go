@@ -24,8 +24,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	//
+	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/globals"
-	clusterGenerationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustergenerationpolicy"
+	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 	resourceObserverRegistry "github.com/freepik-company/admitik/internal/registry/resourceobserver"
 	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
 )
@@ -37,12 +38,11 @@ const (
 
 type EventDispatcherDependencies struct {
 	//
-	ClusterGenerationPolicyRegistry *clusterGenerationPolicyRegistry.ClusterGenerationPolicyRegistry
+	ClusterGenerationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterGenerationPolicy]
 	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
 	ResourceObserverRegistry        *resourceObserverRegistry.ResourceObserverRegistry
 
 	//
-
 }
 
 type EventDispatcher struct {

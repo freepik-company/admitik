@@ -14,19 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clustervalidationpolicy
+package policystore
 
 import (
 	"sync"
-
-	"github.com/freepik-company/admitik/api/v1alpha1"
 )
 
-// ResourceTypeName represents TODO
-// The pattern will be: {group}/{version}/{resource}/{operation}
-type ResourceTypeName = string
+type PolicyStore[T PolicyResourceI] struct {
+	mu sync.Mutex
 
-type ClusterValidationPolicyRegistry struct {
-	mu       sync.Mutex
-	registry map[ResourceTypeName][]*v1alpha1.ClusterValidationPolicy
+	// The pattern for the key will be: {group}/{version}/{resource}/{operation}
+	collections map[string][]T
 }

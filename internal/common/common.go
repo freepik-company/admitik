@@ -57,7 +57,7 @@ func FetchPolicySources(policyObj any, sourcesReg *sources.SourcesRegistry) (res
 
 	results = make(map[int][]map[string]any)
 
-	var policySources []v1alpha1.ResourceGroupT
+	var policySources []v1alpha1.SourceGroupT
 
 	switch p := (policyObj).(type) {
 	case *v1alpha1.ClusterGenerationPolicy:
@@ -72,12 +72,10 @@ func FetchPolicySources(policyObj any, sourcesReg *sources.SourcesRegistry) (res
 
 	for sourceIndex, sourceItem := range policySources {
 
-		sourceString := fmt.Sprintf("%s/%s/%s/%s/%s",
+		sourceString := fmt.Sprintf("%s/%s/%s",
 			sourceItem.Group,
 			sourceItem.Version,
-			sourceItem.Resource,
-			sourceItem.Namespace,
-			sourceItem.Name)
+			sourceItem.Resource)
 
 		sourceObjList := sourcesReg.GetResources(sourceString)
 

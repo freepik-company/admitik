@@ -19,11 +19,13 @@ package admission
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/freepik-company/admitik/internal/common"
-	"github.com/freepik-company/admitik/internal/template"
 
 	//
 	admissionv1 "k8s.io/api/admission/v1"
+
+	//
+	"github.com/freepik-company/admitik/internal/common"
+	"github.com/freepik-company/admitik/internal/template"
 )
 
 // extractAdmissionRequestData TODO
