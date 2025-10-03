@@ -1,7 +1,7 @@
 apiVersion: admitik.dev/v1alpha1
 kind: ClusterValidationPolicy
 metadata:
-  name: starlark-populate-vars
+  name: 05-starlark-populate-vars
 spec:
 
   failureAction: Permissive

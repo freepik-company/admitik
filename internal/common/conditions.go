@@ -25,7 +25,7 @@ import (
 )
 
 // IsPassingConditions iterate over a list of templated conditions and return whether they are passing or not
-func IsPassingConditions(conditionList []v1alpha1.ConditionT, injectedData *template.ConditionsInjectedDataT) (result bool, err error) {
+func IsPassingConditions(conditionList []v1alpha1.ConditionT, injectedData *template.PolicyEvaluationDataT) (result bool, err error) {
 	for _, condition := range conditionList {
 
 		// Choose templating engine. Maybe more will be added in the future

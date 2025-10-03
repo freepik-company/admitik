@@ -1,7 +1,7 @@
 apiVersion: admitik.dev/v1alpha1
 kind: ClusterGenerationPolicy
 metadata:
-  name: plain-with-cel-generate-configmap
+  name: 01-plain-generate-configmap
 spec:
 
   overwriteExisting: true
@@ -16,10 +16,7 @@ spec:
 
   # Other resources to be retrieved for conditions templates.
   # They will be included under .sources scope in the template
-  sources:
-    - group: ""
-      version: v1
-      resource: configmaps
+  sources: []
 
   conditions:
     - name: first-condition
@@ -31,13 +28,13 @@ spec:
   object:
     clone: {}
     definition:
-      engine: plain+cel
+      engine: plain
       template: |
         apiVersion: v1
         kind: ConfigMap
         metadata:
-          name: whatever-config
-          namespace: "{{cel: object.metadata.name }}"
+          name: whatever-config-plain
+          namespace: "default"
         data:
-          FIRST_SOURCE_ITEM_NAME: "{{cel: sources[0][0].metadata.name }}"
-          FIRST_SOURCE_ITEM_NAMESPACE: "{{cel: sources[0][0].metadata.namespace }}"
+          FIRST_SOURCE_ITEM_NAME: "fixed-value"
+          FIRST_SOURCE_ITEM_NAMESPACE: "fixed-value-other"

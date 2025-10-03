@@ -1,7 +1,7 @@
 apiVersion: admitik.dev/v1alpha1
 kind: ClusterValidationPolicy
 metadata:
-  name: starlark-confirm-existing-namespace-labels
+  name: 04-starlark-confirm-existing-namespace-labels
 spec:
 
   failureAction: Enforce

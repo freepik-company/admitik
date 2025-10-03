@@ -1,7 +1,7 @@
 apiVersion: admitik.dev/v1alpha1
 kind: ClusterValidationPolicy
 metadata:
-  name: gotmpl-confirm-existing-namespace-labels
+  name: 02-gotmpl-confirm-existing-namespace-labels
 spec:
   
   failureAction: Enforce

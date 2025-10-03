@@ -109,11 +109,11 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 
 	// Create an object that will be injected in conditions/message
 	// in later template evaluation stage
-	commonTemplateInjectedObject := template.ConditionsInjectedDataT{}
+	commonTemplateInjectedObject := template.PolicyEvaluationDataT{}
 	commonTemplateInjectedObject.Initialize()
 
 	// Store data for later: operation, old+current object
-	err = s.extractAdmissionRequestData(&requestObj, &commonTemplateInjectedObject)
+	err = s.populatePolicyDataFromAdmission(&requestObj, &commonTemplateInjectedObject)
 	if err != nil {
 		logger.Info(fmt.Sprintf("failed extracting data from AdmissionReview: %s", err.Error()))
 		return
@@ -278,6 +278,9 @@ func (s *HttpServer) generateJsonMergePatch(objectToPatch []byte, patch []byte) 
 
 // generateStrategicMergePatch patches the object using StrategicMerge strategy and returns the resulting object
 // Patch must be expressed in YAML
+// TODO: Could we use official Kubernetes package for this?
+// Ref: https://github.com/kubernetes/kubernetes/blob/bd715a38d32561b45742b2d0cf0762b024107a31/cmd/kubeadm/app/util/patches/patches.go#L211-L216
+// Ref: SMP using OpenAPI schemas like this project: https://github.com/kubernetes/kubernetes/blob/bd715a38d32561b45742b2d0cf0762b024107a31/staging/src/k8s.io/apimachinery/pkg/util/strategicpatch/patch.go#L821
 func (s *HttpServer) generateStrategicMergePatch(objectToPatch []byte, patch []byte) (patchedObjectBytes []byte, err error) {
 
 	var tmpPatchBytes []byte

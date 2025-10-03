@@ -103,13 +103,14 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 
 	// Create an object that will be injected in conditions/message
 	// in later template evaluation stage
-	commonTemplateInjectedObject := template.ConditionsInjectedDataT{}
+	commonTemplateInjectedObject := template.PolicyEvaluationDataT{}
 	commonTemplateInjectedObject.Initialize()
+
+	// TODO: missing call? s.populatePolicyDataFromAdmission()
 
 	// Loop over ClusterValidationPolicy resources performing actions
 	// At this point, some extra params will be added to the object that will be injected in template
 	caPolicyList := s.dependencies.ClusterValidationPolicyRegistry.GetResources(resourcePattern)
-
 	for _, caPolicyObj := range caPolicyList {
 
 		// Assume rejection for each policy individually

@@ -1,7 +1,7 @@
 apiVersion: admitik.dev/v1alpha1
 kind: ClusterValidationPolicy
 metadata:
-  name: gotmpl-avoid-colliding-routes
+  name: 01-gotmpl-avoid-colliding-routes
 spec:
 
   failureAction: Permissive

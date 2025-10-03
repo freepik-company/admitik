@@ -62,7 +62,7 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 
 	// Create an object that will be injected in conditions/message
 	// in later template evaluation stage
-	commonTemplateInjectedObject := template.ConditionsInjectedDataT{}
+	commonTemplateInjectedObject := template.PolicyEvaluationDataT{}
 	commonTemplateInjectedObject.Initialize()
 
 	commonTemplateInjectedObject.Operation = common.GetNormalizedOperation(eventType)

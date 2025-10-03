@@ -3,7 +3,7 @@
 apiVersion: admitik.dev/v1alpha1
 kind: ClusterValidationPolicy
 metadata:
-  name: starlark-avoid-colliding-routes
+  name: 03-starlark-avoid-colliding-routes
 spec:
 
   failureAction: Permissive

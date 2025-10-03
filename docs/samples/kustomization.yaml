@@ -9,27 +9,27 @@ resources:
 ## ClusterValidationPolicy
 #####################################
 
-#- ClusterValidationPolicies/gotmpl_existing_labels.yaml
-#- ClusterValidationPolicies/gotmpl_avoid_colliding_routes.yaml
-#- ClusterValidationPolicies/starlark_existing_labels.yaml
-#- ClusterValidationPolicies/starlark_avoid_colliding_routes.yaml
-#- ClusterValidationPolicies/starlark_populate_vars.yaml
+- ClusterValidationPolicies/01_gotmpl_avoid_colliding_routes.yaml
+- ClusterValidationPolicies/02_gotmpl_existing_labels.yaml
+- ClusterValidationPolicies/03_starlark_avoid_colliding_routes.yaml
+- ClusterValidationPolicies/04_starlark_existing_labels.yaml
+- ClusterValidationPolicies/05_starlark_populate_vars.yaml
 
 #####################################
 ## ClusterMutationPolicy
 #####################################
 
-#- ClusterMutationPolicy/01_plain_with_cel_use_jsonmerge_patch.yaml
-#- ClusterMutationPolicy/02_plain_with_cel_use_jsonmerge_patch.yaml
-#- ClusterMutationPolicy/03_plain_with_cel_add_annotations_section.yaml
-#- ClusterMutationPolicy/04_plain_with_cel_add_some_annotations.yaml
-#- ClusterMutationPolicy/05_plain_with_cel_add_some_annotations_with_sources.yaml
-#- ClusterMutationPolicy/06_starlark_add_some_annotations.yaml
-#- ClusterMutationPolicy/07_plain_with_cel_use_strategicmerge_patch.yaml
+- ClusterMutationPolicy/01_plain_with_cel_use_jsonmerge_patch.yaml
+- ClusterMutationPolicy/02_plain_with_cel_use_jsonmerge_patch.yaml
+- ClusterMutationPolicy/03_plain_with_cel_add_annotations_section.yaml
+- ClusterMutationPolicy/04_plain_with_cel_add_some_annotations.yaml
+- ClusterMutationPolicy/05_plain_with_cel_add_some_annotations_with_sources.yaml
+- ClusterMutationPolicy/06_starlark_add_some_annotations.yaml
+- ClusterMutationPolicy/07_plain_with_cel_use_strategicmerge_patch.yaml
 
 #####################################
 ## ClusterGenerationPolicy
 #####################################
 
-#- ClusterGenerationPolicy/plain_generate_configmap.yaml
-#- ClusterGenerationPolicy/plain_with_cel_generate_configmap.yaml
+- ClusterGenerationPolicy/01_plain_generate_configmap.yaml
+- ClusterGenerationPolicy/02_plain_with_cel_generate_configmap.yaml

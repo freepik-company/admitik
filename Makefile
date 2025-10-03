@@ -83,7 +83,7 @@ build: manifests generate fmt vet ## Build manager binary.
 	go build -o bin/manager cmd/main.go
 
 .PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
+run: manifests generate fmt vet ## Run operator locally for development (requires kind cluster).
 	@echo "Checking if current context is a local kind cluster..."
 	@CURRENT_CONTEXT=$$(kubectl config current-context); \
 	if ! echo "$$CURRENT_CONTEXT" | grep -q "^kind-"; then \
@@ -100,7 +100,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	fi; \
 	echo "✓ Docker gateway IP: $$DOCKER_GW_IP"; \
 	echo "Starting Caddy reverse proxy..."; \
-	$(CADDY) start --config config/caddy/Caddyfile 2>/dev/null || { \
+	$(CADDY) start --config config/caddy/Caddyfile >/tmp/admitik-dev-gateway 2>&1 || { \
 		echo "ERROR: Failed to start Caddy. Is it installed?"; \
 		exit 1; \
 	}; \
@@ -116,7 +116,8 @@ run: manifests generate fmt vet ## Run a controller from your host.
 		--webhook-server-ca="$$HOME/.local/share/caddy/pki/authorities/local/root.crt" \
 		--kube-client-qps=25 \
 		--kube-client-burst=50 \
-		--zap-log-level=6
+		--zap-log-level=debug
+		#--zap-log-level=6
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.

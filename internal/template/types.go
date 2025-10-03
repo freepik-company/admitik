@@ -13,8 +13,10 @@ type InjectedDataI interface {
 	SetVars(vars map[string]any)
 }
 
-// TODO -----------------------------------------------------
-
+// TriggerInjectedDataT contains the base data injected into policy templates during evaluation.
+// This data structure is common across both admission webhook requests and informer-generated events,
+// allowing templates to access consistent context regardless of the trigger source.
+// Policy templates can use these fields directly or extend this type with additional context-specific data.
 type TriggerInjectedDataT struct {
 	Operation string
 
@@ -42,23 +44,29 @@ func (ida *TriggerInjectedDataT) GetVars() (vars map[string]any) { return nil }
 func (ida *TriggerInjectedDataT) SetVar(key string, value any)   {}
 func (ida *TriggerInjectedDataT) SetVars(vars map[string]any)    {}
 
-// TODO -----------------------------------------------------
-
-type ConditionsInjectedDataT struct {
+// PolicyEvaluationDataT extends TriggerInjectedDataT with additional context for policy evaluation.
+// Provides access to source data collections and user-defined variables for use in conditions,
+// mutations, and resource generation templates.
+type PolicyEvaluationDataT struct {
 	TriggerInjectedDataT
 
+	// Sources contains indexed collections of data from external sources (APIs, databases, etc.)
+	// that can be referenced in policy templates. Each source is identified by its index.
 	Sources map[int][]map[string]any
-	Vars    map[string]any
+
+	// Vars holds user-defined variables computed during policy evaluation,
+	// available for reference in subsequent template expressions.
+	Vars map[string]any
 }
 
-func (ida *ConditionsInjectedDataT) Initialize() {
+func (ida *PolicyEvaluationDataT) Initialize() {
 	ida.TriggerInjectedDataT.Initialize()
 
 	ida.Sources = make(map[int][]map[string]any)
 	ida.Vars = make(map[string]any)
 }
 
-func (ida *ConditionsInjectedDataT) ToMap() map[string]any {
+func (ida *PolicyEvaluationDataT) ToMap() map[string]any {
 	tmp := ida.TriggerInjectedDataT.ToMap()
 
 	tmp["sources"] = ida.Sources
@@ -67,24 +75,24 @@ func (ida *ConditionsInjectedDataT) ToMap() map[string]any {
 	return tmp
 }
 
-func (ida *ConditionsInjectedDataT) GetVar(key string) (value any) {
+func (ida *PolicyEvaluationDataT) GetVar(key string) (value any) {
 	if ida.Vars == nil {
 		return nil
 	}
 	return ida.Vars[key]
 }
 
-func (ida *ConditionsInjectedDataT) GetVars() (vars map[string]any) {
+func (ida *PolicyEvaluationDataT) GetVars() (vars map[string]any) {
 	return ida.Vars
 }
 
-func (ida *ConditionsInjectedDataT) SetVar(key string, value any) {
+func (ida *PolicyEvaluationDataT) SetVar(key string, value any) {
 	if ida.Vars == nil {
 		ida.Vars = make(map[string]any)
 	}
 	ida.Vars[key] = value
 }
 
-func (ida *ConditionsInjectedDataT) SetVars(vars map[string]any) {
+func (ida *PolicyEvaluationDataT) SetVars(vars map[string]any) {
 	ida.Vars = vars
 }

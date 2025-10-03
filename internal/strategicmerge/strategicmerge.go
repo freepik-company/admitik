@@ -342,7 +342,15 @@ func getPatchStrategyFromSchema(schema proto.Schema) schemaPatchStrategyInfo {
 		return schemaPatchStrategyInfo{Strategy: strategyMerge, MergeKeys: []string{}}
 	}
 
-	// Default behavior for map-like objects (structs) is "merge".
+	// Priority 4: Detect free maps
+	// These are objects not specifying any strategy extensions to merged items, just objects with 'additionalProperties' field.
+	// These are maps with arbitrary keys: labels, annotations, data, etc.
+	if _, ok := schema.(*proto.Map); ok {
+		return schemaPatchStrategyInfo{Strategy: strategyMerge, MergeKeys: []string{}}
+	}
+
+	// Priority 5: Detect free structs
+	// These are objects not specifying any strategy extensions to merged items, but with properties DO defined
 	if _, ok := schema.(*proto.Kind); ok {
 		return schemaPatchStrategyInfo{Strategy: strategyMerge, MergeKeys: []string{}}
 	}
