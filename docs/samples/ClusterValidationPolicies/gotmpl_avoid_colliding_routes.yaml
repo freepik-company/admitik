@@ -22,10 +22,6 @@ spec:
       version: v1
       resource: httproutes
 
-      # (Optional) It's possible to retrieve specific resources
-      # name: secondary-route
-      # namespace: default
-
   conditions:
     - name: confirm-non-existing-routes
       engine: gotmpl

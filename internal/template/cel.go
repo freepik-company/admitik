@@ -30,16 +30,19 @@ var (
 	CellBracketExpressionRegexCompiled = regexp.MustCompile(`{{cel:\s*([\s\S]*?)\s*}}`)
 )
 
-func EvaluateTemplateCel(template string, injectedData *InjectedDataT) (result string, err error) {
+func EvaluateTemplateCel(template string, injectedData InjectedDataI) (result string, err error) {
 
-	// Create the environment
-	env, err := cel.NewEnv(
-		cel.Variable("operation", cel.StringType),
-		cel.Variable("object", cel.MapType(cel.StringType, cel.AnyType)),
-		cel.Variable("oldObject", cel.MapType(cel.StringType, cel.AnyType)),
-		cel.Variable("sources", cel.MapType(cel.IntType, cel.AnyType)),
-	)
+	injectedDataMap := injectedData.ToMap()
 
+	// Vars can not be used in CEL to guarantee when they are used, you can store things inside
+	delete(injectedDataMap, "vars")
+
+	envOptions := []cel.EnvOption{}
+	for key := range injectedDataMap {
+		envOptions = append(envOptions, cel.Variable(key, cel.DynType))
+	}
+
+	env, err := cel.NewEnv(envOptions...)
 	if err != nil {
 		return "", fmt.Errorf("environment creation error: %s", err.Error())
 	}
@@ -56,12 +59,7 @@ func EvaluateTemplateCel(template string, injectedData *InjectedDataT) (result s
 	}
 
 	// The `out` var contains the output of a successful evaluation.
-	out, _, err := prg.Eval(map[string]interface{}{
-		"operation": injectedData.Operation,
-		"object":    injectedData.Object,
-		"oldObject": injectedData.OldObject,
-		"sources":   injectedData.Sources,
-	})
+	out, _, err := prg.Eval(injectedDataMap)
 
 	if err != nil {
 		return "", fmt.Errorf("program evaluation error: %s", err.Error())
@@ -74,7 +72,7 @@ func EvaluateTemplateCel(template string, injectedData *InjectedDataT) (result s
 
 // EvaluateAndReplaceCelExpressions finds {{cel: ... }} patterns and evaluates each using EvaluateTemplateCel
 // replacing them with their output
-func EvaluateAndReplaceCelExpressions(input string, injectedData *InjectedDataT) (string, error) {
+func EvaluateAndReplaceCelExpressions(input string, injectedData InjectedDataI) (string, error) {
 
 	// Find all CEL expression matches
 	matches := CellBracketExpressionRegexCompiled.FindAllStringSubmatch(input, -1)

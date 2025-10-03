@@ -1,0 +1,33 @@
+apiVersion: admitik.dev/v1alpha1
+kind: ClusterMutationPolicy
+metadata:
+  name: 04-plain-with-cel-add-some-annotations
+spec:
+
+  # Resources to be intercepted before reaching the cluster
+  interceptedResources:
+    - group: ""
+      version: v1
+      resource: namespaces
+      operations:
+        - CREATE
+
+  # Other resources to be retrieved for conditions templates.
+  # They will be included under .sources scope in the template
+  sources: []
+
+  conditions:
+    - name: ensure-annotations-exist
+      engine: cel
+      key: has(object.metadata.annotations)
+      value: "true"
+
+  patch:
+    type: jsonpatch # JsonPatch | JsonMerge | StrategicMerge
+    engine: plain+cel
+    template: |
+      [
+        { "op": "add", "path": "/metadata/annotations/patch-04-object-operation", "value": "{{cel: operation }}" },
+        { "op": "add", "path": "/metadata/annotations/patch-04-object-kind", "value": "{{cel: object.kind }}" },
+        { "op": "add", "path": "/metadata/annotations/patch-04-object-name", "value": "{{cel: object.metadata.name }}" }
+      ]

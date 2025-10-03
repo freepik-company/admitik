@@ -103,7 +103,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 
 	// Create an object that will be injected in conditions/message
 	// in later template evaluation stage
-	commonTemplateInjectedObject := template.InjectedDataT{}
+	commonTemplateInjectedObject := template.ConditionsInjectedDataT{}
 	commonTemplateInjectedObject.Initialize()
 
 	// Loop over ClusterValidationPolicy resources performing actions
@@ -119,8 +119,14 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 		logger = logger.WithValues("ClusterValidationPolicy", caPolicyObj.Name)
 
 		// Retrieve the sources declared per policy
+		triggerInjectedObject := commonTemplateInjectedObject.TriggerInjectedDataT
+		tmpFetchedPolicySources, fetchErr := common.FetchPolicySources(s.dependencies.SourcesRegistry, caPolicyObj, &triggerInjectedObject)
+		if fetchErr != nil {
+			logger.Info("failed fetching sources. Broken ones will be empty", "error", fetchErr.Error())
+		}
+
 		specificTemplateInjectedObject := commonTemplateInjectedObject
-		specificTemplateInjectedObject.Sources = common.FetchPolicySources(caPolicyObj, s.dependencies.SourcesRegistry)
+		specificTemplateInjectedObject.Sources = tmpFetchedPolicySources
 
 		// Evaluate template conditions
 		conditionsPassed, condErr := common.IsPassingConditions(caPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)

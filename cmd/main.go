@@ -154,6 +154,7 @@ func main() {
 	flag.StringVar(&excludedAdmissionNamespaces, "excluded-admission-namespaces", "",
 		"Comma-separated list of namespaces to be excluded from admission evaluations. Commonly used for 'kube-system'")
 
+	// Ref: https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/log/zap@v0.21.0#Options.BindFlags
 	opts := zap.Options{
 		Development: true,
 	}
@@ -497,6 +498,7 @@ func main() {
 			TLSPrivateKey:  webhooksServerPrivateKey,
 		},
 		admission.AdmissionServerDependencies{
+			Context:                         &globals.Application.Context,
 			SourcesRegistry:                 sourcesReg,
 			ClusterValidationPolicyRegistry: clusterValidationPolicyReg,
 			ClusterMutationPolicyRegistry:   clusterMutationPolicyReg,

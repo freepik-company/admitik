@@ -43,6 +43,9 @@ const (
 
 // AdmissionServerDependencies represents the dependencies needed by the AdmissionServer to work
 type AdmissionServerDependencies struct {
+	Context *context.Context
+
+	//
 	ClusterValidationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterValidationPolicy]
 	ClusterMutationPolicyRegistry   *policyStore.PolicyStore[*v1alpha1.ClusterMutationPolicy]
 	SourcesRegistry                 *sourcesRegistry.SourcesRegistry

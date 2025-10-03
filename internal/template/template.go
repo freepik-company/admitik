@@ -24,7 +24,7 @@ const (
 	EnginePlainWithCel string = "plain+cel"
 )
 
-func EvaluateTemplate(engine string, template string, injectedData *InjectedDataT) (result string, err error) {
+func EvaluateTemplate(engine string, template string, injectedData InjectedDataI) (result string, err error) {
 
 	switch engine {
 	case EngineCel:

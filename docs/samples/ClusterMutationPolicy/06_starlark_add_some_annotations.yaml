@@ -1,7 +1,7 @@
 apiVersion: admitik.dev/v1alpha1
 kind: ClusterMutationPolicy
 metadata:
-  name: starlark-add-some-labels
+  name: 06-starlark-add-some-annotations
 spec:
 
   # Resources to be intercepted before reaching the cluster
@@ -24,7 +24,6 @@ spec:
         def check_namespace():
           if object["metadata"]["name"].startswith("mutate-"):
             print("mutate-it")
-        
         check_namespace()
       value: "mutate-it"
 
@@ -40,8 +39,7 @@ spec:
       
         if operation == "CREATE":
           patch = patch + [
-            {"op": "add", "path": "/metadata/annotations/mutated-by", "value": "admitik"},
-            {"op": "add", "path": "/metadata/annotations/watched-operation", "value": operation },
+            {"op": "add", "path": "/metadata/annotations/patch-06-mutated-by", "value": "admitik"}
           ]
         else:
           patch = patch + []

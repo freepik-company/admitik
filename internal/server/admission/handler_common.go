@@ -29,7 +29,7 @@ import (
 )
 
 // extractAdmissionRequestData TODO
-func (s *HttpServer) extractAdmissionRequestData(adReview *admissionv1.AdmissionReview, injectedData *template.InjectedDataT) (err error) {
+func (s *HttpServer) extractAdmissionRequestData(adReview *admissionv1.AdmissionReview, injectedData *template.ConditionsInjectedDataT) (err error) {
 
 	// Store desired operation
 	injectedData.Operation = common.GetNormalizedOperation(adReview.Request.Operation)

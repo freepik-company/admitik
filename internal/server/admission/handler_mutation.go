@@ -109,10 +109,10 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 
 	// Create an object that will be injected in conditions/message
 	// in later template evaluation stage
-	commonTemplateInjectedObject := template.InjectedDataT{}
+	commonTemplateInjectedObject := template.ConditionsInjectedDataT{}
 	commonTemplateInjectedObject.Initialize()
 
-	//commonTemplateInjectedObject := map[string]interface{}{}
+	// Store data for later: operation, old+current object
 	err = s.extractAdmissionRequestData(&requestObj, &commonTemplateInjectedObject)
 	if err != nil {
 		logger.Info(fmt.Sprintf("failed extracting data from AdmissionReview: %s", err.Error()))
@@ -130,13 +130,19 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 		logger = logger.WithValues("ClusterMutationPolicy", cmPolicyObj.Name)
 
 		// Retrieve the sources declared per policy
+		triggerInjectedObject := commonTemplateInjectedObject.TriggerInjectedDataT
+		tmpFetchedPolicySources, fetchErr := common.FetchPolicySources(s.dependencies.SourcesRegistry, cmPolicyObj, &triggerInjectedObject)
+		if fetchErr != nil {
+			logger.Info("failed fetching sources. Broken ones will be empty", "error", fetchErr.Error())
+		}
+
 		specificTemplateInjectedObject := commonTemplateInjectedObject
-		specificTemplateInjectedObject.Sources = common.FetchPolicySources(cmPolicyObj, s.dependencies.SourcesRegistry)
+		specificTemplateInjectedObject.Sources = tmpFetchedPolicySources
 
 		// Evaluate template conditions
 		conditionsPassed, condErr := common.IsPassingConditions(cmPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
 		if condErr != nil {
-			logger.Info(fmt.Sprintf("failed evaluating conditions: %s", condErr.Error()))
+			logger.Info("failed evaluating conditions", "error", condErr.Error())
 		}
 
 		// Conditions are not met, skip patching the resource
@@ -188,6 +194,8 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 // generateJsonPatchOperations return a group of JsonPatch operations to mutate an object from its original
 // state to a final state. It's compatible with 'jsonpatch', 'jsonmerge' and 'strategicmerge' patch types.
 func (s *HttpServer) generateJsonPatchOperations(objectToPatch []byte, patchType string, patch []byte) (jsonPatchOperations jsondiff.Patch, err error) {
+	logger := log.FromContext(*s.dependencies.Context).
+		WithValues("controller", "admissionserver", "action", "mutation")
 
 	var patchedObjectBytes []byte
 	patchType = strings.ToLower(patchType)
@@ -219,6 +227,15 @@ func (s *HttpServer) generateJsonPatchOperations(objectToPatch []byte, patchType
 	if err != nil {
 		return nil, err
 	}
+
+	// DEBUG: log candidate object, already patched candidate for it and operations that will be applied.
+	// This is useful to identify issues in patching engines.
+	logger.V(5).Info("generated patch",
+		"type", patchType,
+		"candidate", string(objectToPatch),
+		"patchedCandidate", string(patchedObjectBytes),
+		"jsonPatchOperations", tmpJsonPatchOperations.String(),
+	)
 
 	return tmpJsonPatchOperations, nil
 }

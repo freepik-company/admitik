@@ -84,12 +84,39 @@ build: manifests generate fmt vet ## Build manager binary.
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	@HOSTNAME=$$(bash ./scripts/init-tunnel.sh); \
+	@echo "Checking if current context is a local kind cluster..."
+	@CURRENT_CONTEXT=$$(kubectl config current-context); \
+	if ! echo "$$CURRENT_CONTEXT" | grep -q "^kind-"; then \
+		echo "ERROR: Current context '$$CURRENT_CONTEXT' is not a kind cluster"; \
+		echo "Switch to a kind cluster with: kubectl config use-context kind-<cluster-name>"; \
+		exit 1; \
+	fi; \
+	echo "✓ Using kind cluster: $$CURRENT_CONTEXT"; \
+	echo "Detecting Docker bridge gateway IP..."; \
+	DOCKER_GW_IP=$$($(CONTAINER_TOOL) network inspect kind --format '{{(index .IPAM.Config 0).Gateway}}' 2>/dev/null); \
+	if [ -z "$$DOCKER_GW_IP" ]; then \
+		echo "ERROR: Could not detect kind network gateway IP"; \
+		exit 1; \
+	fi; \
+	echo "✓ Docker gateway IP: $$DOCKER_GW_IP"; \
+	echo "Starting Caddy reverse proxy..."; \
+	$(CADDY) start --config config/caddy/Caddyfile 2>/dev/null || { \
+		echo "ERROR: Failed to start Caddy. Is it installed?"; \
+		exit 1; \
+	}; \
+	trap "echo 'Stopping Caddy...'; caddy stop 2>/dev/null" EXIT; \
+	echo "✓ Caddy running on :8443"; \
 	echo -e "\n==========================================================================="; \
-	echo -e "\033[38;5;208m[ATTENTION]\033[0m Using a reverse tunnel to your local trough '$${HOSTNAME}:443' for testing webhooks"; \
-	echo -e "Close it executing the following command when the tunnel is not needed: pkill -f '^ssh -R'"; \
+	echo -e "\033[38;5;208m[LOCAL DEV MODE]\033[0m Webhooks accessible at https://$$DOCKER_GW_IP:8443"; \
+	echo -e "Press Ctrl+C to stop the controller and Caddy"; \
 	echo -e "===========================================================================\n"; \
-	go run ./cmd/main.go --webhook-client-hostname=$${HOSTNAME} --webhook-client-port=443 --kube-client-qps=25 --kube-client-burst=50; \
+	go run ./cmd/main.go \
+		--webhook-client-hostname=$$DOCKER_GW_IP \
+		--webhook-client-port=8443 \
+		--webhook-server-ca="$$HOME/.local/share/caddy/pki/authorities/local/root.crt" \
+		--kube-client-qps=25 \
+		--kube-client-burst=50 \
+		--zap-log-level=6
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
@@ -161,12 +188,14 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize-$(KUSTOMIZE_VERSION)
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen-$(CONTROLLER_TOOLS_VERSION)
 ENVTEST ?= $(LOCALBIN)/setup-envtest-$(ENVTEST_VERSION)
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
+CADDY = $(LOCALBIN)/caddy-$(CADDY_VERSION)
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.4.1
 CONTROLLER_TOOLS_VERSION ?= v0.15.0
 ENVTEST_VERSION ?= release-0.18
 GOLANGCI_LINT_VERSION ?= v1.57.2
+CADDY_VERSION ?= v2.10.0
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -187,6 +216,11 @@ $(ENVTEST): $(LOCALBIN)
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,${GOLANGCI_LINT_VERSION})
+
+.PHONY: caddy
+caddy: $(CADDY)
+$(CADDY): $(LOCALBIN)
+	$(call go-install-tool,$(CADDY),github.com/caddyserver/caddy/v2/cmd/caddy,${CADDY_VERSION})
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary (ideally with version)
