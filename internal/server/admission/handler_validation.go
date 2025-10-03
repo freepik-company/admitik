@@ -106,7 +106,12 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 	commonTemplateInjectedObject := template.PolicyEvaluationDataT{}
 	commonTemplateInjectedObject.Initialize()
 
-	// TODO: missing call? s.populatePolicyDataFromAdmission()
+	// Store data for later: operation, old+current object
+	err = s.populatePolicyDataFromAdmission(&requestObj, &commonTemplateInjectedObject)
+	if err != nil {
+		logger.Info(fmt.Sprintf("failed extracting data from AdmissionReview: %s", err.Error()))
+		return
+	}
 
 	// Loop over ClusterValidationPolicy resources performing actions
 	// At this point, some extra params will be added to the object that will be injected in template

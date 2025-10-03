@@ -29,13 +29,13 @@ spec:
         {{- $object := .object -}}
         {{- $labels := $object.metadata.labels -}}
         {{- $labelFound := false -}}
-
+        
         {{- range $labelKey, $labelValue := $labels -}}
-          {{- if eq $labelKey "admitik.dev/label" -}}
-            {{- $labelFound := true -}}
+          {{- if eq $labelKey "admitik.dev/mandatory-label" -}}
+            {{- $labelFound = true -}}
           {{- end -}}
         {{- end -}}
-
+        
         {{- if $labelFound -}}
           {{- printf "label-found" -}}
         {{- else -}}
@@ -47,4 +47,9 @@ spec:
   message:
     engine: gotmpl
     template: |
-      {{- logPrintf "hola" -}}
+      {{- $object := .object -}}
+      {{/* The following will be shown to the user on kubectl apply and logged by the controller */}}
+      {{- printf "Resource '%s' was rejected as some of mandatory label is missing" .object.metadata.name -}}
+      
+      {{/* The following will be only logged in stdout by Admitik */}}
+      {{- logPrintf "Hello, this is a custom message for your SRE members" -}}

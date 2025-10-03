@@ -73,7 +73,10 @@ func EvaluateTemplateStarlark(template string, injectedData InjectedDataI) (resu
 		if convErr != nil {
 			return "", fmt.Errorf("error converting '%s' into Starlark: %v", key, convErr)
 		}
-		starlarkValue.Freeze()
+
+		if key != "vars" {
+			starlarkValue.Freeze()
+		}
 
 		// Store with __raw prefix for the template initialization
 		predeclaredData["__raw_"+key] = starlarkValue

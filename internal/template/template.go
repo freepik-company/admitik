@@ -45,5 +45,7 @@ func EvaluateTemplate(engine string, template string, injectedData InjectedDataI
 		result, err = EvaluateTemplateCel(template, injectedData)
 	}
 
+	// TODO: DEBUG: log incoming params?
+
 	return result, err
 }

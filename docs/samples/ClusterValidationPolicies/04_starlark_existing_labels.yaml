@@ -43,7 +43,7 @@ spec:
             return "label-not-found"        
           return "label-found"
               
-        isPresent = isLabelPresent("admitik.dev/label")
+        isPresent = isLabelPresent("admitik.dev/super-important-label")
         
         # It's possible to throw messages to the logs
         log.debug("Is the label present?: ", present=isPresent)
