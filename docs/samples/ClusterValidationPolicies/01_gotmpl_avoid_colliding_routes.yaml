@@ -1,7 +1,7 @@
 apiVersion: admitik.dev/v1alpha1
 kind: ClusterValidationPolicy
 metadata:
-  name: gotmpl-avoid-colliding-routes
+  name: 01-gotmpl-avoid-colliding-routes
 spec:
 
   failureAction: Permissive
@@ -21,10 +21,6 @@ spec:
     - group: gateway.networking.k8s.io
       version: v1
       resource: httproutes
-
-      # (Optional) It's possible to retrieve specific resources
-      # name: secondary-route
-      # namespace: default
 
   conditions:
     - name: confirm-non-existing-routes

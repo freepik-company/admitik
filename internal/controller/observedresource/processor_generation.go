@@ -18,6 +18,7 @@ package observedresource
 import (
 	"fmt"
 	"gopkg.in/yaml.v3"
+
 	//
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,13 +32,13 @@ import (
 	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/common"
 	"github.com/freepik-company/admitik/internal/globals"
-	clusterGenerationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustergenerationpolicy"
+	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
 	"github.com/freepik-company/admitik/internal/template"
 )
 
 type GenerationProcessorDependencies struct {
-	ClusterGenerationPolicyRegistry *clusterGenerationPolicyRegistry.ClusterGenerationPolicyRegistry
+	ClusterGenerationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterGenerationPolicy]
 	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
 
 	//
@@ -55,14 +56,13 @@ func NewGenerationProcessor(deps GenerationProcessorDependencies) *GenerationPro
 }
 
 func (p *GenerationProcessor) Process(resourceType string, eventType watch.EventType, object ...map[string]interface{}) {
-	logger := log.FromContext(globals.Application.Context)
-	logger = logger.WithValues("processor", ObserverTypeClusterGenerationPolicies)
+	logger := log.FromContext(globals.Application.Context).WithValues("processor", ObserverTypeClusterGenerationPolicies)
 
 	var err error
 
 	// Create an object that will be injected in conditions/message
 	// in later template evaluation stage
-	commonTemplateInjectedObject := template.InjectedDataT{}
+	commonTemplateInjectedObject := template.PolicyEvaluationDataT{}
 	commonTemplateInjectedObject.Initialize()
 
 	commonTemplateInjectedObject.Operation = common.GetNormalizedOperation(eventType)
@@ -80,8 +80,14 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 		logger = logger.WithValues("ClusterGenerationPolicy", policyObj.Name)
 
 		// Retrieve the sources declared per policy
+		triggerInjectedObject := commonTemplateInjectedObject.TriggerInjectedDataT
+		tmpFetchedPolicySources, fetchErr := common.FetchPolicySources(p.dependencies.SourcesRegistry, policyObj, &triggerInjectedObject)
+		if fetchErr != nil {
+			logger.Info("failed fetching sources. Broken ones will be empty", "error", fetchErr.Error())
+		}
+
 		specificTemplateInjectedObject := commonTemplateInjectedObject
-		specificTemplateInjectedObject.Sources = common.FetchPolicySources(policyObj, p.dependencies.SourcesRegistry)
+		specificTemplateInjectedObject.Sources = tmpFetchedPolicySources
 
 		//Evaluate template conditions
 		conditionsPassed, condErr := common.IsPassingConditions(policyObj.Spec.Conditions, &specificTemplateInjectedObject)

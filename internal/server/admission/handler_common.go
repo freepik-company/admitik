@@ -19,15 +19,19 @@ package admission
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/freepik-company/admitik/internal/common"
-	"github.com/freepik-company/admitik/internal/template"
 
 	//
 	admissionv1 "k8s.io/api/admission/v1"
+
+	//
+	"github.com/freepik-company/admitik/internal/common"
+	"github.com/freepik-company/admitik/internal/template"
 )
 
-// extractAdmissionRequestData TODO
-func (s *HttpServer) extractAdmissionRequestData(adReview *admissionv1.AdmissionReview, injectedData *template.InjectedDataT) (err error) {
+// populatePolicyDataFromAdmission enriches the policy evaluation context with data from the admission request.
+// Extracts data such as the operation type, target object or previous object state (for updates) from the AdmissionReview
+// and populates the corresponding fields in the policy evaluation data structure.
+func (s *HttpServer) populatePolicyDataFromAdmission(adReview *admissionv1.AdmissionReview, injectedData *template.PolicyEvaluationDataT) (err error) {
 
 	// Store desired operation
 	injectedData.Operation = common.GetNormalizedOperation(adReview.Request.Operation)

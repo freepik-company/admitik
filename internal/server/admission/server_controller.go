@@ -28,8 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	//
-	clusterMutationpolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustermutationpolicy"
-	clusterValidationpolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustervalidationpolicy"
+	"github.com/freepik-company/admitik/api/v1alpha1"
+	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
 )
 
@@ -43,8 +43,11 @@ const (
 
 // AdmissionServerDependencies represents the dependencies needed by the AdmissionServer to work
 type AdmissionServerDependencies struct {
-	ClusterValidationPolicyRegistry *clusterValidationpolicyRegistry.ClusterValidationPolicyRegistry
-	ClusterMutationPolicyRegistry   *clusterMutationpolicyRegistry.ClusterMutationPolicyRegistry
+	Context *context.Context
+
+	//
+	ClusterValidationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterValidationPolicy]
+	ClusterMutationPolicyRegistry   *policyStore.PolicyStore[*v1alpha1.ClusterMutationPolicy]
 	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
 }
 

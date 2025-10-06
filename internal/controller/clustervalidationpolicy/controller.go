@@ -35,7 +35,7 @@ import (
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/controller"
-	clusterValidationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustervalidationpolicy"
+	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 )
 
 type ClusterValidationPolicyControllerOptions struct {
@@ -49,7 +49,7 @@ type ClusterValidationPolicyControllerOptions struct {
 }
 
 type ClusterValidationPolicyControllerDependencies struct {
-	ClusterValidationPolicyRegistry *clusterValidationPolicyRegistry.ClusterValidationPolicyRegistry
+	ClusterValidationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterValidationPolicy]
 }
 
 // ClusterValidationPolicyReconciler reconciles a ClusterValidationPolicy object

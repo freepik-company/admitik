@@ -1,7 +1,7 @@
-apiVersion: admitik.freepik.com/v1alpha1
+apiVersion: admitik.dev/v1alpha1
 kind: ClusterMutationPolicy
 metadata:
-  name: plain-with-cel-use-strategicmerge-patch
+  name: 02-plain-with-cel-use-jsonmerge-patch
 spec:
 
   # Resources to be intercepted before reaching the cluster
@@ -20,11 +20,9 @@ spec:
   conditions: []
 
   patch:
-    type: strategicmerge # JsonPatch | JsonMerge | StrategicMerge
+    type: jsonmerge # JsonPatch | JsonMerge | StrategicMerge
     engine: plain+cel
     template: |
-      apiVersion: v1                                                                                                                                                                                 
-      kind: Namespace
       metadata:
         labels:
-          custom-label/namespace: "{{cel: object.metadata.name }}"
+          patch-02-custom-label/namespace: "{{cel: object.metadata.name }}"

@@ -1,0 +1,30 @@
+apiVersion: admitik.dev/v1alpha1
+kind: ClusterMutationPolicy
+metadata:
+  name: 07-plain-with-cel-use-strategicmerge-patch
+spec:
+
+  # Resources to be intercepted before reaching the cluster
+  interceptedResources:
+    - group: ""
+      version: v1
+      resource: namespaces
+      operations:
+        - CREATE
+
+  # Other resources to be retrieved for conditions templates.
+  # They will be included under .sources scope in the template
+  sources: []
+
+  # Conditions are optional, so no-conditions means they are always met
+  conditions: []
+
+  patch:
+    type: strategicmerge # JsonPatch | JsonMerge | StrategicMerge
+    engine: plain+cel
+    template: |
+      apiVersion: v1                                                                                                                                                                                 
+      kind: Namespace
+      metadata:
+        labels:
+          patch-07-custom-label/namespace: "{{cel: object.metadata.name }}"

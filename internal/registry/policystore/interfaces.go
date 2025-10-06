@@ -14,19 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clustermutationpolicy
+package policystore
 
-import (
-	"sync"
+import "github.com/freepik-company/admitik/api/v1alpha1"
 
-	"github.com/freepik-company/admitik/api/v1alpha1"
-)
-
-// ResourceTypeName represents TODO
-// The pattern will be: {group}/{version}/{resource}/{operation}
-type ResourceTypeName = string
-
-type ClusterMutationPolicyRegistry struct {
-	mu       sync.Mutex
-	registry map[ResourceTypeName][]*v1alpha1.ClusterMutationPolicy
+// PolicyResourceI represents the minimal contract that all policy types must fulfill
+// to participate in the policy registry
+type PolicyResourceI interface {
+	GetName() string
+	GetSources() []v1alpha1.SourceGroupT
 }

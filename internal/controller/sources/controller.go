@@ -36,10 +36,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	//
+	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/globals"
-	clusterGenerationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustergenerationpolicy"
-	clusterMutationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustermutationpolicy"
-	clusterValidationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustervalidationpolicy"
+	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
 )
 
@@ -76,9 +75,9 @@ type SourcesControllerDependencies struct {
 	Context *context.Context
 
 	//
-	ClusterGenerationPolicyRegistry *clusterGenerationPolicyRegistry.ClusterGenerationPolicyRegistry
-	ClusterMutationPolicyRegistry   *clusterMutationPolicyRegistry.ClusterMutationPolicyRegistry
-	ClusterValidationPolicyRegistry *clusterValidationPolicyRegistry.ClusterValidationPolicyRegistry
+	ClusterGenerationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterGenerationPolicy]
+	ClusterMutationPolicyRegistry   *policyStore.PolicyStore[*v1alpha1.ClusterMutationPolicy]
+	ClusterValidationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterValidationPolicy]
 	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
 }
 
@@ -108,9 +107,9 @@ func (r *SourcesController) getSourcesFromRegistries() []string {
 
 	var referentCandidates []string
 
-	candidatesFromGeneration := r.Dependencies.ClusterGenerationPolicyRegistry.GetRegisteredSourcesTypes()
-	candidatesFromMutation := r.Dependencies.ClusterMutationPolicyRegistry.GetRegisteredSourcesTypes()
-	candidatesFromValidation := r.Dependencies.ClusterValidationPolicyRegistry.GetRegisteredSourcesTypes()
+	candidatesFromGeneration := r.Dependencies.ClusterGenerationPolicyRegistry.GetReferencedSources()
+	candidatesFromMutation := r.Dependencies.ClusterMutationPolicyRegistry.GetReferencedSources()
+	candidatesFromValidation := r.Dependencies.ClusterValidationPolicyRegistry.GetReferencedSources()
 	referentCandidates = slices.Concat(candidatesFromGeneration, candidatesFromMutation, candidatesFromValidation)
 
 	// Filter duplicated items
@@ -219,32 +218,16 @@ func (r *SourcesController) launchInformerForType(resourceType sourcesRegistry.R
 	}()
 
 	// Extract GVR + Namespace + Name from watched type:
-	// {group}/{version}/{resource}/{namespace}/{name}
-	GVRNN := strings.Split(resourceType, "/")
-	if len(GVRNN) != 5 {
+	// {group}/{version}/{resource}
+	GVR := strings.Split(resourceType, "/")
+	if len(GVR) != 3 {
 		logger.Info(resourceInformerGvrParsingError)
 		return
 	}
 	resourceGVR := schema.GroupVersionResource{
-		Group:    GVRNN[0],
-		Version:  GVRNN[1],
-		Resource: GVRNN[2],
-	}
-
-	// Include the namespace when defined by the user (used as filter)
-	namespace := corev1.NamespaceAll
-	if GVRNN[3] != "" {
-		namespace = GVRNN[3]
-	}
-
-	// Include the name when defined by the user (used as filter)
-	name := GVRNN[4]
-
-	var listOptionsFunc dynamicinformer.TweakListOptionsFunc = func(options *metav1.ListOptions) {}
-	if name != "" {
-		listOptionsFunc = func(options *metav1.ListOptions) {
-			options.FieldSelector = "metadata.name=" + name
-		}
+		Group:    GVR[0],
+		Version:  GVR[1],
+		Resource: GVR[2],
 	}
 
 	// Listen to stop signal to kill this informer just in case it's needed
@@ -257,8 +240,10 @@ func (r *SourcesController) launchInformerForType(resourceType sourcesRegistry.R
 	}()
 
 	// Define our informer TODO
+	var listOptionsFunc dynamicinformer.TweakListOptionsFunc = func(options *metav1.ListOptions) {} // TODO: Refine this
+
 	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(globals.Application.KubeRawClient,
-		r.Options.InformerDurationToResync, namespace, listOptionsFunc)
+		r.Options.InformerDurationToResync, corev1.NamespaceAll, listOptionsFunc)
 
 	// Create an informer. This is a special type of client-go informer that includes
 	// mechanisms to hide disconnections, handle reconnections, and cache watched objects

@@ -51,9 +51,7 @@ import (
 	"github.com/freepik-company/admitik/internal/controller/observedresource"
 	"github.com/freepik-company/admitik/internal/controller/sources"
 	"github.com/freepik-company/admitik/internal/globals"
-	clusterGenerationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustergenerationpolicy"
-	clusterMutationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustermutationpolicy"
-	clusterValidationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustervalidationpolicy"
+	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 	resourceInformerRegistry "github.com/freepik-company/admitik/internal/registry/resourceinformer"
 	resourceObserverRegistry "github.com/freepik-company/admitik/internal/registry/resourceobserver"
 	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
@@ -156,6 +154,7 @@ func main() {
 	flag.StringVar(&excludedAdmissionNamespaces, "excluded-admission-namespaces", "",
 		"Comma-separated list of namespaces to be excluded from admission evaluations. Commonly used for 'kube-system'")
 
+	// Ref: https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/log/zap@v0.21.0#Options.BindFlags
 	opts := zap.Options{
 		Development: true,
 	}
@@ -215,23 +214,10 @@ func main() {
 			SecureServing: secureMetrics,
 			TLSOpts:       tlsOpts,
 		},
-		WebhookServer:          webhookServer,
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "9ee19594.admitik.dev",
-
-		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-		// when the Manager ends. This requires the binary to immediately end when the
-		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
-		// speeds up voluntary leader transitions as the new leader don't have to wait
-		// LeaseDuration time first.
-		//
-		// In the default scaffold provided, the program ends immediately after
-		// the manager stops, so would be fine to enable this option. However,
-		// if you are doing or is intended to do any operation such as perform cleanups
-		// after the manager stops then its usage might be unsafe.
-		// LeaderElectionReleaseOnCancel: true,
-
+		WebhookServer:           webhookServer,
+		HealthProbeBindAddress:  probeAddr,
+		LeaderElection:          enableLeaderElection,
+		LeaderElectionID:        "9ee19594.admitik.dev",
 		LeaderElectionNamespace: currentNamespace,
 	})
 	if err != nil {
@@ -372,9 +358,9 @@ func main() {
 		admission.AdmissionServerMutationPath)
 
 	// Create registries managers that will be used by several controllers
-	clusterGenerationPolicyReg := clusterGenerationPolicyRegistry.NewClusterGenerationPolicyRegistry()
-	clusterMutationPolicyReg := clusterMutationPolicyRegistry.NewClusterMutationPolicyRegistry()
-	clusterValidationPolicyReg := clusterValidationPolicyRegistry.NewClusterValidationPolicyRegistry()
+	clusterValidationPolicyReg := policyStore.NewPolicyStore[*v1alpha1.ClusterValidationPolicy]()
+	clusterMutationPolicyReg := policyStore.NewPolicyStore[*v1alpha1.ClusterMutationPolicy]()
+	clusterGenerationPolicyReg := policyStore.NewPolicyStore[*v1alpha1.ClusterGenerationPolicy]()
 	sourcesReg := sourcesRegistry.NewSourcesRegistry()
 	resourceObserverReg := resourceObserverRegistry.NewResourceObserverRegistry()
 	resourceInformerReg := resourceInformerRegistry.NewResourceInformerRegistry()
@@ -499,6 +485,7 @@ func main() {
 			TLSPrivateKey:  webhooksServerPrivateKey,
 		},
 		admission.AdmissionServerDependencies{
+			Context:                         &globals.Application.Context,
 			SourcesRegistry:                 sourcesReg,
 			ClusterValidationPolicyRegistry: clusterValidationPolicyReg,
 			ClusterMutationPolicyRegistry:   clusterMutationPolicyReg,

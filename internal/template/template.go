@@ -24,7 +24,7 @@ const (
 	EnginePlainWithCel string = "plain+cel"
 )
 
-func EvaluateTemplate(engine string, template string, injectedData *InjectedDataT) (result string, err error) {
+func EvaluateTemplate(engine string, template string, injectedData InjectedDataI) (result string, err error) {
 
 	switch engine {
 	case EngineCel:
@@ -44,6 +44,8 @@ func EvaluateTemplate(engine string, template string, injectedData *InjectedData
 	default:
 		result, err = EvaluateTemplateCel(template, injectedData)
 	}
+
+	// TODO: DEBUG: log incoming params?
 
 	return result, err
 }

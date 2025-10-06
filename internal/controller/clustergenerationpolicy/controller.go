@@ -34,14 +34,14 @@ import (
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/controller"
-	clusterGenerationPolicyRegistry "github.com/freepik-company/admitik/internal/registry/clustergenerationpolicy"
+	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 )
 
 type ClusterGenerationPolicyControllerOptions struct {
 }
 
 type ClusterGenerationPolicyControllerDependencies struct {
-	ClusterGenerationPolicyRegistry *clusterGenerationPolicyRegistry.ClusterGenerationPolicyRegistry
+	ClusterGenerationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterGenerationPolicy]
 }
 
 // ClusterGenerationPolicyReconciler reconciles a ClusterGenerationPolicy object

@@ -30,65 +30,7 @@ import (
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/globals"
-	"github.com/freepik-company/admitik/internal/registry/sources"
-	"github.com/freepik-company/admitik/internal/template"
 )
-
-// IsPassingConditions iterate over a list of templated conditions and return whether they are passing or not
-func IsPassingConditions(conditionList []v1alpha1.ConditionT, injectedData *template.InjectedDataT) (result bool, err error) {
-	for _, condition := range conditionList {
-
-		// Choose templating engine. Maybe more will be added in the future
-		parsedKey, condErr := template.EvaluateTemplate(condition.Engine, condition.Key, injectedData)
-		if condErr != nil {
-			return false, fmt.Errorf("failed condition '%s': %s", condition.Name, condErr.Error())
-		}
-
-		if parsedKey != condition.Value {
-			return false, nil
-		}
-	}
-
-	return true, nil
-}
-
-// FetchPolicySources TODO
-func FetchPolicySources(policyObj any, sourcesReg *sources.SourcesRegistry) (results map[int][]map[string]any) {
-
-	results = make(map[int][]map[string]any)
-
-	var policySources []v1alpha1.ResourceGroupT
-
-	switch p := (policyObj).(type) {
-	case *v1alpha1.ClusterGenerationPolicy:
-		policySources = p.Spec.Sources
-	case *v1alpha1.ClusterValidationPolicy:
-		policySources = p.Spec.Sources
-	case *v1alpha1.ClusterMutationPolicy:
-		policySources = p.Spec.Sources
-	default:
-		return results
-	}
-
-	for sourceIndex, sourceItem := range policySources {
-
-		sourceString := fmt.Sprintf("%s/%s/%s/%s/%s",
-			sourceItem.Group,
-			sourceItem.Version,
-			sourceItem.Resource,
-			sourceItem.Namespace,
-			sourceItem.Name)
-
-		sourceObjList := sourcesReg.GetResources(sourceString)
-
-		// Store obtained sources in the results map
-		for _, itemObj := range sourceObjList {
-			results[sourceIndex] = append(results[sourceIndex], *itemObj)
-		}
-	}
-
-	return results
-}
 
 // CreateKubeEvent creates a modern event in Kubernetes with data given by params
 func CreateKubeEvent(ctx context.Context, namespace string, reporter string, object map[string]interface{},

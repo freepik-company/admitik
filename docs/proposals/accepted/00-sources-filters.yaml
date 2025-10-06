@@ -28,21 +28,24 @@ spec:
         namespace:
           matchList:
             - kube-system
-            - {{trigger: object.metadata.namespace }}
+            - {{cel: object.metadata.namespace }}
+
           # matchRegex:
           #   negative: true
           #   expression: "^(default|kube-system|kube-public)$"
 
         name:
           matchList:
-            - {{trigger: object.metadata.name }}
+            - {{cel: object.metadata.name }}
+              
           # matchRegex:
           #   negative: false
-          #   expression: "^({{trigger: object.metadata.name }})-.*$"
+          #   expression: "^( {{cel: object.metadata.name }} )-.*$"
 
         metadata:
           matchLabels:
             managed-by: custom-operator
+
           matchAnnotations:
             managed-by: custom-operator
 

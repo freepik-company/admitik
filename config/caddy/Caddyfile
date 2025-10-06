@@ -1,0 +1,37 @@
+{
+    # These params are global
+    http_port 8090
+    skip_install_trust
+    on_demand_tls {
+        ask http://localhost:8090/ask
+    }
+}
+
+:8090 {
+    handle /ask* {
+        respond 200
+    }
+}
+
+# Let's create a fake local HTTPS endpoint for Kubernetes.
+# Hey, this is intended ONLY for development purposes. DON'T use this in production.
+:8443 {
+    tls {
+        on_demand
+        issuer internal
+    }
+
+    log {
+        output stdout
+        format console
+    }
+
+    handle /* {
+        reverse_proxy localhost:10250
+    }
+
+    handle_errors {
+        respond "🚧 Backend down. Retry later" 503
+    }
+}
+

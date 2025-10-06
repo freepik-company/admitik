@@ -76,7 +76,7 @@ func (r *ClusterGenerationPolicyReconciler) ReconcileClusterGenerationPolicy(ctx
 
 	// Clean non-desired watched types. This is needed for updates where the user
 	// changes watched resources
-	for _, registeredResourceType := range r.Dependencies.ClusterGenerationPolicyRegistry.GetRegisteredResourceTypes() {
+	for _, registeredResourceType := range r.Dependencies.ClusterGenerationPolicyRegistry.GetCollectionNames() {
 		if !slices.Contains(desiredWatchedGroups, registeredResourceType) {
 			r.Dependencies.ClusterGenerationPolicyRegistry.RemoveResource(registeredResourceType, resourceManifest)
 			continue

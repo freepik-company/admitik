@@ -16,6 +16,6 @@ limitations under the License.
 
 package template
 
-func EvaluateTemplatePlain(template string, injectedData *InjectedDataT) (result string, err error) {
+func EvaluateTemplatePlain(template string, injectedData InjectedDataI) (result string, err error) {
 	return template, nil
 }

@@ -54,9 +54,7 @@ type ClusterGenerationPolicySpec struct {
 	// +listMapKey=group
 	// +listMapKey=version
 	// +listMapKey=resource
-	// +listMapKey=name
-	// +listMapKey=namespace
-	Sources []ResourceGroupT `json:"sources"`
+	Sources []SourceGroupT `json:"sources"`
 
 	// Conditions represents a list of conditions that must be passed to meet the policy
 	// +listType=map
@@ -83,6 +81,14 @@ type ClusterGenerationPolicy struct {
 
 	Spec   ClusterGenerationPolicySpec   `json:"spec,omitempty"`
 	Status ClusterGenerationPolicyStatus `json:"status,omitempty"`
+}
+
+func (p *ClusterGenerationPolicy) GetName() string {
+	return p.Name
+}
+
+func (p *ClusterGenerationPolicy) GetSources() []SourceGroupT {
+	return p.Spec.Sources
 }
 
 // +kubebuilder:object:root=true

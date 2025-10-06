@@ -46,9 +46,7 @@ type ClusterValidationPolicySpec struct {
 	// +listMapKey=group
 	// +listMapKey=version
 	// +listMapKey=resource
-	// +listMapKey=name
-	// +listMapKey=namespace
-	Sources []ResourceGroupT `json:"sources"`
+	Sources []SourceGroupT `json:"sources"`
 
 	// Conditions represents a list of conditions that must be passed to meet the policy
 	// +listType=map
@@ -75,6 +73,14 @@ type ClusterValidationPolicy struct {
 
 	Spec   ClusterValidationPolicySpec   `json:"spec,omitempty"`
 	Status ClusterValidationPolicyStatus `json:"status,omitempty"`
+}
+
+func (p *ClusterValidationPolicy) GetName() string {
+	return p.Name
+}
+
+func (p *ClusterValidationPolicy) GetSources() []SourceGroupT {
+	return p.Spec.Sources
 }
 
 // +kubebuilder:object:root=true

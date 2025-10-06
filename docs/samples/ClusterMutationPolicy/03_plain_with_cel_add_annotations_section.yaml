@@ -1,7 +1,7 @@
 apiVersion: admitik.dev/v1alpha1
 kind: ClusterMutationPolicy
 metadata:
-  name: plain-with-cel-add-some-labels
+  name: 03-plain-with-cel-add-annotations-section
 spec:
 
   # Resources to be intercepted before reaching the cluster
@@ -16,8 +16,11 @@ spec:
   # They will be included under .sources scope in the template
   sources: []
 
-  # Conditions are optional, so no-conditions means they are always met
-  conditions: []
+  conditions:
+    - name: ensure-annotations-missing
+      engine: cel
+      key: '!has(object.metadata.annotations)'
+      value: "true"
 
   patch:
     type: jsonpatch # JsonPatch | JsonMerge | StrategicMerge
@@ -25,7 +28,5 @@ spec:
     template: |
       [
         { "op": "add", "path": "/metadata/annotations", "value": {} },
-        { "op": "add", "path": "/metadata/annotations/object-operation", "value": "{{cel: operation }}" },
-        { "op": "add", "path": "/metadata/annotations/object-kind", "value": "{{cel: object.kind }}" },
-        { "op": "add", "path": "/metadata/annotations/object-name", "value": "{{cel: object.metadata.name }}" }
+        { "op": "add", "path": "/metadata/annotations/patch-03-hello", "value": "world" }
       ]
