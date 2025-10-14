@@ -76,7 +76,7 @@ type ClusterMutationPolicy struct {
 	Status ClusterMutationPolicyStatus `json:"status,omitempty"`
 }
 
-func (p *ClusterMutationPolicy) GetName() string {
+func (p *ClusterMutationPolicy) GetUniqueIdentifier() string {
 	return p.Name
 }
 

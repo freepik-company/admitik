@@ -22,91 +22,30 @@ import (
 	"strings"
 
 	//
-	"golang.org/x/exp/maps"
+	"github.com/freepik-company/admitik/internal/pubsub"
+	"github.com/freepik-company/admitik/internal/store/simple"
 )
 
 func NewPolicyStore[T PolicyResourceI]() *PolicyStore[T] {
+
 	return &PolicyStore[T]{
-		collections: make(map[string][]T),
+		Store:       simple.NewStore[T](),
+		Broadcaster: pubsub.NewBroadcaster[T](),
 	}
-}
-
-// AddOrUpdateResource add a policy to a collection.
-// When the policy already exists, updates it
-func (s *PolicyStore[T]) AddOrUpdateResource(collectionName string, policy T) {
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Replace it when found
-	policies := s.collections[collectionName]
-	for policyIndex, policyObject := range policies {
-		if policyObject.GetName() == policy.GetName() {
-			s.collections[collectionName][policyIndex] = policy
-			return
-		}
-	}
-
-	// Create it when missing
-	s.collections[collectionName] = append(s.collections[collectionName], policy)
-}
-
-// RemoveResource delete a policy from a collection
-func (s *PolicyStore[T]) RemoveResource(collectionName string, policy T) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	clusterValidationPolicies := s.collections[collectionName]
-	index := -1
-	for itemIndex, itemObject := range clusterValidationPolicies {
-		if itemObject.GetName() == policy.GetName() {
-			index = itemIndex
-			break
-		}
-	}
-	if index != -1 {
-		s.collections[collectionName] = append(clusterValidationPolicies[:index], clusterValidationPolicies[index+1:]...)
-	}
-
-	// Delete resource type from registry when no more ClusterValidationPolicy resource is needing it
-	if len(s.collections[collectionName]) == 0 {
-		delete(s.collections, collectionName)
-	}
-}
-
-// GetResources return all the policy objects of desired collection
-func (s *PolicyStore[T]) GetResources(collectionName string) []T {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	//
-	if list, listFound := s.collections[collectionName]; listFound {
-		return list
-	}
-
-	return []T{}
-}
-
-// GetCollectionNames returns a list of collection names
-// collections are commonly named following pattern: {group}/{version}/{resource}/{operation}
-func (s *PolicyStore[T]) GetCollectionNames() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return maps.Keys(s.collections)
 }
 
 // GetReferencedSources returns a list of GVR names referenced on 'sources' section across the policies.
 // GVR is expressed as {group}/{version}/{resource}
-func (s *PolicyStore[T]) GetReferencedSources() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (ps *PolicyStore[T]) GetReferencedSources() []string {
 
 	sourceTypes := []string{}
 
 	// Loop over all objects collecting extra resources
-	for _, collectionObjectList := range s.collections {
 
+	tmpCollectionNames := ps.GetCollectionNames()
+	for _, tmpCollectionName := range tmpCollectionNames {
+
+		collectionObjectList := ps.GetResources(tmpCollectionName)
 		for _, resourceObj := range collectionObjectList {
 
 			for _, source := range resourceObj.GetSources() {

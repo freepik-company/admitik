@@ -16,11 +16,16 @@ limitations under the License.
 
 package policystore
 
-import "github.com/freepik-company/admitik/api/v1alpha1"
+import (
+	"github.com/freepik-company/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/internal/store/simple"
+)
 
 // PolicyResourceI represents the minimal contract that all policy types must fulfill
 // to participate in the policy registry
 type PolicyResourceI interface {
-	GetName() string
+	simple.StoreResourceI
+
+	//
 	GetSources() []v1alpha1.SourceGroupT
 }

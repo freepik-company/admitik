@@ -18,6 +18,7 @@ package clustergenerationpolicy
 
 import (
 	"context"
+	"github.com/freepik-company/admitik/internal/pubsub"
 	"slices"
 	"strings"
 
@@ -40,8 +41,14 @@ const (
 func (r *ClusterGenerationPolicyReconciler) ReconcileClusterGenerationPolicy(ctx context.Context, eventType watch.EventType, resourceManifest *v1alpha1.ClusterGenerationPolicy) (err error) {
 	logger := log.FromContext(ctx)
 
+	// Publish the event in the registry event bus
+	r.Dependencies.ClusterGenerationPolicyRegistry.Broadcaster.Publish(pubsub.Event[*v1alpha1.ClusterGenerationPolicy]{
+		Type:   string(eventType),
+		Object: resourceManifest,
+	})
+
+	// Update the registry store
 	desiredWatchedGroups := []string{}
-	// Update the registry
 	for _, watchedResourceGroup := range resourceManifest.Spec.WatchedResources {
 
 		// Create the key-pattern and store it for later cleaning
