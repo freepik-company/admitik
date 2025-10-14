@@ -113,16 +113,57 @@ spec:
                 description: Sources represents a list of extra resource-groups to
                   watch and inject in templates
                 items:
-                  description: ResourceGroupT represents a resource-group that will
-                    be watched to be evaluated
+                  description: SourceGroupT represents a TODO
                   properties:
+                    filters:
+                      properties:
+                        metadata:
+                          properties:
+                            matchAnnotations:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            matchLabels:
+                              additionalProperties:
+                                type: string
+                              type: object
+                          type: object
+                        name:
+                          properties:
+                            matchList:
+                              items:
+                                type: string
+                              type: array
+                            matchRegex:
+                              properties:
+                                expression:
+                                  type: string
+                                negative:
+                                  type: boolean
+                              required:
+                              - expression
+                              - negative
+                              type: object
+                          type: object
+                        namespace:
+                          properties:
+                            matchList:
+                              items:
+                                type: string
+                              type: array
+                            matchRegex:
+                              properties:
+                                expression:
+                                  type: string
+                                negative:
+                                  type: boolean
+                              required:
+                              - expression
+                              - negative
+                              type: object
+                          type: object
+                      type: object
                     group:
-                      type: string
-                    name:
-                      default: ""
-                      type: string
-                    namespace:
-                      default: ""
                       type: string
                     resource:
                       type: string
@@ -138,8 +179,6 @@ spec:
                 - group
                 - version
                 - resource
-                - name
-                - namespace
                 x-kubernetes-list-type: map
             required:
             - conditions
