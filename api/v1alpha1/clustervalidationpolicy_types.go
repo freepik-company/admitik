@@ -75,7 +75,7 @@ type ClusterValidationPolicy struct {
 	Status ClusterValidationPolicyStatus `json:"status,omitempty"`
 }
 
-func (p *ClusterValidationPolicy) GetName() string {
+func (p *ClusterValidationPolicy) GetUniqueIdentifier() string {
 	return p.Name
 }
 

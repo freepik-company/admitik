@@ -19,6 +19,7 @@ package clustermutationpolicy
 import (
 	"context"
 	"fmt"
+	"github.com/freepik-company/admitik/internal/pubsub"
 	"slices"
 	"strings"
 
@@ -63,7 +64,13 @@ var (
 func (r *ClusterMutationPolicyReconciler) ReconcileClusterMutationPolicy(ctx context.Context, eventType watch.EventType, resourceManifest *v1alpha1.ClusterMutationPolicy) (err error) {
 	logger := log.FromContext(ctx)
 
-	// Update the registry
+	// Publish the event in the registry event bus
+	r.Dependencies.ClusterMutationPolicyRegistry.Broadcaster.Publish(pubsub.Event[*v1alpha1.ClusterMutationPolicy]{
+		Type:   string(eventType),
+		Object: resourceManifest,
+	})
+
+	// Update the registry store
 	var desiredWatchedTypes []string
 	for _, intercResourceGroup := range resourceManifest.Spec.InterceptedResources {
 

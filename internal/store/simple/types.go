@@ -14,19 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package policystore
+package simple
 
 import (
-	"github.com/freepik-company/admitik/internal/pubsub"
-	"github.com/freepik-company/admitik/internal/store/simple"
+	"sync"
 )
 
-type PolicyStore[T PolicyResourceI] struct {
-	// Embed a store to put all the policies
-	// This will be used by third-party controllers to evaluate policies
-	*simple.Store[T]
+type Store[T StoreResourceI] struct {
+	mu sync.RWMutex
 
-	// Embed a broadcaster to send events related to the policies.
-	// This will be used by third-party controllers to trigger special actions
-	Broadcaster *pubsub.Broadcaster[T]
+	// collections represent a list of objects indexed by a composed key.
+	// For example, the pattern for a key could be: {group}/{version}/{resource}/{operation}
+	collections map[string][]T
 }

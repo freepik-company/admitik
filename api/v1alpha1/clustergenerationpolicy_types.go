@@ -83,7 +83,7 @@ type ClusterGenerationPolicy struct {
 	Status ClusterGenerationPolicyStatus `json:"status,omitempty"`
 }
 
-func (p *ClusterGenerationPolicy) GetName() string {
+func (p *ClusterGenerationPolicy) GetUniqueIdentifier() string {
 	return p.Name
 }
 
