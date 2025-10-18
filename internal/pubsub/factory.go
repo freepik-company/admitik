@@ -16,20 +16,6 @@ limitations under the License.
 
 package pubsub
 
-import (
-	"sync"
-)
-
-type Event[T any] struct {
-	Type   string // "add", "update", "delete"
-	Object T
-}
-
-type Broadcaster[T any] struct {
-	subscribers map[chan Event[T]]struct{}
-	mu          sync.RWMutex
-}
-
 func NewBroadcaster[T any]() *Broadcaster[T] {
 	return &Broadcaster[T]{subscribers: make(map[chan Event[T]]struct{})}
 }
