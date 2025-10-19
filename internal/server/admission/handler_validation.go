@@ -115,7 +115,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 
 	// Loop over ClusterValidationPolicy resources performing actions
 	// At this point, some extra params will be added to the object that will be injected in template
-	caPolicyList := s.dependencies.ClusterValidationPolicyRegistry.GetResources(resourcePattern)
+	caPolicyList := s.dependencies.ClusterValidationPolicyRegistry.Store.GetResources(resourcePattern)
 	for _, caPolicyObj := range caPolicyList {
 
 		// Assume rejection for each policy individually

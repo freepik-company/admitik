@@ -98,7 +98,7 @@ func (r *ClusterValidationPolicyReconciler) ReconcileClusterValidationPolicy(ctx
 			// Handle deletion requests
 			if eventType == watch.Deleted {
 				logger.Info(resourceDeletionMessage, "watcher", watchedType)
-				r.Dependencies.ClusterValidationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
+				r.Dependencies.ClusterValidationPolicyRegistry.Store.RemoveResource(watchedType, resourceManifest)
 				continue
 			}
 
@@ -112,16 +112,16 @@ func (r *ClusterValidationPolicyReconciler) ReconcileClusterValidationPolicy(ctx
 					continue
 				}
 				desiredWatchedTypes = append(desiredWatchedTypes, watchedType)
-				r.Dependencies.ClusterValidationPolicyRegistry.AddOrUpdateResource(watchedType, resourceManifest)
+				r.Dependencies.ClusterValidationPolicyRegistry.Store.AddOrUpdateResource(watchedType, resourceManifest)
 			}
 		}
 	}
 
 	// Clean non-desired watched types. This is needed for updates where the user
 	// reduces the amount of watched operations on watched resources
-	for _, registeredResourceType := range r.Dependencies.ClusterValidationPolicyRegistry.GetCollectionNames() {
+	for _, registeredResourceType := range r.Dependencies.ClusterValidationPolicyRegistry.Store.GetCollectionNames() {
 		if !slices.Contains(desiredWatchedTypes, registeredResourceType) {
-			r.Dependencies.ClusterValidationPolicyRegistry.RemoveResource(registeredResourceType, resourceManifest)
+			r.Dependencies.ClusterValidationPolicyRegistry.Store.RemoveResource(registeredResourceType, resourceManifest)
 		}
 	}
 
@@ -160,7 +160,7 @@ func (r *ClusterValidationPolicyReconciler) getMergedValidatingWebhookConfigurat
 
 	// Craft ValidatingWebhookConfiguration rules based on the pool keys
 	currentVwcRules := []admissionregv1.RuleWithOperations{}
-	InterceptedResourcesPatterns := r.Dependencies.ClusterValidationPolicyRegistry.GetCollectionNames()
+	InterceptedResourcesPatterns := r.Dependencies.ClusterValidationPolicyRegistry.Store.GetCollectionNames()
 
 	for _, resourcePattern := range InterceptedResourcesPatterns {
 

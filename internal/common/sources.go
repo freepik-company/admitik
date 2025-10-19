@@ -22,7 +22,9 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
-	"strings"
+
+	//
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
@@ -44,15 +46,19 @@ func FetchPolicySources[T policystore.PolicyResourceI](
 
 	for sourceIndex, sourceItem := range policy.GetSources() {
 
-		gvrString := strings.Join([]string{sourceItem.Group, sourceItem.Version, sourceItem.Resource}, "/")
-		allResources := sourcesReg.GetResources(gvrString)
+		gvr := schema.GroupVersionResource{
+			Group:    sourceItem.Group,
+			Version:  sourceItem.Version,
+			Resource: sourceItem.Resource}
+
+		allResources := sourcesReg.GetResources(gvr)
 
 		// Deep copy to avoid mutating the original policy (full of pointers, dude)
 		sourceItemCopy := sourceItem.DeepCopy()
 
 		// Resolve CEL expressions in filters
 		if localErr := resolveInlineCelExpressionsRecursive(reflect.ValueOf(sourceItemCopy.Filters), injectedData); localErr != nil {
-			tmpErrors = append(tmpErrors, fmt.Errorf("failed to resolve CEL in filters for GVR '%v': %v", gvrString, localErr))
+			tmpErrors = append(tmpErrors, fmt.Errorf("failed to resolve CEL in filters for GVR '%v': %v", GvrString(gvr), localErr))
 			results[sourceIndex] = []map[string]any{}
 			continue
 		}
@@ -60,7 +66,7 @@ func FetchPolicySources[T policystore.PolicyResourceI](
 		// Filter resources
 		filtered, localErr := filterResources(allResources, sourceItemCopy.Filters)
 		if localErr != nil {
-			tmpErrors = append(tmpErrors, fmt.Errorf("failed to filter resources for GVR '%v': %v", gvrString, localErr))
+			tmpErrors = append(tmpErrors, fmt.Errorf("failed to filter resources for GVR '%v': %v", GvrString(gvr), localErr))
 			results[sourceIndex] = []map[string]any{}
 			continue
 		}

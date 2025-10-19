@@ -18,20 +18,14 @@ package sources
 
 import (
 	"context"
-	"fmt"
+	"github.com/freepik-company/admitik/internal/common"
+	"github.com/freepik-company/admitik/internal/informer"
 	"slices"
 	"strings"
 	"time"
 
 	//
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/dynamic/dynamicinformer"
-	"k8s.io/client-go/tools/cache"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -57,12 +51,6 @@ const (
 
 	//
 	controllerContextFinishedMessage = "Controller finished by context"
-	controllerInformerStartedMessage = "Informer for '%s' has been started"
-	controllerInformerKilledMessage  = "Informer for resource type '%s' killed by StopSignal"
-
-	watchedObjectParseError         = "Impossible to process triggered object: %s"
-	resourceInformerLaunchingError  = "Impossible to start informer for resource type: %s"
-	resourceInformerGvrParsingError = "Failed to parse GVR from resourceType. Does it look like {group}/{version}/{resource}?"
 )
 
 // SourcesControllerOptions represents available options that can be passed to SourcesController on start
@@ -78,7 +66,8 @@ type SourcesControllerDependencies struct {
 	ClusterGenerationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterGenerationPolicy]
 	ClusterMutationPolicyRegistry   *policyStore.PolicyStore[*v1alpha1.ClusterMutationPolicy]
 	ClusterValidationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterValidationPolicy]
-	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
+
+	SourcesRegistry *sourcesRegistry.SourcesRegistry
 }
 
 // SourcesController represents a controller that triggers parallel threads.
@@ -88,9 +77,6 @@ type SourcesController struct {
 	// Following interface is just needed to register this controller into Controller Runtime manager and let it
 	// launch the controller across all the Admitik replicas or just in the elected leader.
 	manager.LeaderElectionRunnable
-
-	//
-	Client client.Client
 
 	Options      SourcesControllerOptions
 	Dependencies SourcesControllerDependencies
@@ -102,8 +88,8 @@ func (r *SourcesController) NeedLeaderElection() bool {
 	return false
 }
 
-// getSourcesFromRegistries returns a list of sources with all the types registered in suitable registries
-func (r *SourcesController) getSourcesFromRegistries() []string {
+// getSourcesFromPolicies returns a list of sources with all the types registered in suitable registries
+func (r *SourcesController) getSourcesFromPolicies() []string {
 
 	var referentCandidates []string
 
@@ -119,42 +105,11 @@ func (r *SourcesController) getSourcesFromRegistries() []string {
 	return referentCandidates
 }
 
-// informersCleanerWorker review the 'sources' section of several object types stored in registries in the background.
-// It disables the informers that are not needed and delete them from sources registry
-// This function is intended to be used as goroutine
-func (r *SourcesController) informersCleanerWorker() {
-	logger := log.FromContext(*r.Dependencies.Context)
-	logger = logger.WithValues("controller", controllerName)
-
-	logger.Info("Starting Worker", "worker", "InformersCleaner")
-
-	for {
-		//
-		referentCandidates := r.getSourcesFromRegistries()
-		reviewedCandidates := r.Dependencies.SourcesRegistry.GetRegisteredResourceTypes()
-
-		for _, resourceType := range reviewedCandidates {
-			if !slices.Contains(referentCandidates, resourceType) {
-				err := r.Dependencies.SourcesRegistry.DisableInformer(resourceType)
-				if err != nil {
-					logger.WithValues("resourceType", resourceType).
-						Info("Failed disabling sources informer")
-				}
-			}
-		}
-
-		time.Sleep(5 * time.Second)
-	}
-}
-
 // Start launches the SourcesController and keeps it alive
 // It kills the controller on application's context death, and rerun the process when failed
 func (r *SourcesController) Start(ctx context.Context) error {
 	logger := log.FromContext(*r.Dependencies.Context).WithValues("controller", controllerName)
 	logger.Info("Starting Controller")
-
-	// Start cleaner for dead informers
-	go r.informersCleanerWorker()
 
 	// Keep your controller alive
 	for {
@@ -172,146 +127,53 @@ func (r *SourcesController) Start(ctx context.Context) error {
 // reconcileInformers checks each registered extra-resource type and triggers informers
 // for those that are not already started.
 func (r *SourcesController) reconcileInformers() {
-	logger := log.FromContext(*r.Dependencies.Context).WithValues("controller", controllerName)
+	r.launchDesiredInformers()
+	r.cleanNotNeededInformers()
+}
 
-	sourcesCandidates := r.getSourcesFromRegistries()
+// launchDesiredInformers checks each registered source type and triggers informers
+// for those that are not already started.
+func (r *SourcesController) launchDesiredInformers() {
+	sourcesCandidates := r.getSourcesFromPolicies()
 
 	for _, resourceType := range sourcesCandidates {
 
-		_, informerExists := r.Dependencies.SourcesRegistry.GetInformer(resourceType)
+		resourceTypeParts := strings.Split(resourceType, "/")
 
-		// Avoid wasting CPU for nothing
-		if informerExists && r.Dependencies.SourcesRegistry.IsStarted(resourceType) {
-			continue
+		gvr := schema.GroupVersionResource{
+			Group:    resourceTypeParts[0],
+			Version:  resourceTypeParts[1],
+			Resource: resourceTypeParts[2],
 		}
 
-		//
-		if !informerExists || !r.Dependencies.SourcesRegistry.IsStarted(resourceType) {
-			go r.launchInformerForType(resourceType)
+		tmpInformer := &informer.Informer{}
 
-			// Wait for the just started informer to ACK itself
-			time.Sleep(secondsToCheckInformerAck)
-			if !r.Dependencies.SourcesRegistry.IsStarted(resourceType) {
-				logger.Info(fmt.Sprintf(resourceInformerLaunchingError, resourceType))
-			}
+		isRegistered := r.Dependencies.SourcesRegistry.InformerIsRegistered(gvr)
+		if !isRegistered {
+			// TODO: Review the error
+			tmpInformer, _ = informer.NewInformer(
+				informer.Options{GVR: gvr, InformerDurationToResync: r.Options.InformerDurationToResync},
+				informer.Dependencies{Context: r.Dependencies.Context, Client: globals.Application.KubeRawClient})
+
+			r.Dependencies.SourcesRegistry.RegisterInformer(gvr, tmpInformer)
+		} else {
+			tmpInformer = r.Dependencies.SourcesRegistry.GetInformer(gvr)
 		}
+
+		tmpInformer.Start()
 	}
 }
 
-// launchInformerForType creates and runs a Kubernetes informer for the specified
-// resource type, and triggers processing for each event
-func (r *SourcesController) launchInformerForType(resourceType sourcesRegistry.ResourceTypeName) {
-	logger := log.FromContext(*r.Dependencies.Context).WithValues("controller", controllerName)
+// cleanNotNeededInformers review the 'sources' section of several object types stored in registries in the background.
+// It disables the informers that are not needed and delete them from sources registry
+func (r *SourcesController) cleanNotNeededInformers() {
+	referentCandidates := r.getSourcesFromPolicies()
+	reviewedCandidates := r.Dependencies.SourcesRegistry.GetRegisteredResourceTypes()
 
-	informer, informerExists := r.Dependencies.SourcesRegistry.GetInformer(resourceType)
-	if !informerExists {
-		informer = r.Dependencies.SourcesRegistry.RegisterInformer(resourceType)
-	}
+	for _, resourceType := range reviewedCandidates {
 
-	logger.Info(fmt.Sprintf(controllerInformerStartedMessage, resourceType))
-
-	// Trigger ACK flag for informer that is launching
-	// Hey, this informer is blocking, so ACK is only disabled if the informer becomes dead
-	_ = r.Dependencies.SourcesRegistry.SetStarted(resourceType, true)
-	defer func() {
-		_ = r.Dependencies.SourcesRegistry.SetStarted(resourceType, false)
-	}()
-
-	// Extract GVR + Namespace + Name from watched type:
-	// {group}/{version}/{resource}
-	GVR := strings.Split(resourceType, "/")
-	if len(GVR) != 3 {
-		logger.Info(resourceInformerGvrParsingError)
-		return
-	}
-	resourceGVR := schema.GroupVersionResource{
-		Group:    GVR[0],
-		Version:  GVR[1],
-		Resource: GVR[2],
-	}
-
-	// Listen to stop signal to kill this informer just in case it's needed
-	stopCh := make(chan struct{})
-
-	go func() {
-		<-informer.StopSignal
-		close(stopCh)
-		logger.Info(fmt.Sprintf(controllerInformerKilledMessage, resourceType))
-	}()
-
-	// Define our informer TODO
-	var listOptionsFunc dynamicinformer.TweakListOptionsFunc = func(options *metav1.ListOptions) {} // TODO: Refine this
-
-	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(globals.Application.KubeRawClient,
-		r.Options.InformerDurationToResync, corev1.NamespaceAll, listOptionsFunc)
-
-	// Create an informer. This is a special type of client-go informer that includes
-	// mechanisms to hide disconnections, handle reconnections, and cache watched objects
-	kubeInformer := factory.ForResource(resourceGVR).Informer()
-
-	// Register functions to handle different types of events
-	handlers := cache.ResourceEventHandlerFuncs{
-
-		AddFunc: func(eventObject interface{}) {
-			convertedEventObject := eventObject.(*unstructured.Unstructured)
-
-			err := r.processEvent(resourceType, watch.Added, convertedEventObject.UnstructuredContent())
-			if err != nil {
-				logger.Error(err, fmt.Sprintf(watchedObjectParseError, err))
-			}
-		},
-		UpdateFunc: func(eventObjectOld, eventObject interface{}) {
-			convertedEventObjectOld := eventObjectOld.(*unstructured.Unstructured)
-			convertedEventObject := eventObject.(*unstructured.Unstructured)
-
-			err := r.processEvent(resourceType, watch.Modified,
-				convertedEventObject.UnstructuredContent(), convertedEventObjectOld.UnstructuredContent())
-			if err != nil {
-				logger.Error(err, fmt.Sprintf(watchedObjectParseError, err))
-			}
-		},
-		DeleteFunc: func(eventObject interface{}) {
-			convertedEventObject := eventObject.(*unstructured.Unstructured)
-
-			err := r.processEvent(resourceType, watch.Deleted, convertedEventObject.UnstructuredContent())
-			if err != nil {
-				logger.Error(err, fmt.Sprintf(watchedObjectParseError, err))
-			}
-		},
-	}
-
-	_, err := kubeInformer.AddEventHandler(handlers)
-	if err != nil {
-		logger.Error(err, "Error adding handling functions for events to an informer")
-		return
-	}
-
-	kubeInformer.Run(stopCh)
-}
-
-// processEvent process an event coming from a triggered extra-resource type.
-// It reconciles stored resources in an idempotent way
-func (r *SourcesController) processEvent(resourceType sourcesRegistry.ResourceTypeName, eventType watch.EventType, object ...map[string]interface{}) (err error) {
-
-	// Process only certain event types
-	if eventType != watch.Added && eventType != watch.Modified && eventType != watch.Deleted {
-		return nil
-	}
-
-	if eventType == watch.Deleted {
-		err = r.Dependencies.SourcesRegistry.RemoveResource(resourceType, &object[0])
-		return err
-	}
-
-	// Create/Update events
-	if eventType == watch.Modified {
-		err = r.Dependencies.SourcesRegistry.RemoveResource(resourceType, &object[0])
-		if err != nil {
-			return err
+		if !slices.Contains(referentCandidates, common.GvrString(resourceType)) {
+			r.Dependencies.SourcesRegistry.DestroyInformer(resourceType)
 		}
 	}
-
-	r.Dependencies.SourcesRegistry.AddResource(resourceType, &object[0])
-
-	return err
 }

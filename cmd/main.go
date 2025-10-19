@@ -454,7 +454,6 @@ func main() {
 	// such as AdmissionServer or BackgroundController.
 	// IMPORTANT: All the replicas are able to process and leader is not chosen for this.
 	sourcesController := sources.SourcesController{
-		Client: mgr.GetClient(),
 		Options: sources.SourcesControllerOptions{
 			InformerDurationToResync: sourcesTimeToResyncInformers,
 		},

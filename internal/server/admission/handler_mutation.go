@@ -125,7 +125,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 	jsonPatchOperations := jsondiff.Patch{}
 	patchedObjectBytes := requestObj.Request.Object.Raw
 
-	cmPolicyList := s.dependencies.ClusterMutationPolicyRegistry.GetResources(resourcePattern)
+	cmPolicyList := s.dependencies.ClusterMutationPolicyRegistry.Store.GetResources(resourcePattern)
 	for _, cmPolicyObj := range cmPolicyList {
 
 		// Automatically add some information to the logs

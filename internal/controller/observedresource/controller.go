@@ -125,7 +125,7 @@ func (r *ObservedResourceController) getResourcesFromPolicyRegistries() map[stri
 
 	results := make(map[string][]string)
 
-	candidatesFromGeneration := r.Dependencies.ClusterGenerationPolicyRegistry.GetCollectionNames()
+	candidatesFromGeneration := r.Dependencies.ClusterGenerationPolicyRegistry.Store.GetCollectionNames()
 	for _, resourceType := range candidatesFromGeneration {
 		if !slices.Contains(results[resourceType], ObserverTypeClusterGenerationPolicies) {
 			results[resourceType] = append(results[resourceType], ObserverTypeClusterGenerationPolicies)

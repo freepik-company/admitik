@@ -63,7 +63,7 @@ func (r *ClusterGenerationPolicyReconciler) ReconcileClusterGenerationPolicy(ctx
 		// Handle deletion requests
 		if eventType == watch.Deleted {
 			logger.Info(resourceDeletionMessage, "watcher", watchedType)
-			r.Dependencies.ClusterGenerationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
+			r.Dependencies.ClusterGenerationPolicyRegistry.Store.RemoveResource(watchedType, resourceManifest)
 			continue
 		}
 
@@ -77,15 +77,15 @@ func (r *ClusterGenerationPolicyReconciler) ReconcileClusterGenerationPolicy(ctx
 				continue
 			}
 			desiredWatchedGroups = append(desiredWatchedGroups, watchedType)
-			r.Dependencies.ClusterGenerationPolicyRegistry.AddOrUpdateResource(watchedType, resourceManifest)
+			r.Dependencies.ClusterGenerationPolicyRegistry.Store.AddOrUpdateResource(watchedType, resourceManifest)
 		}
 	}
 
 	// Clean non-desired watched types. This is needed for updates where the user
 	// changes watched resources
-	for _, registeredResourceType := range r.Dependencies.ClusterGenerationPolicyRegistry.GetCollectionNames() {
+	for _, registeredResourceType := range r.Dependencies.ClusterGenerationPolicyRegistry.Store.GetCollectionNames() {
 		if !slices.Contains(desiredWatchedGroups, registeredResourceType) {
-			r.Dependencies.ClusterGenerationPolicyRegistry.RemoveResource(registeredResourceType, resourceManifest)
+			r.Dependencies.ClusterGenerationPolicyRegistry.Store.RemoveResource(registeredResourceType, resourceManifest)
 			continue
 		}
 	}

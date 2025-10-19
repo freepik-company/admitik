@@ -73,7 +73,7 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 	}
 
 	//
-	policyList := p.dependencies.ClusterGenerationPolicyRegistry.GetResources(resourceType)
+	policyList := p.dependencies.ClusterGenerationPolicyRegistry.Store.GetResources(resourceType)
 	for _, policyObj := range policyList {
 
 		// Automatically add some information to the logs

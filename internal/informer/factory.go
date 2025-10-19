@@ -19,6 +19,7 @@ package informer
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
 	"sync"
 	"time"
@@ -38,20 +39,13 @@ const (
 	cacheWaitTimeout    = 30 * time.Second
 
 	//
+	informerStartedMessage         = "Informer has been started"
+	informerStoppedMessage         = "Informer has been stoped"
 	informerContextFinishedMessage = "Informer finished by context"
-	informerStartedMessage         = "Informer for '%s' has been started"
-	informerKilledMessage          = "Informer for resource type '%s' killed by StopSignal"
+	informerKilledMessage          = "Informer killed by StopSignal"
 )
 
-type EventType string
-
-const (
-	EventTypeAdded   EventType = "Added"
-	EventTypeUpdated EventType = "Updated"
-	EventTypeDeleted EventType = "Deleted"
-)
-
-type EventHandlerFunc = func(eventType EventType, obj *unstructured.Unstructured, oldObj *unstructured.Unstructured) error
+type EventHandlerFunc = func(eventType watch.EventType, obj *unstructured.Unstructured, oldObj *unstructured.Unstructured) error
 
 type Options struct {
 	//
@@ -66,11 +60,14 @@ type Options struct {
 }
 
 type Dependencies struct {
-	Context context.Context
+	Context *context.Context
 	Client  *dynamic.DynamicClient
 }
 
 type Informer struct {
+	mu sync.RWMutex
+
+	//
 	options      Options
 	dependencies Dependencies
 
@@ -79,7 +76,6 @@ type Informer struct {
 	stopChan    chan struct{}
 
 	//
-	mu      sync.RWMutex
 	started bool
 }
 
@@ -100,8 +96,9 @@ func NewInformer(opts Options, deps Dependencies) (*Informer, error) {
 	tmpInformer := &Informer{
 		options:      opts,
 		dependencies: deps,
-		stopChan:     make(chan struct{}),
-		started:      false,
+
+		stopChan: make(chan struct{}),
+		started:  false,
 	}
 
 	//
@@ -141,7 +138,7 @@ func (r *Informer) createInformer() {
 
 func (r *Informer) WithEventHandlerFunc(evHandlerFunc EventHandlerFunc) error {
 
-	logger := log.FromContext(r.dependencies.Context).
+	logger := log.FromContext(*r.dependencies.Context).
 		WithValues("gvr", r.options.GVR, "namespace", r.options.Namespace)
 
 	//
@@ -159,12 +156,12 @@ func (r *Informer) WithEventHandlerFunc(evHandlerFunc EventHandlerFunc) error {
 			obj := eventObject.(*unstructured.Unstructured)
 
 			logger = logger.WithValues(
-				"eventType", EventTypeAdded,
+				"eventType", watch.Added,
 				"object", obj.GetName(),
 			)
 			logger.V(1).Info("Processing reconciliation")
 
-			if err := evHandlerFunc(EventTypeAdded, obj, nil); err != nil {
+			if err := evHandlerFunc(watch.Added, obj, nil); err != nil {
 				logger.Error(err, "Error in add reconciliation")
 			}
 		},
@@ -175,13 +172,13 @@ func (r *Informer) WithEventHandlerFunc(evHandlerFunc EventHandlerFunc) error {
 			oldObj := eventObjectOld.(*unstructured.Unstructured)
 
 			logger = logger.WithValues(
-				"eventType", EventTypeUpdated,
+				"eventType", watch.Modified,
 				"object", obj.GetName(),
 				"oldObject", oldObj.GetName(),
 			)
 			logger.V(1).Info("Processing reconciliation")
 
-			if err := evHandlerFunc(EventTypeUpdated, obj, oldObj); err != nil {
+			if err := evHandlerFunc(watch.Modified, obj, oldObj); err != nil {
 				logger.Error(err, "Error in update reconciliation")
 			}
 		},
@@ -191,12 +188,12 @@ func (r *Informer) WithEventHandlerFunc(evHandlerFunc EventHandlerFunc) error {
 			obj := eventObject.(*unstructured.Unstructured)
 
 			logger = logger.WithValues(
-				"eventType", EventTypeDeleted,
+				"eventType", watch.Deleted,
 				"object", obj.GetName(),
 			)
 			logger.V(1).Info("Processing reconciliation")
 
-			if err := evHandlerFunc(EventTypeDeleted, obj, nil); err != nil {
+			if err := evHandlerFunc(watch.Deleted, obj, nil); err != nil {
 				logger.Error(err, "Error in delete reconciliation")
 			}
 		},
@@ -210,28 +207,31 @@ func (r *Informer) WithEventHandlerFunc(evHandlerFunc EventHandlerFunc) error {
 	return nil
 }
 
+// TODO: Make this stop reliable and thread-safe
 func (r *Informer) Stop() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if !r.rawInformer.IsStopped() {
-		close(r.stopChan)
-	}
+	close(r.stopChan)
 }
 
 func (r *Informer) Start() {
 	//
 	r.mu.Lock()
+	if r.started {
+		return
+	}
 	r.started = true
 	r.mu.Unlock()
 
-	logger := log.FromContext(r.dependencies.Context).
+	//
+	logger := log.FromContext(*r.dependencies.Context).
 		WithValues("gvr", r.options.GVR, "namespace", r.options.Namespace)
 
 	// Listen to cancellation of parent context and propagate stopChan
 	go func() {
 		select {
-		case <-r.dependencies.Context.Done():
+		case <-(*r.dependencies.Context).Done():
 			logger.Info(informerContextFinishedMessage)
 			r.Stop()
 		case <-r.stopChan:
@@ -244,9 +244,21 @@ func (r *Informer) Start() {
 	go func() {
 		logger.Info(informerStartedMessage)
 		r.rawInformer.Run(r.stopChan)
+		logger.Info(informerStoppedMessage)
 	}()
 }
 
-func (r *Informer) GetInformer() *cache.SharedIndexInformer {
-	return &r.rawInformer
+func (r *Informer) IsStarted() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return r.started
+}
+
+func (r *Informer) GetStore() cache.Store {
+	return r.rawInformer.GetStore()
+}
+
+func (r *Informer) GetIndexer() cache.Indexer {
+	return r.rawInformer.GetIndexer()
 }

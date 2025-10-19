@@ -98,7 +98,7 @@ func (r *ClusterMutationPolicyReconciler) ReconcileClusterMutationPolicy(ctx con
 			// Handle deletion requests
 			if eventType == watch.Deleted {
 				logger.Info(resourceDeletionMessage, "watcher", watchedType)
-				r.Dependencies.ClusterMutationPolicyRegistry.RemoveResource(watchedType, resourceManifest)
+				r.Dependencies.ClusterMutationPolicyRegistry.Store.RemoveResource(watchedType, resourceManifest)
 				continue
 			}
 
@@ -112,7 +112,7 @@ func (r *ClusterMutationPolicyReconciler) ReconcileClusterMutationPolicy(ctx con
 					continue
 				}
 				desiredWatchedTypes = append(desiredWatchedTypes, watchedType)
-				r.Dependencies.ClusterMutationPolicyRegistry.AddOrUpdateResource(watchedType, resourceManifest)
+				r.Dependencies.ClusterMutationPolicyRegistry.Store.AddOrUpdateResource(watchedType, resourceManifest)
 			}
 
 			// Re-sort collection by priority (ascending order)
@@ -124,9 +124,9 @@ func (r *ClusterMutationPolicyReconciler) ReconcileClusterMutationPolicy(ctx con
 
 	// Clean non-desired watched types. This is needed for updates where the user
 	// reduces the amount of watched operations on watched resources
-	for _, registeredResourceType := range r.Dependencies.ClusterMutationPolicyRegistry.GetCollectionNames() {
+	for _, registeredResourceType := range r.Dependencies.ClusterMutationPolicyRegistry.Store.GetCollectionNames() {
 		if !slices.Contains(desiredWatchedTypes, registeredResourceType) {
-			r.Dependencies.ClusterMutationPolicyRegistry.RemoveResource(registeredResourceType, resourceManifest)
+			r.Dependencies.ClusterMutationPolicyRegistry.Store.RemoveResource(registeredResourceType, resourceManifest)
 		}
 	}
 
@@ -165,7 +165,7 @@ func (r *ClusterMutationPolicyReconciler) getMergedMutatingWebhookConfiguration(
 
 	// Craft ValidatingWebhookConfiguration rules based on the pool keys
 	currentVwcRules := []admissionregv1.RuleWithOperations{}
-	InterceptedResourcesPatterns := r.Dependencies.ClusterMutationPolicyRegistry.GetCollectionNames()
+	InterceptedResourcesPatterns := r.Dependencies.ClusterMutationPolicyRegistry.Store.GetCollectionNames()
 
 	for _, resourcePattern := range InterceptedResourcesPatterns {
 

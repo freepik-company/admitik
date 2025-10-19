@@ -41,11 +41,10 @@ func (ps *PolicyStore[T]) GetReferencedSources() []string {
 	sourceTypes := []string{}
 
 	// Loop over all objects collecting extra resources
-
-	tmpCollectionNames := ps.GetCollectionNames()
+	tmpCollectionNames := ps.Store.GetCollectionNames()
 	for _, tmpCollectionName := range tmpCollectionNames {
 
-		collectionObjectList := ps.GetResources(tmpCollectionName)
+		collectionObjectList := ps.Store.GetResources(tmpCollectionName)
 		for _, resourceObj := range collectionObjectList {
 
 			for _, source := range resourceObj.GetSources() {

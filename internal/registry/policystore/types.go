@@ -24,7 +24,7 @@ import (
 type PolicyStore[T PolicyResourceI] struct {
 	// Embed a store to put all the policies
 	// This will be used by third-party controllers to evaluate policies
-	*simple.Store[T]
+	Store *simple.Store[T]
 
 	// Embed a broadcaster to send events related to the policies.
 	// This will be used by third-party controllers to trigger special actions

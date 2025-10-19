@@ -17,98 +17,68 @@ limitations under the License.
 package sources
 
 import (
-	"errors"
-	"time"
+	"github.com/freepik-company/admitik/internal/informer"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // NewSourcesRegistry TODO
 func NewSourcesRegistry() *SourcesRegistry {
 
 	return &SourcesRegistry{
-		informers: make(map[ResourceTypeName]*SourcesInformer),
+		informers: make(map[schema.GroupVersionResource]*informer.Informer),
 	}
 }
 
-// RegisterInformer registers an informer for required resource type
-func (m *SourcesRegistry) RegisterInformer(rt ResourceTypeName) *SourcesInformer {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+// InformerIsRegistered TODO
+func (m *SourcesRegistry) InformerIsRegistered(gvr schema.GroupVersionResource) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
-	m.informers[rt] = &SourcesInformer{
-		Started:    false,
-		StopSignal: make(chan bool),
-	}
-
-	return m.informers[rt]
-}
-
-// DisableInformer send a signal to the informer to stop
-// and delete it from the registry
-func (m *SourcesRegistry) DisableInformer(rt ResourceTypeName) error {
-	informer, exists := m.GetInformer(rt)
-	if !exists {
-		return errors.New("extra-resource informer not found")
-	}
-
-	// Send a signal to stop the informer
-	informer.mu.Lock()
-	informer.StopSignal <- true
-	informer.mu.Unlock()
-
-	// Wait for some time to stop the informer
-	stoppedInformer := false
-	for i := 0; i < 10; i++ {
-		if !m.IsStarted(rt) {
-			stoppedInformer = true
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-	if !stoppedInformer {
-		return errors.New("impossible to stop the extra-resource informer")
-	}
-
-	// Delete informer from registry
-	m.mu.Lock()
-	delete(m.informers, rt)
-	m.mu.Unlock()
-
-	return nil
-}
-
-// SetStarted updates the 'started' flag of an informer
-func (m *SourcesRegistry) SetStarted(rt ResourceTypeName, started bool) error {
-	informer, exists := m.GetInformer(rt)
-	if !exists {
-		return errors.New("extra-resource informer not found")
-	}
-
-	informer.mu.Lock()
-	defer informer.mu.Unlock()
-
-	informer.Started = started
-	return nil
-}
-
-// IsStarted returns whether an informer of the provided resource type is started or not
-func (m *SourcesRegistry) IsStarted(rt ResourceTypeName) bool {
-	informer, exists := m.GetInformer(rt)
-	if !exists {
+	_, informerExists := m.informers[gvr]
+	if !informerExists {
 		return false
 	}
 
-	informer.mu.Lock()
-	defer informer.mu.Unlock()
-
-	return informer.Started
+	return true
 }
 
-// GetInformer return the informer attached to a resource type
-func (m *SourcesRegistry) GetInformer(rt ResourceTypeName) (informer *SourcesInformer, exists bool) {
+// RegisterInformer registers an informer for required GVR.
+// Registering the informer just creates a placeholder for it: actual creation and launching will be done
+// by the controller using this registry
+func (m *SourcesRegistry) RegisterInformer(gvr schema.GroupVersionResource, inf *informer.Informer) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	//
-	informer, exists = m.informers[rt]
-	return informer, exists
+	m.informers[gvr] = inf
+}
+
+// DestroyInformer send a signal to the informer to stop
+// and delete it from the registry
+func (m *SourcesRegistry) DestroyInformer(gvr schema.GroupVersionResource) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	informerObject, informerExists := m.informers[gvr]
+	if !informerExists {
+		return
+	}
+
+	// Just being explicit, dude
+	if informerExists && informerObject != nil {
+		m.informers[gvr].Stop()
+	}
+
+	// Delete informer from registry
+	delete(m.informers, gvr)
+}
+
+func (m *SourcesRegistry) GetInformer(gvr schema.GroupVersionResource) *informer.Informer {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if !m.InformerIsRegistered(gvr) {
+		return nil
+	}
+
+	return m.informers[gvr]
 }

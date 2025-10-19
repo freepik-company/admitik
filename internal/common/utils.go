@@ -14,17 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sources
+package common
 
 import (
-	"github.com/freepik-company/admitik/internal/informer"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sync"
+	"strings"
 )
 
-// SourcesRegistry manage sources watchers' lifecycle
-type SourcesRegistry struct {
-	mu sync.RWMutex
-
-	informers map[schema.GroupVersionResource]*informer.Informer
+func GvrString(gvr schema.GroupVersionResource) string {
+	return strings.Join([]string{gvr.Group, gvr.Version, gvr.Resource}, "/")
 }
