@@ -19,6 +19,7 @@ package simple
 import (
 	//
 	"golang.org/x/exp/maps"
+	"slices"
 )
 
 func NewStore[T StoreResourceI]() *Store[T] {
@@ -90,4 +91,30 @@ func (s *Store[T]) GetCollectionNames() []string {
 	defer s.mu.RUnlock()
 
 	return maps.Keys(s.collections)
+}
+
+// SortCollection sorts using a custom comparison function
+func (s *Store[T]) SortCollection(
+	collectionName string,
+	less func(a, b T) bool,
+) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	list, found := s.collections[collectionName]
+	if !found || len(list) == 0 {
+		return
+	}
+
+	slices.SortFunc(list, func(a, b T) int {
+		if less(a, b) {
+			return -1
+		}
+		if less(b, a) {
+			return 1
+		}
+		return 0
+	})
+
+	s.collections[collectionName] = list
 }

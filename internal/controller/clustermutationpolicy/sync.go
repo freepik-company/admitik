@@ -116,7 +116,7 @@ func (r *ClusterMutationPolicyReconciler) ReconcileClusterMutationPolicy(ctx con
 			}
 
 			// Re-sort collection by priority (ascending order)
-			r.Dependencies.ClusterMutationPolicyRegistry.SortCollection(watchedType, func(a, b *v1alpha1.ClusterMutationPolicy) bool {
+			r.Dependencies.ClusterMutationPolicyRegistry.Store.SortCollection(watchedType, func(a, b *v1alpha1.ClusterMutationPolicy) bool {
 				return a.Spec.Priority < b.Spec.Priority
 			})
 		}
