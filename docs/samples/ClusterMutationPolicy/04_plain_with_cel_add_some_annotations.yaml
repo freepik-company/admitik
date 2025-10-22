@@ -4,6 +4,10 @@ metadata:
   name: 04-plain-with-cel-add-some-annotations
 spec:
 
+  # Priority represents the order in which the policies will be evaluated.
+  # Higher numbers will be evaluated later.
+  # priority: 1004
+
   # Resources to be intercepted before reaching the cluster
   interceptedResources:
     - group: ""

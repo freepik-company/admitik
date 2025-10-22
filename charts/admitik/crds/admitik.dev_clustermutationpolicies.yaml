@@ -109,6 +109,11 @@ spec:
                 - template
                 - type
                 type: object
+              priority:
+                description: |-
+                  Priority represents the execution order of the policy.
+                  Policies with higher values are evaluated later.
+                type: integer
               sources:
                 description: Sources represents a list of extra resource-groups to
                   watch and inject in templates

@@ -119,9 +119,11 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 		return
 	}
 
-	// Loop over ClusterMutationPolicy objects collecting the patches to apply
+	// Loop over ClusterMutationPolicy objects collecting the patches to apply.
+	// Patches are calculated incrementally, applying patched over the previous patched object.
 	// At this point, some extra params will be added to the object that will be injected in template
 	jsonPatchOperations := jsondiff.Patch{}
+	patchedObjectBytes := requestObj.Request.Object.Raw
 
 	cmPolicyList := s.dependencies.ClusterMutationPolicyRegistry.GetResources(resourcePattern)
 	for _, cmPolicyObj := range cmPolicyList {
@@ -157,6 +159,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 
 		var parsedPatch string
 		var tmpJsonPatchOperations jsondiff.Patch
+		var tmpPatchedObjectBytes []byte
 
 		parsedPatch, err = template.EvaluateTemplate(cmPolicyObj.Spec.Patch.Engine, cmPolicyObj.Spec.Patch.Template, &specificTemplateInjectedObject)
 		if err != nil {
@@ -165,13 +168,14 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 			goto createKubeEvent
 		}
 
-		tmpJsonPatchOperations, err = s.generateJsonPatchOperations(requestObj.Request.Object.Raw, cmPolicyObj.Spec.Patch.Type, []byte(parsedPatch))
+		tmpJsonPatchOperations, tmpPatchedObjectBytes, err = s.generateJsonPatchOperations(patchedObjectBytes, cmPolicyObj.Spec.Patch.Type, []byte(parsedPatch))
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed generating canonical jsonPatch operations for Kube API server: %s", err.Error()))
 			kubeEventMessage = "Generated patch is invalid. More info in controller logs."
 			goto createKubeEvent
 		}
 
+		patchedObjectBytes = tmpPatchedObjectBytes
 		jsonPatchOperations = append(jsonPatchOperations, tmpJsonPatchOperations...)
 		continue
 
@@ -193,7 +197,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 
 // generateJsonPatchOperations return a group of JsonPatch operations to mutate an object from its original
 // state to a final state. It's compatible with 'jsonpatch', 'jsonmerge' and 'strategicmerge' patch types.
-func (s *HttpServer) generateJsonPatchOperations(objectToPatch []byte, patchType string, patch []byte) (jsonPatchOperations jsondiff.Patch, err error) {
+func (s *HttpServer) generateJsonPatchOperations(objectToPatch []byte, patchType string, patch []byte) (jsonPatchOperations jsondiff.Patch, patchedObject []byte, err error) {
 	logger := log.FromContext(*s.dependencies.Context).
 		WithValues("controller", "admissionserver", "action", "mutation")
 
@@ -205,17 +209,17 @@ func (s *HttpServer) generateJsonPatchOperations(objectToPatch []byte, patchType
 	case v1alpha1.MutationPatchTypeMerge:
 		patchedObjectBytes, err = s.generateJsonMergePatch(objectToPatch, patch)
 		if err != nil {
-			return nil, fmt.Errorf("jsonmerge patch failed: %v", err)
+			return nil, nil, fmt.Errorf("jsonmerge patch failed: %v", err)
 		}
 	case v1alpha1.MutationPatchTypeStrategicMerge:
 		patchedObjectBytes, err = s.generateStrategicMergePatch(objectToPatch, patch)
 		if err != nil {
-			return nil, fmt.Errorf("strategicmerge patch failed: %v", err)
+			return nil, nil, fmt.Errorf("strategicmerge patch failed: %v", err)
 		}
 	default:
 		patchedObjectBytes, err = s.generateJsonPatchPatch(objectToPatch, patch)
 		if err != nil {
-			return nil, fmt.Errorf("jsonpatch patch failed: %v", err)
+			return nil, nil, fmt.Errorf("jsonpatch patch failed: %v", err)
 		}
 	}
 
@@ -225,7 +229,7 @@ func (s *HttpServer) generateJsonPatchOperations(objectToPatch []byte, patchType
 
 	tmpJsonPatchOperations, err = jsondiff.CompareJSON(objectToPatch, patchedObjectBytes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// DEBUG: log candidate object, already patched candidate for it and operations that will be applied.
@@ -237,7 +241,7 @@ func (s *HttpServer) generateJsonPatchOperations(objectToPatch []byte, patchType
 		"jsonPatchOperations", tmpJsonPatchOperations.String(),
 	)
 
-	return tmpJsonPatchOperations, nil
+	return tmpJsonPatchOperations, patchedObjectBytes, nil
 }
 
 // generateJsonPatchPatch patches the object using JSONPath strategy and returns the resulting object

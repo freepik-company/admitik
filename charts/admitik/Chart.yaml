@@ -4,8 +4,8 @@ type: application
 description: >- 
   Cloud native policy engine for Kubernetes: validates, mutates, generates, clean (and more) 
   based on conditions defined on powerful templates
-version: 1.8.1
-appVersion: "1.8.0" # application version
+version: 1.9.0
+appVersion: "1.9.0" # application version
 kubeVersion: ">=1.22.0-0" # kubernetes version
 home: https://github.com/freepik-company/admitik
 sources:

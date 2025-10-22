@@ -4,6 +4,10 @@ metadata:
   name: 07-plain-with-cel-use-strategicmerge-patch
 spec:
 
+  # Priority represents the order in which the policies will be evaluated.
+  # Higher numbers will be evaluated later.
+  # priority: 1007
+
   # Resources to be intercepted before reaching the cluster
   interceptedResources:
     - group: ""

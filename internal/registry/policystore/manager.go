@@ -129,3 +129,29 @@ func (s *PolicyStore[T]) GetReferencedSources() []string {
 
 	return sourceTypes
 }
+
+// SortCollection sorts using a custom comparison function
+func (s *PolicyStore[T]) SortCollection(
+	collectionName string,
+	less func(a, b T) bool,
+) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	list, found := s.collections[collectionName]
+	if !found || len(list) == 0 {
+		return
+	}
+
+	slices.SortFunc(list, func(a, b T) int {
+		if less(a, b) {
+			return -1
+		}
+		if less(b, a) {
+			return 1
+		}
+		return 0
+	})
+
+	s.collections[collectionName] = list
+}

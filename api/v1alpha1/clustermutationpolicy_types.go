@@ -35,6 +35,10 @@ type PatchT struct {
 // ClusterMutationPolicySpec defines the desired state of ClusterMutationPolicy
 type ClusterMutationPolicySpec struct {
 
+	// Priority represents the execution order of the policy.
+	// Policies with higher values are evaluated later.
+	Priority int `json:"priority,omitempty"`
+
 	// InterceptedResources represents a list of resource-groups that will be sent to the admissions server to be evaluated
 	// +listType=map
 	// +listMapKey=group
