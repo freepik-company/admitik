@@ -2,6 +2,31 @@ apiVersion: v1
 entries:
   admitik:
   - apiVersion: v2
+    appVersion: 1.9.1
+    created: "2025-10-30T14:35:39.114670862Z"
+    description: 'Cloud native policy engine for Kubernetes: validates, mutates, generates,
+      clean (and more)  based on conditions defined on powerful templates'
+    digest: 52ee7bae216862d59c90a36608508143f1cdd0dee560763dee053d21d3f684ef
+    home: https://github.com/freepik-company/admitik
+    keywords:
+    - admitik
+    - cloud-native
+    - freepik
+    - kubernetes
+    - policy
+    kubeVersion: '>=1.22.0-0'
+    maintainers:
+    - email: ahernandez@freepik.com
+      name: Alby Hernández
+      url: https://github.com/freepik-company/admitik
+    name: admitik
+    sources:
+    - https://github.com/freepik-company/admitik
+    type: application
+    urls:
+    - admitik-1.9.1.tgz
+    version: 1.9.1
+  - apiVersion: v2
     appVersion: 1.9.0
     created: "2025-10-22T01:46:11.118496973Z"
     description: 'Cloud native policy engine for Kubernetes: validates, mutates, generates,
@@ -1095,4 +1120,4 @@ entries:
     urls:
     - admitik-0.1.0.tgz
     version: 0.1.0
-generated: "2025-10-22T01:46:11.118881917Z"
+generated: "2025-10-30T14:35:39.11500075Z"
