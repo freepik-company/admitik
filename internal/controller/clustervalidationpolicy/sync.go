@@ -227,7 +227,8 @@ func (r *ClusterValidationPolicyReconciler) getMergedValidatingWebhookConfigurat
 		tmpWebhookObj.ObjectSelector = &v1.LabelSelector{}
 		tmpWebhookObj.ObjectSelector.MatchExpressions = []v1.LabelSelectorRequirement{{
 			Key:      controller.IgnoreAdmissionLabel,
-			Operator: v1.LabelSelectorOpDoesNotExist,
+			Operator: v1.LabelSelectorOpNotIn,
+			Values:   []string{"true"},
 		}}
 	}
 
