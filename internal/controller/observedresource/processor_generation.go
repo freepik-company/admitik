@@ -34,13 +34,13 @@ import (
 	"github.com/freepik-company/admitik/internal/controller"
 	"github.com/freepik-company/admitik/internal/globals"
 	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
-	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
+	informerRegistry "github.com/freepik-company/admitik/internal/registry/informer"
 	"github.com/freepik-company/admitik/internal/template"
 )
 
 type GenerationProcessorDependencies struct {
 	ClusterGenerationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterGenerationPolicy]
-	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
+	SourcesPool                     informerRegistry.SourcesPool
 
 	KubeAvailableResourceListFn func() []GVKR
 }
@@ -81,7 +81,7 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 
 		// Retrieve the sources declared per policy
 		triggerInjectedObject := commonTemplateInjectedObject.TriggerInjectedDataT
-		tmpFetchedPolicySources, fetchErr := common.FetchPolicySources(p.dependencies.SourcesRegistry, policyObj, &triggerInjectedObject)
+		tmpFetchedPolicySources, fetchErr := common.FetchPolicySources(p.dependencies.SourcesPool, policyObj, &triggerInjectedObject)
 		if fetchErr != nil {
 			logger.Info("failed fetching sources. Broken ones will be empty", "error", fetchErr.Error())
 		}

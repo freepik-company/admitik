@@ -26,16 +26,16 @@ import (
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/keys"
+	"github.com/freepik-company/admitik/internal/registry/informer"
 	"github.com/freepik-company/admitik/internal/registry/policystore"
-	"github.com/freepik-company/admitik/internal/registry/sources"
 	"github.com/freepik-company/admitik/internal/template"
 )
 
 // FetchPolicySources TODO
 func FetchPolicySources[T policystore.PolicyResourceI](
-	sourcesReg *sources.SourcesRegistry,
+	sourcesReg informer.SourcesPool,
 	policy T,
-	injectedData template.InjectedDataI, // TODO: This can be present, or not
+	injectedData template.InjectedDataI,
 ) (results map[int][]map[string]any, err error) {
 
 	var tmpErrors []error
@@ -45,7 +45,7 @@ func FetchPolicySources[T policystore.PolicyResourceI](
 	for sourceIndex, sourceItem := range policy.GetSources() {
 
 		gvrString := keys.GVRKey(sourceItem.Group, sourceItem.Version, sourceItem.Resource)
-		allResources := sourcesReg.GetResources(gvrString)
+		allResources := sourcesReg.GetPool(gvrString)
 
 		// Deep copy to avoid mutating the original policy (full of pointers, dude)
 		sourceItemCopy := sourceItem.DeepCopy()

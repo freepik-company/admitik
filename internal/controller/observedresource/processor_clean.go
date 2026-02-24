@@ -32,13 +32,13 @@ import (
 	"github.com/freepik-company/admitik/internal/common"
 	"github.com/freepik-company/admitik/internal/globals"
 	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
-	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
+	informerRegistry "github.com/freepik-company/admitik/internal/registry/informer"
 	"github.com/freepik-company/admitik/internal/template"
 )
 
 type CleanProcessorDependencies struct {
 	ClusterCleanPolicyRegistry  *policyStore.PolicyStore[*v1alpha1.ClusterCleanPolicy]
-	SourcesRegistry             *sourcesRegistry.SourcesRegistry
+	SourcesPool                 informerRegistry.SourcesPool
 	KubeAvailableResourceListFn func() []GVKR
 }
 
@@ -73,7 +73,7 @@ func (p *CleanProcessor) Process(resourceType string, eventType watch.EventType,
 		logger = logger.WithValues("ClusterCleanPolicy", policyObj.Name)
 
 		triggerInjectedObject := commonTemplateInjectedObject.TriggerInjectedDataT
-		tmpFetchedPolicySources, fetchErr := common.FetchPolicySources(p.dependencies.SourcesRegistry, policyObj, &triggerInjectedObject)
+		tmpFetchedPolicySources, fetchErr := common.FetchPolicySources(p.dependencies.SourcesPool, policyObj, &triggerInjectedObject)
 		if fetchErr != nil {
 			logger.Info("failed fetching sources. Broken ones will be empty", "error", fetchErr.Error())
 		}

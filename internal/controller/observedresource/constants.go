@@ -14,24 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package resourceinformer
+package observedresource
 
-import "sync"
+const (
+	ObserverTypeClusterGenerationPolicies = "clustergenerationpolicies"
+	ObserverTypeClusterCleanPolicies      = "clustercleanpolicies"
 
-// ResourceTypeName represents TODO
-// The pattern will be: {group}/{version}/{resource}/{namespace}/{name}
-type ResourceTypeName = string
-
-// ResourcesInformer wraps status and control of an informer of a resource.
-type ResourceInformer struct {
-	mu sync.Mutex
-
-	Started    bool
-	StopSignal chan bool
-}
-
-// ResourceInformerRegistry manage watchers' lifecycle
-type ResourceInformerRegistry struct {
-	mu        sync.Mutex
-	informers map[ResourceTypeName]*ResourceInformer
-}
+	controllerName = "observedresource"
+)

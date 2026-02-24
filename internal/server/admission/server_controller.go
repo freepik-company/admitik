@@ -30,7 +30,7 @@ import (
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
 	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
-	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
+	informerRegistry "github.com/freepik-company/admitik/internal/registry/informer"
 )
 
 const (
@@ -45,10 +45,9 @@ const (
 type AdmissionServerDependencies struct {
 	Context *context.Context
 
-	//
 	ClusterValidationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterValidationPolicy]
 	ClusterMutationPolicyRegistry   *policyStore.PolicyStore[*v1alpha1.ClusterMutationPolicy]
-	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
+	SourcesPool                     informerRegistry.SourcesPool
 }
 
 // AdmissionServerOptions represents available options that can be passed

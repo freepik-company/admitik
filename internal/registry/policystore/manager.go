@@ -99,38 +99,88 @@ func (s *PolicyStore[T]) GetCollectionNames() []string {
 	return maps.Keys(s.collections)
 }
 
-// GetReferencedSources returns a list of GVR names referenced on 'sources' section across the policies.
-// GVR is expressed as {group}/{version}/{resource}
+// GetReferencedSources returns a deduplicated list of GVR keys referenced in the 'sources'
+// section across all policies in all collections.
+// GVR is expressed as {group}/{version}/{resource}.
 func (s *PolicyStore[T]) GetReferencedSources() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	sourceTypes := []string{}
 
-	// Loop over all objects collecting extra resources
 	for _, collectionObjectList := range s.collections {
-
 		for _, resourceObj := range collectionObjectList {
-
 			for _, source := range resourceObj.GetSources() {
-
-				// Prevents potential explosions due to
-				// 'sources' comes empty from time to time
 				if reflect.ValueOf(source).IsZero() {
 					continue
 				}
-
 				sourceName := keys.GVRKey(source.Group, source.Version, source.Resource)
 				sourceTypes = append(sourceTypes, sourceName)
 			}
 		}
 	}
 
-	// Clean duplicated
 	slices.Sort(sourceTypes)
 	sourceTypes = slices.Compact(sourceTypes)
 
 	return sourceTypes
+}
+
+// GetReferencedSourcesByPolicy returns a map from GVR key to the list of policy names
+// that reference it as a source. This enables per-policy refcounting in the informer registry.
+//
+// Example result:
+//
+//	{
+//	  "/v1/configmaps":     ["gen-labels", "inject-sidecar"],
+//	  "apps/v1/deployments": ["gen-annotations"],
+//	}
+func (s *PolicyStore[T]) GetReferencedSourcesByPolicy() map[string][]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make(map[string][]string)
+
+	for _, collectionObjectList := range s.collections {
+		for _, resourceObj := range collectionObjectList {
+			policyName := resourceObj.GetName()
+			for _, source := range resourceObj.GetSources() {
+				if reflect.ValueOf(source).IsZero() {
+					continue
+				}
+				gvrKey := keys.GVRKey(source.Group, source.Version, source.Resource)
+				if !slices.Contains(result[gvrKey], policyName) {
+					result[gvrKey] = append(result[gvrKey], policyName)
+				}
+			}
+		}
+	}
+
+	return result
+}
+
+// GetPolicyNamesByCollection returns a map from collection key (e.g. GVRNN) to the list
+// of policy names stored in that collection. This enables per-policy refcounting
+// in the informer registry for watched resources.
+//
+// Example result:
+//
+//	{
+//	  "apps/v1/deployments/default/nginx": ["gen-labels", "clean-orphans"],
+//	}
+func (s *PolicyStore[T]) GetPolicyNamesByCollection() map[string][]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make(map[string][]string)
+
+	for collectionName, policies := range s.collections {
+		for _, p := range policies {
+			result[collectionName] = append(result[collectionName], p.GetName())
+		}
+	}
+
+	return result
 }
 
 // SortCollection sorts using a custom comparison function

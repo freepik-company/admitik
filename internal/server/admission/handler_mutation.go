@@ -132,7 +132,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 
 		// Retrieve the sources declared per policy
 		triggerInjectedObject := commonTemplateInjectedObject.TriggerInjectedDataT
-		tmpFetchedPolicySources, fetchErr := common.FetchPolicySources(s.dependencies.SourcesRegistry, cmPolicyObj, &triggerInjectedObject)
+		tmpFetchedPolicySources, fetchErr := common.FetchPolicySources(s.dependencies.SourcesPool, cmPolicyObj, &triggerInjectedObject)
 		if fetchErr != nil {
 			logger.Info("failed fetching sources. Broken ones will be empty", "error", fetchErr.Error())
 		}

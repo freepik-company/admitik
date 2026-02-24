@@ -94,8 +94,8 @@ internal/
     clustermutationpolicy/           # Reconciler: syncs MutatingWebhookConfiguration (priority-sorted)
     clustergenerationpolicy/         # Reconciler: registry-only (no webhook config), auto-cleanup on delete
     clustercleanpolicy/              # Reconciler: registry-only, declarative cleanup of target resources
-    sources/                         # SourcesController: dynamic informers for policy source data
-    observedresource/                # ObservedResourceController: watches resources, dispatches generation + cleanup
+    informermanager/                 # Unified InformerManager: sources + watched runnable (replaces old controllers)
+    observedresource/                # Processors (generation, clean) and GVKR utilities
 
   server/admission/                  # HTTP admission server (validation + mutation handlers)
     server.go                        # HttpServer, route setup, TLS
@@ -106,9 +106,7 @@ internal/
 
   registry/
     policystore/                     # Generic PolicyStore[T] — in-memory policy index by collection key
-    sources/                         # SourcesRegistry — caches live K8s objects from policy sources
-    resourceinformer/                # ResourceInformerRegistry — informer lifecycle for observed resources
-    resourceobserver/                # ResourceObserverRegistry — maps resource types to observer names
+    informer/                        # Unified informer Registry — lifecycle, refcounting, pool, event broadcast
 
   template/                          # Multi-engine template evaluation
     template.go                      # EvaluateTemplate dispatcher
@@ -158,12 +156,13 @@ Policy CRDs ──reconcile──► PolicyStore (4 generic instances)
                                 │
                 ┌───────────────┼───────────────────┐
                 ▼               ▼                   ▼
-        SourcesController   AdmissionServer    ObservedResourceController
-        (all replicas)      (all replicas)     (leader-elected)
+        InformerManager     AdmissionServer    InformerManager
+        SourcesRunnable     (all replicas)     WatchedRunnable
+        (all replicas)          │              (leader-elected)
                 │               │                   │
                 ▼               │                   ▼
-        SourcesRegistry ◄──────┘           EventDispatcher → Processors
-        (cached objects)                        │
+        Unified Registry ◄─────┘         Broadcast → Listeners
+        PoolUpdater (pool)                      │
                                     ┌───────────┴──────────┐
                                     ▼                      ▼
                             GenerationProcessor    CleanProcessor
@@ -239,9 +238,12 @@ Each controller lives in its own subpackage under `internal/controller/` with 3 
 - `status.go` — Status condition update helpers
 
 ### Registry Pattern
-- All registries use `sync.Mutex` (not `RWMutex`)
-- Double-locking: registry-level mutex + per-entry mutex for pool access
+- Unified `informer.Registry` with `sync.RWMutex` at registry level + per-entry `sync.Mutex` for pool access
+- Refcount-based informer lifecycle: consumers follow the pattern `{prefix}:{policyKind}:{policyName}` (e.g. `sources:ClusterGenerationPolicy:gen-labels`); informer dies when refcount = 0
+- `PoolUpdater` listens to broadcast events and maintains sources cache (`[]*map[string]any` for zero-copy performance)
+- `WatchedEventListener` routes events to generation/clean processors using prefix-based consumer matching
 - Generic `PolicyStore[T PolicyResourceI]` parameterized by CRD type
+- See `.agents/DESIGN_DECISIONS.md` for detailed rationale on consumer naming, broadcast pattern, etc.
 
 ### Error Handling
 - Controllers use format-string constants for error messages (defined in `internal/controller/commons.go`)
@@ -318,7 +320,7 @@ All workflows trigger on GitHub `release` events + `workflow_dispatch`:
 - **`zz_generated.deepcopy.go` is auto-generated.** Never edit it. Run `make generate` after changing API types.
 - **CRD manifests are generated.** Run `make manifests` after changing Kubebuilder markers in `api/v1alpha1/`.
 - **`make build` runs `manifests`, `generate`, `fmt`, `vet` as prerequisites.** If you only want to compile, use `go build -o bin/manager cmd/main.go` directly.
-- **All admission controllers run without leader election.** Every replica processes all policies independently. Only `ObservedResourceController` (generation) is leader-elected.
+- **All admission controllers run without leader election.** Every replica processes all policies independently. The `InformerManager.WatchedRunnable()` (generation/clean) is leader-elected; `InformerManager.SourcesRunnable()` (pool caching) runs on all replicas.
 - **Starlark engine triggers GC after every evaluation** (`runtime.GC()` + `debug.FreeOSMemory()`). Be aware of performance implications in high-throughput mutation/validation paths.
 - **Strategic merge patches fetch OpenAPI schemas** from the cluster's discovery client, cached with 5-second refresh. First request after startup may be slower.
 - **The `env` and `expandenv` Sprig functions are explicitly removed** from Go template evaluation for security.
@@ -340,3 +342,9 @@ Sample policies are in `docs/samples/` organized by CRD type. Apply all with:
 ```bash
 kubectl apply -k ./docs/samples/
 ```
+
+---
+
+## TODO / Future Plans
+
+- **Unify `interceptedResources` and `watchedResources`**: In the future, `interceptedResources` will be renamed to `watchedResources` (or similar) with a `background: true/false` field to indicate whether the resource goes through an admission webhook or is handled by background informers. This allows a single consistent API surface for all policy types. Keep this in mind when refactoring registry/controller code — design for this convergence.

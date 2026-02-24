@@ -44,13 +44,11 @@ import (
 	"github.com/freepik-company/admitik/internal/controller/clustermutationpolicy"
 	"github.com/freepik-company/admitik/internal/controller/clustervalidationpolicy"
 	"github.com/freepik-company/admitik/internal/controller/clustercleanpolicy"
+	"github.com/freepik-company/admitik/internal/controller/informermanager"
 	"github.com/freepik-company/admitik/internal/controller/observedresource"
-	"github.com/freepik-company/admitik/internal/controller/sources"
 	"github.com/freepik-company/admitik/internal/globals"
+	informerRegistry "github.com/freepik-company/admitik/internal/registry/informer"
 	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
-	resourceInformerRegistry "github.com/freepik-company/admitik/internal/registry/resourceinformer"
-	resourceObserverRegistry "github.com/freepik-company/admitik/internal/registry/resourceobserver"
-	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
 	"github.com/freepik-company/admitik/internal/server/admission"
 	// +kubebuilder:scaffold:imports
 )
@@ -284,9 +282,38 @@ func main() {
 	clusterMutationPolicyReg := policyStore.NewPolicyStore[*v1alpha1.ClusterMutationPolicy]()
 	clusterGenerationPolicyReg := policyStore.NewPolicyStore[*v1alpha1.ClusterGenerationPolicy]()
 	clusterCleanPolicyReg := policyStore.NewPolicyStore[*v1alpha1.ClusterCleanPolicy]()
-	sourcesReg := sourcesRegistry.NewSourcesRegistry()
-	resourceObserverReg := resourceObserverRegistry.NewResourceObserverRegistry()
-	resourceInformerReg := resourceInformerRegistry.NewResourceInformerRegistry()
+
+	// Unified informer registry: manages informer lifecycle, refcounting, and sources pool
+	registry := informerRegistry.NewRegistry()
+
+	// PoolUpdater listens to informer events and maintains the sources pool
+	poolUpdater := informerRegistry.NewPoolUpdater(registry)
+	registry.AddListener(poolUpdater)
+
+	// KubeResourceSyncer periodically fetches available API resources
+	kubeResourceSyncer := informermanager.NewKubeResourceSyncer(globals.Application.Context)
+
+	// WatchedEventListener routes informer events to generation/clean processors.
+	// Each entry maps a policy kind to the processor that handles its events.
+	watchedListener := informermanager.NewWatchedEventListener(registry, []informermanager.WatchedProcessorEntry{
+		{
+			PolicyKind: "ClusterGenerationPolicy",
+			ProcessFn: observedresource.NewGenerationProcessor(observedresource.GenerationProcessorDependencies{
+				ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
+				SourcesPool:                     registry,
+				KubeAvailableResourceListFn:     kubeResourceSyncer.GetResources,
+			}).Process,
+		},
+		{
+			PolicyKind: "ClusterCleanPolicy",
+			ProcessFn: observedresource.NewCleanProcessor(observedresource.CleanProcessorDependencies{
+				ClusterCleanPolicyRegistry:  clusterCleanPolicyReg,
+				SourcesPool:                 registry,
+				KubeAvailableResourceListFn: kubeResourceSyncer.GetResources,
+			}).Process,
+		},
+	})
+	registry.AddListener(watchedListener)
 
 	// Init internal registries controllers
 	// Following controllers manage internal registries for user-facing resources.
@@ -364,50 +391,26 @@ func main() {
 
 	// +kubebuilder:scaffold:builder
 
-	// Init ObservedResourceController.
-	// This controller launches watchers for resource types expressed in 'watchedResources' section of some CRs,
-	// and executes suitable processors for them.
-	// This is used in resources such as ClusterGenerationPolicy, ClusterCleanPolicy, etc.
-	observedResourceController := observedresource.ObservedResourceController{
-		Client: mgr.GetClient(),
-		Options: observedresource.ObservedResourceControllerOptions{
-			InformerDurationToResync: sourcesTimeToResyncInformers,
-		},
-		Dependencies: observedresource.ObservedResourceControllerDependencies{
-			Context:                         &globals.Application.Context,
-			ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
-			ClusterCleanPolicyRegistry:      clusterCleanPolicyReg,
-			SourcesRegistry:                 sourcesReg,
-			ResourceInformerRegistry:        resourceInformerReg,
-			ResourceObserverRegistry:        resourceObserverReg,
-		},
-	}
-	if err = mgr.Add(&observedResourceController); err != nil {
-		setupLog.Error(err, "failed adding observed resources controller to manager")
+	// Init InformerManager.
+	// Unifies what were separate SourcesController and ObservedResourceController.
+	// SourcesRunnable runs on all replicas (caches sources for admission webhooks).
+	// WatchedRunnable runs on leader only (generation/clean processing).
+	im := informermanager.New(registry, informermanager.Options{
+		InformerDurationToResync: sourcesTimeToResyncInformers,
+	}, informermanager.Dependencies{
+		Context:                         &globals.Application.Context,
+		ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
+		ClusterCleanPolicyRegistry:      clusterCleanPolicyReg,
+		ClusterMutationPolicyRegistry:   clusterMutationPolicyReg,
+		ClusterValidationPolicyRegistry: clusterValidationPolicyReg,
+	})
+
+	if err = mgr.Add(im.SourcesRunnable()); err != nil {
+		setupLog.Error(err, "failed adding sources runnable to manager")
 		os.Exit(1)
 	}
-
-	// Init SourcesController.
-	// This controller is in charge of launching watchers to cache sources expressed in some CRs in background.
-	// This way we avoid retrieving them from Kubernetes on each request done by other controllers
-	// such as AdmissionServer or BackgroundController.
-	// IMPORTANT: All the replicas are able to process and leader is not chosen for this.
-	sourcesController := sources.SourcesController{
-		Client: mgr.GetClient(),
-		Options: sources.SourcesControllerOptions{
-			InformerDurationToResync: sourcesTimeToResyncInformers,
-		},
-		Dependencies: sources.SourcesControllerDependencies{
-			Context:                         &globals.Application.Context,
-			ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
-			ClusterMutationPolicyRegistry:   clusterMutationPolicyReg,
-			ClusterValidationPolicyRegistry: clusterValidationPolicyReg,
-			ClusterCleanPolicyRegistry:      clusterCleanPolicyReg,
-			SourcesRegistry:                 sourcesReg,
-		},
-	}
-	if err = mgr.Add(&sourcesController); err != nil {
-		setupLog.Error(err, "failed adding sources controller to manager")
+	if err = mgr.Add(im.WatchedRunnable()); err != nil {
+		setupLog.Error(err, "failed adding watched runnable to manager")
 		os.Exit(1)
 	}
 
@@ -415,18 +418,16 @@ func main() {
 	// IMPORTANT: All the replicas are able to process and leader is not chosen for this.
 	admissionServer := admission.NewAdmissionServer(
 		admission.AdmissionServerOptions{
-			//
 			ServerAddr: "0.0.0.0",
 			ServerPort: webhooksServerPort,
 			ServerPath: webhooksServerPath,
 
-			//
 			TLSCertificate: webhooksServerCertificate,
 			TLSPrivateKey:  webhooksServerPrivateKey,
 		},
 		admission.AdmissionServerDependencies{
 			Context:                         &globals.Application.Context,
-			SourcesRegistry:                 sourcesReg,
+			SourcesPool:                     registry,
 			ClusterValidationPolicyRegistry: clusterValidationPolicyReg,
 			ClusterMutationPolicyRegistry:   clusterMutationPolicyReg,
 		})

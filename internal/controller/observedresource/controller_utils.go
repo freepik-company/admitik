@@ -17,22 +17,16 @@ limitations under the License.
 package observedresource
 
 import (
-	"github.com/freepik-company/admitik/internal/globals"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/freepik-company/admitik/internal/common"
+	"github.com/freepik-company/admitik/internal/globals"
 )
 
-// GVKR represents TODO
-type GVKR struct {
-	GVK         schema.GroupVersionKind
-	Resource    string
-	Subresource string
+type GVKR = common.GVKR
 
-	//
-	Namespaced bool
-}
-
-// fetchKubeAvailableResources TODO
 func fetchKubeAvailableResources() (resources *[]GVKR, err error) {
 
 	resources = &[]GVKR{}
@@ -76,7 +70,6 @@ func fetchKubeAvailableResources() (resources *[]GVKR, err error) {
 	return resources, nil
 }
 
-// getResourceFromGvk TODO
 func getResourceFromGvk(resourceList []GVKR, gvk schema.GroupVersionKind) string {
 
 	for _, object := range resourceList {

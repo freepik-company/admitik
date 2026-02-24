@@ -14,24 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package resourceobserver
+package informer
 
-import "sync"
-
-// ResourceTypeName represents TODO
-// The pattern will be: {group}/{version}/{resource}/{namespace}/{name}
-type ResourceTypeName = string
-
-// ResourceObserverGroup wraps status of a group of observers.
-type ResourceObserverGroup struct {
-	mu sync.Mutex
-
-	// observers represents the audience for a group of resources
-	observers []string
-}
-
-// ResourceObserverRegistry manage observers
-type ResourceObserverRegistry struct {
-	mu        sync.Mutex
-	observers map[ResourceTypeName]*ResourceObserverGroup
+// SourcesPool is the read-only interface for accessing cached Kubernetes objects.
+// Consumers (FetchPolicySources, admission handlers, processors) depend on this
+// interface rather than on *Registry directly, keeping the dependency narrow.
+//
+// *Registry satisfies this interface.
+type SourcesPool interface {
+	GetPool(key ResourceKey) []*map[string]interface{}
 }

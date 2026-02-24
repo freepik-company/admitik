@@ -127,7 +127,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 
 		// Retrieve the sources declared per policy
 		triggerInjectedObject := commonTemplateInjectedObject.TriggerInjectedDataT
-		tmpFetchedPolicySources, fetchErr := common.FetchPolicySources(s.dependencies.SourcesRegistry, caPolicyObj, &triggerInjectedObject)
+		tmpFetchedPolicySources, fetchErr := common.FetchPolicySources(s.dependencies.SourcesPool, caPolicyObj, &triggerInjectedObject)
 		if fetchErr != nil {
 			logger.Info("failed fetching sources. Broken ones will be empty", "error", fetchErr.Error())
 		}
