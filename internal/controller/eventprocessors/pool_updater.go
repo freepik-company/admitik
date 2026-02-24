@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package informer
+package eventprocessors
 
 import (
 	"k8s.io/apimachinery/pkg/watch"
+
+	informerRegistry "github.com/freepik-company/admitik/internal/registry/informer"
 )
 
 // PoolUpdater is an EventListener that maintains the per-key sources object pool
@@ -33,18 +35,18 @@ import (
 // Consumers (FetchPolicySources, admission handlers) read from the pool via
 // Registry.GetPool() without copying individual objects.
 type PoolUpdater struct {
-	registry *Registry
+	registry *informerRegistry.Registry
 }
 
 // NewPoolUpdater creates a PoolUpdater bound to the given Registry.
 // Must be registered via Registry.AddListener() to start receiving events.
-func NewPoolUpdater(registry *Registry) *PoolUpdater {
+func NewPoolUpdater(registry *informerRegistry.Registry) *PoolUpdater {
 	return &PoolUpdater{registry: registry}
 }
 
 // OnEvent implements EventListener. It updates the sources object pool for the
 // given resource key based on the event type.
-func (p *PoolUpdater) OnEvent(resourceKey ResourceKey, eventType watch.EventType, objects ...map[string]interface{}) {
+func (p *PoolUpdater) OnEvent(resourceKey informerRegistry.ResourceKey, eventType watch.EventType, objects ...map[string]interface{}) {
 	if eventType != watch.Added && eventType != watch.Modified && eventType != watch.Deleted {
 		return
 	}

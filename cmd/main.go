@@ -44,8 +44,8 @@ import (
 	"github.com/freepik-company/admitik/internal/controller/clustermutationpolicy"
 	"github.com/freepik-company/admitik/internal/controller/clustervalidationpolicy"
 	"github.com/freepik-company/admitik/internal/controller/clustercleanpolicy"
+	"github.com/freepik-company/admitik/internal/controller/eventprocessors"
 	"github.com/freepik-company/admitik/internal/controller/informermanager"
-	"github.com/freepik-company/admitik/internal/controller/observedresource"
 	"github.com/freepik-company/admitik/internal/globals"
 	informerRegistry "github.com/freepik-company/admitik/internal/registry/informer"
 	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
@@ -287,7 +287,7 @@ func main() {
 	registry := informerRegistry.NewRegistry()
 
 	// PoolUpdater listens to informer events and maintains the sources pool
-	poolUpdater := informerRegistry.NewPoolUpdater(registry)
+	poolUpdater := eventprocessors.NewPoolUpdater(registry)
 	registry.AddListener(poolUpdater)
 
 	// KubeResourceSyncer periodically fetches available API resources
@@ -298,7 +298,7 @@ func main() {
 	watchedListener := informermanager.NewWatchedEventListener(registry, []informermanager.WatchedProcessorEntry{
 		{
 			PolicyKind: "ClusterGenerationPolicy",
-			ProcessFn: observedresource.NewGenerationProcessor(observedresource.GenerationProcessorDependencies{
+			ProcessFn: eventprocessors.NewGenerationProcessor(eventprocessors.GenerationProcessorDependencies{
 				ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
 				SourcesPool:                     registry,
 				KubeAvailableResourceListFn:     kubeResourceSyncer.GetResources,
@@ -306,7 +306,7 @@ func main() {
 		},
 		{
 			PolicyKind: "ClusterCleanPolicy",
-			ProcessFn: observedresource.NewCleanProcessor(observedresource.CleanProcessorDependencies{
+			ProcessFn: eventprocessors.NewCleanProcessor(eventprocessors.CleanProcessorDependencies{
 				ClusterCleanPolicyRegistry:  clusterCleanPolicyReg,
 				SourcesPool:                 registry,
 				KubeAvailableResourceListFn: kubeResourceSyncer.GetResources,

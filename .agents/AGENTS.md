@@ -95,7 +95,7 @@ internal/
     clustergenerationpolicy/         # Reconciler: registry-only (no webhook config), auto-cleanup on delete
     clustercleanpolicy/              # Reconciler: registry-only, declarative cleanup of target resources
     informermanager/                 # Unified InformerManager: sources + watched runnable (replaces old controllers)
-    observedresource/                # Processors (generation, clean) and GVKR utilities
+    eventprocessors/                 # Event processors (pool updater, generation, clean) and GVKR utilities
 
   server/admission/                  # HTTP admission server (validation + mutation handlers)
     server.go                        # HttpServer, route setup, TLS
@@ -240,7 +240,7 @@ Each controller lives in its own subpackage under `internal/controller/` with 3 
 ### Registry Pattern
 - Unified `informer.Registry` with `sync.RWMutex` at registry level + per-entry `sync.Mutex` for pool access
 - Refcount-based informer lifecycle: consumers follow the pattern `{prefix}:{policyKind}:{policyName}` (e.g. `sources:ClusterGenerationPolicy:gen-labels`); informer dies when refcount = 0
-- `PoolUpdater` listens to broadcast events and maintains sources cache (`[]*map[string]any` for zero-copy performance)
+- `PoolUpdater` (in `eventprocessors/`) listens to broadcast events and maintains sources cache (`[]*map[string]any` for zero-copy performance)
 - `WatchedEventListener` routes events to generation/clean processors using prefix-based consumer matching
 - Generic `PolicyStore[T PolicyResourceI]` parameterized by CRD type
 - See `.agents/DESIGN_DECISIONS.md` for detailed rationale on consumer naming, broadcast pattern, etc.

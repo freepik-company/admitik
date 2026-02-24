@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package observedresource
+package eventprocessors
 
 const (
 	ObserverTypeClusterGenerationPolicies = "clustergenerationpolicies"
 	ObserverTypeClusterCleanPolicies      = "clustercleanpolicies"
 
-	controllerName = "observedresource"
+	controllerName = "eventprocessors"
 )

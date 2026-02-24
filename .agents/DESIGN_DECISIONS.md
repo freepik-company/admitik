@@ -239,12 +239,12 @@ default:
 ### Decision
 
 The `GVKR` struct (GroupVersionKind + Resource + Subresource + Namespaced) was moved to
-`internal/common/gvkr.go` as a shared type. Both `informermanager` and `observedresource`
+`internal/common/gvkr.go` as a shared type. Both `informermanager` and `eventprocessors`
 packages use a type alias (`type GVKR = common.GVKR`).
 
 ### Rationale
 
-- The struct was duplicated in `observedresource/controller_utils.go` and
+- The struct was duplicated in `eventprocessors/controller_utils.go` and
   `informermanager/processors.go`. Since both packages need it and neither should
   depend on the other, a shared package is the right location.
 - Using a type alias (`=`) instead of a type definition means the types are identical

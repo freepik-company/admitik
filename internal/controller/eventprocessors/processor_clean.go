@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package observedresource
+package eventprocessors
 
 import (
 	"fmt"
@@ -31,8 +31,8 @@ import (
 	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/common"
 	"github.com/freepik-company/admitik/internal/globals"
-	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 	informerRegistry "github.com/freepik-company/admitik/internal/registry/informer"
+	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 	"github.com/freepik-company/admitik/internal/template"
 )
 
