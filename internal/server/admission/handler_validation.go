@@ -31,6 +31,7 @@ import (
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/common"
+	"github.com/freepik-company/admitik/internal/keys"
 	"github.com/freepik-company/admitik/internal/template"
 )
 
@@ -85,8 +86,8 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 			return
 		}
 
-		response.WriteHeader(http.StatusOK)
 		response.Header().Set("Content-Type", "application/json")
+		response.WriteHeader(http.StatusOK)
 
 		_, err = response.Write(responseBytes)
 		if err != nil {
@@ -95,11 +96,11 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 	}()
 
 	// Craft the resourcePattern to look for the ClusterValidationPolicy objects in the pool
-	resourcePattern := fmt.Sprintf("%s/%s/%s/%s",
+	resourcePattern := keys.GVROKey(
 		requestObj.Request.Resource.Group,
 		requestObj.Request.Resource.Version,
 		requestObj.Request.Resource.Resource,
-		requestObj.Request.Operation)
+		string(requestObj.Request.Operation))
 
 	// Create an object that will be injected in conditions/message
 	// in later template evaluation stage

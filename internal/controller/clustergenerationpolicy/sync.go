@@ -19,7 +19,6 @@ package clustergenerationpolicy
 import (
 	"context"
 	"slices"
-	"strings"
 
 	//
 	"k8s.io/apimachinery/pkg/watch"
@@ -27,6 +26,7 @@ import (
 
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/internal/keys"
 )
 
 const (
@@ -45,13 +45,13 @@ func (r *ClusterGenerationPolicyReconciler) ReconcileClusterGenerationPolicy(ctx
 	for _, watchedResourceGroup := range resourceManifest.Spec.WatchedResources {
 
 		// Create the key-pattern and store it for later cleaning
-		watchedType := strings.Join([]string{
+		watchedType := keys.GVRNNKey(
 			watchedResourceGroup.Group,
 			watchedResourceGroup.Version,
 			watchedResourceGroup.Resource,
 			watchedResourceGroup.Namespace,
 			watchedResourceGroup.Name,
-		}, "/")
+		)
 
 		// Handle deletion requests
 		if eventType == watch.Deleted {

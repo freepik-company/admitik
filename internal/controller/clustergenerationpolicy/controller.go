@@ -23,7 +23,7 @@ import (
 	//
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	controllerRuntimeController "sigs.k8s.io/controller-runtime/pkg/controller"
@@ -159,7 +159,7 @@ func (r *ClusterGenerationPolicyReconciler) SetupWithManager(mgr ctrl.Manager) e
 		For(&v1alpha1.ClusterGenerationPolicy{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		WithOptions(controllerRuntimeController.Options{
-			NeedLeaderElection: pointer.Bool(false),
+			NeedLeaderElection: ptr.To(false),
 		}).
 		Complete(r)
 }

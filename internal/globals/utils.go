@@ -103,7 +103,11 @@ func GetObjectGVK(object *map[string]any) (objectData ObjectGVK, err error) {
 		return
 	}
 
-	apiVersion := value.(string)
+	apiVersion, ok := value.(string)
+	if !ok {
+		err = errors.New("apiVersion is not a string")
+		return
+	}
 
 	apiVersionParts := strings.Split(apiVersion, "/")
 	if len(apiVersionParts) == 2 {
@@ -119,7 +123,12 @@ func GetObjectGVK(object *map[string]any) (objectData ObjectGVK, err error) {
 		err = errors.New("kind not found")
 		return
 	}
-	objectData.Kind = value.(string)
+	apiVersionStr, ok := value.(string)
+	if !ok {
+		err = errors.New("kind is not a string")
+		return
+	}
+	objectData.Kind = apiVersionStr
 
 	return objectData, nil
 }
@@ -154,11 +163,15 @@ func GetObjectBasicData(object *map[string]any) (objectData ObjectBasicData, err
 	}
 
 	if value, ok := metadata["name"]; ok {
-		objectData.Name = value.(string)
+		if s, ok := value.(string); ok {
+			objectData.Name = s
+		}
 	}
 
 	if value, ok := metadata["namespace"]; ok {
-		objectData.Namespace = value.(string)
+		if s, ok := value.(string); ok {
+			objectData.Namespace = s
+		}
 	}
 
 	return objectData, nil

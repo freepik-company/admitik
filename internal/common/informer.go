@@ -1,6 +1,5 @@
 /*
 Copyright 2024.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,15 +13,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package policystore
+package common
 
 import (
-	"sync"
+	"fmt"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/tools/cache"
 )
 
-type PolicyStore[T PolicyResourceI] struct {
-	mu sync.RWMutex
-
-	// The pattern for the key will be: {group}/{version}/{resource}/{operation}
-	collections map[string][]T
+func UnstructuredFromInformerEvent(obj interface{}) (*unstructured.Unstructured, error) {
+	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+		obj = tombstone.Obj
+	}
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return nil, fmt.Errorf("unexpected object type %T", obj)
+	}
+	return u, nil
 }

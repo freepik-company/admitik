@@ -28,9 +28,7 @@ import (
 	"github.com/wI2L/jsondiff"
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
 
@@ -38,6 +36,7 @@ import (
 	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/common"
 	"github.com/freepik-company/admitik/internal/globals"
+	"github.com/freepik-company/admitik/internal/keys"
 	"github.com/freepik-company/admitik/internal/template"
 )
 
@@ -91,8 +90,8 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 			return
 		}
 
-		response.WriteHeader(http.StatusOK)
 		response.Header().Set("Content-Type", "application/json")
+		response.WriteHeader(http.StatusOK)
 
 		_, err = response.Write(responseBytes)
 		if err != nil {
@@ -101,11 +100,11 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 	}()
 
 	// Craft the resourcePattern to look for the ClusterMutationPolicy objects in the pool
-	resourcePattern := fmt.Sprintf("%s/%s/%s/%s",
+	resourcePattern := keys.GVROKey(
 		requestObj.Request.Resource.Group,
 		requestObj.Request.Resource.Version,
 		requestObj.Request.Resource.Resource,
-		requestObj.Request.Operation)
+		string(requestObj.Request.Operation))
 
 	// Create an object that will be injected in conditions/message
 	// in later template evaluation stage
@@ -165,30 +164,30 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed parsing patch template: %s", err.Error()))
 			kubeEventMessage = "Patch template failed. More info in controller logs."
-			goto createKubeEvent
+		} else {
+			tmpJsonPatchOperations, tmpPatchedObjectBytes, err = s.generateJsonPatchOperations(patchedObjectBytes, cmPolicyObj.Spec.Patch.Type, []byte(parsedPatch))
+			if err != nil {
+				logger.Info(fmt.Sprintf("failed generating canonical jsonPatch operations for Kube API server: %s", err.Error()))
+				kubeEventMessage = "Generated patch is invalid. More info in controller logs."
+			} else {
+				patchedObjectBytes = tmpPatchedObjectBytes
+				jsonPatchOperations = append(jsonPatchOperations, tmpJsonPatchOperations...)
+				continue
+			}
 		}
 
-		tmpJsonPatchOperations, tmpPatchedObjectBytes, err = s.generateJsonPatchOperations(patchedObjectBytes, cmPolicyObj.Spec.Patch.Type, []byte(parsedPatch))
-		if err != nil {
-			logger.Info(fmt.Sprintf("failed generating canonical jsonPatch operations for Kube API server: %s", err.Error()))
-			kubeEventMessage = "Generated patch is invalid. More info in controller logs."
-			goto createKubeEvent
-		}
-
-		patchedObjectBytes = tmpPatchedObjectBytes
-		jsonPatchOperations = append(jsonPatchOperations, tmpJsonPatchOperations...)
-		continue
-
-	createKubeEvent:
-		err = common.CreateKubeEvent(request.Context(), "default", "admission-server",
-			commonTemplateInjectedObject.Object, *cmPolicyObj, kubeEventAction, kubeEventMessage)
-		if err != nil {
+		if err := common.CreateKubeEvent(request.Context(), "default", "admission-server",
+			commonTemplateInjectedObject.Object, *cmPolicyObj, kubeEventAction, kubeEventMessage); err != nil {
 			logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
 		}
 	}
 
 	// All working mutation patches are collected from policies, send them to Kubernetes
 	jsonPatchOperationBytes, err := json.Marshal(jsonPatchOperations)
+	if err != nil {
+		log.FromContext(request.Context()).Info(fmt.Sprintf("failed marshaling patch operations: %s", err.Error()))
+		return
+	}
 
 	reviewResponse.Response.Patch = jsonPatchOperationBytes
 	patchType := admissionv1.PatchTypeJSONPatch
@@ -338,51 +337,3 @@ func (s *HttpServer) generateStrategicMergePatch(objectToPatch []byte, patch []b
 	return patchedObjectBytes, nil
 }
 
-// dryRunPatchedObject use a dynamic client for validating the patched object through dry-run
-// TODO: Implement this DRY-RUN as a test before sending the patch to Kubernetes
-func dryRunPatchedObject(req *admissionv1.AdmissionRequest, patched []byte) error {
-	var err error
-
-	// Ignore operations different from CREATE or UPDATE
-	if req.Operation != admissionv1.Create && req.Operation != admissionv1.Update {
-		return nil
-	}
-
-	// Transform patched object
-	var obj unstructured.Unstructured
-	if err := json.Unmarshal(patched, &obj.Object); err != nil {
-		return fmt.Errorf("failed to unmarshal patched object: %w", err)
-	}
-
-	// Rebuild GVR for the resource
-	gvr := schema.GroupVersionResource{
-		Group:    req.Resource.Group,
-		Version:  req.Resource.Version,
-		Resource: req.Resource.Resource,
-	}
-	namespace := req.Namespace
-
-	//
-	resourceClient := globals.Application.KubeRawClient.Resource(gvr)
-	var resource dynamic.ResourceInterface = resourceClient
-	if namespace != "" {
-		resource = resourceClient.Namespace(namespace)
-	}
-
-	switch req.Operation {
-	case admissionv1.Create:
-		_, err = resource.Create(globals.Application.Context, &obj, metav1.CreateOptions{
-			DryRun: []string{metav1.DryRunAll},
-		})
-	case admissionv1.Update:
-		_, err = resource.Update(globals.Application.Context, &obj, metav1.UpdateOptions{
-			DryRun: []string{metav1.DryRunAll},
-		})
-	}
-
-	if err != nil {
-		return fmt.Errorf("dry-run failed: %w", err)
-	}
-
-	return nil
-}

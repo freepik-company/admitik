@@ -60,10 +60,12 @@ func GenerateCerts(dnsNames []string) (caCertPEM string, serverCertPEM string, s
 
 	// Encode the CA certificate to PEM
 	caPEMBuffer := new(bytes.Buffer)
-	pem.Encode(caPEMBuffer, &pem.Block{
+	if err = pem.Encode(caPEMBuffer, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: caBytes,
-	})
+	}); err != nil {
+		return "", "", "", err
+	}
 
 	// Generate private key for the server
 	serverPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
@@ -92,17 +94,21 @@ func GenerateCerts(dnsNames []string) (caCertPEM string, serverCertPEM string, s
 
 	// Encode the server certificate to PEM
 	serverCertPEMBuffer := new(bytes.Buffer)
-	pem.Encode(serverCertPEMBuffer, &pem.Block{
+	if err = pem.Encode(serverCertPEMBuffer, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: serverCertBytes,
-	})
+	}); err != nil {
+		return "", "", "", err
+	}
 
 	// Encode the server's private key to PEM
 	serverKeyPEMBuffer := new(bytes.Buffer)
-	pem.Encode(serverKeyPEMBuffer, &pem.Block{
+	if err = pem.Encode(serverKeyPEMBuffer, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(serverPrivKey),
-	})
+	}); err != nil {
+		return "", "", "", err
+	}
 
 	// Return the PEM-encoded certificates and private key as strings
 	return caPEMBuffer.String(), serverCertPEMBuffer.String(), serverKeyPEMBuffer.String(), nil

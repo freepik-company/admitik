@@ -16,7 +16,9 @@ limitations under the License.
 package observedresource
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	//
@@ -45,6 +47,8 @@ type EventDispatcherDependencies struct {
 }
 
 type EventDispatcher struct {
+	ctx          context.Context
+	mu           sync.RWMutex
 	dependencies EventDispatcherDependencies
 
 	// Carried stuff
@@ -52,10 +56,10 @@ type EventDispatcher struct {
 	kubeAvailableResourceList []GVKR
 }
 
-// NewEventDispatcher TODO
-func NewEventDispatcher(deps EventDispatcherDependencies) *EventDispatcher {
+func NewEventDispatcher(ctx context.Context, deps EventDispatcherDependencies) *EventDispatcher {
 
 	evDispatcher := &EventDispatcher{
+		ctx:          ctx,
 		dependencies: deps,
 	}
 
@@ -69,26 +73,37 @@ func NewEventDispatcher(deps EventDispatcherDependencies) *EventDispatcher {
 	return evDispatcher
 }
 
-// syncKubeAvailableResources TODO
-// This function is intended to be used as goroutine
 func (d *EventDispatcher) syncKubeAvailableResources() {
 	logger := log.FromContext(globals.Application.Context).WithValues("controller", controllerName)
 
 	logger.Info("Starting Worker", "worker", "KubeAvailableResourcesSyncer")
 
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
 	for {
-		resources, err := fetchKubeAvailableResources()
-
-		if err != nil {
-			logger.Info(fmt.Sprintf("Failed fetching Kubernetes available resources list: %v", err.Error()))
-			goto takeANap
+		select {
+		case <-d.ctx.Done():
+			return
+		case <-ticker.C:
+			resources, err := fetchKubeAvailableResources()
+			if err != nil {
+				logger.Info(fmt.Sprintf("Failed fetching Kubernetes available resources list: %v", err.Error()))
+			} else {
+				d.mu.Lock()
+				d.kubeAvailableResourceList = *resources
+				d.mu.Unlock()
+			}
 		}
-
-		d.kubeAvailableResourceList = *resources
-
-	takeANap:
-		time.Sleep(5 * time.Second)
 	}
+}
+
+func (d *EventDispatcher) getKubeAvailableResources() []GVKR {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	result := make([]GVKR, len(d.kubeAvailableResourceList))
+	copy(result, d.kubeAvailableResourceList)
+	return result
 }
 
 // getInitializedProcessors return a map with all the processors indexed by type
@@ -100,13 +115,13 @@ func (d *EventDispatcher) getInitializedProcessors() (processorsMap map[string]P
 	processors[ObserverTypeClusterGenerationPolicies] = NewGenerationProcessor(GenerationProcessorDependencies{
 		ClusterGenerationPolicyRegistry: d.dependencies.ClusterGenerationPolicyRegistry,
 		SourcesRegistry:                 d.dependencies.SourcesRegistry,
-		KubeAvailableResourceList:       &d.kubeAvailableResourceList,
+		KubeAvailableResourceListFn:     d.getKubeAvailableResources,
 	})
 
 	processors[ObserverTypeClusterCleanPolicies] = NewCleanProcessor(CleanProcessorDependencies{
 		ClusterCleanPolicyRegistry: d.dependencies.ClusterCleanPolicyRegistry,
 		SourcesRegistry:            d.dependencies.SourcesRegistry,
-		KubeAvailableResourceList:  &d.kubeAvailableResourceList,
+		KubeAvailableResourceListFn: d.getKubeAvailableResources,
 	})
 
 	processorsMap = processors
@@ -115,8 +130,6 @@ func (d *EventDispatcher) getInitializedProcessors() (processorsMap map[string]P
 
 // Dispatch TODO
 func (d *EventDispatcher) Dispatch(resource string, eventType watch.EventType, object ...map[string]interface{}) {
-	logger := log.FromContext(globals.Application.Context)
-	_ = logger
 
 	// Skip events when nobody is observing them
 	obs := d.dependencies.ResourceObserverRegistry.GetObservers(resource)

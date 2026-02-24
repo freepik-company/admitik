@@ -36,7 +36,7 @@ func (r *ClusterMutationPolicyReconciler) UpdateConditionSuccess(cmPolicy *v1alp
 func (r *ClusterMutationPolicyReconciler) UpdateConditionKubernetesApiCallFailure(cmPolicy *v1alpha1.ClusterMutationPolicy) {
 
 	//
-	condition := controller.NewCondition(controller.ConditionTypeResourceSynced, metav1.ConditionTrue,
+	condition := controller.NewCondition(controller.ConditionTypeResourceSynced, metav1.ConditionFalse,
 		controller.ConditionReasonKubernetesApiCallErrorType, controller.ConditionReasonKubernetesApiCallErrorMessage)
 
 	controller.UpdateCondition(&cmPolicy.Status.Conditions, condition)

@@ -14,15 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package policystore
+package keys
 
-import (
-	"sync"
-)
+import "fmt"
 
-type PolicyStore[T PolicyResourceI] struct {
-	mu sync.RWMutex
+func GVRKey(group, version, resource string) string {
+	return fmt.Sprintf("%s/%s/%s", group, version, resource)
+}
 
-	// The pattern for the key will be: {group}/{version}/{resource}/{operation}
-	collections map[string][]T
+func GVROKey(group, version, resource, operation string) string {
+	return fmt.Sprintf("%s/%s/%s/%s", group, version, resource, operation)
+}
+
+func GVRNNKey(group, version, resource, namespace, name string) string {
+	return fmt.Sprintf("%s/%s/%s/%s/%s", group, version, resource, namespace, name)
 }

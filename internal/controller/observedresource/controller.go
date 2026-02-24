@@ -27,7 +27,6 @@ import (
 	//
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -38,6 +37,7 @@ import (
 
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/internal/common"
 	"github.com/freepik-company/admitik/internal/globals"
 	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 	resourceInformerRegistry "github.com/freepik-company/admitik/internal/registry/resourceinformer"
@@ -99,8 +99,7 @@ type ObservedResourceController struct {
 	Dependencies ObservedResourceControllerDependencies
 
 	// Carried stuff
-	kubeAvailableResourceList *[]GVKR // TODO: Time to wrap processors?
-	dispatcher                *EventDispatcher
+	dispatcher *EventDispatcher
 }
 
 // NeedLeaderElection implements manager.LeaderElectionRunnable.
@@ -141,23 +140,29 @@ func (r *ObservedResourceController) informersCleanerWorker() {
 
 	logger.Info("Starting Worker", "worker", "InformersCleaner")
 
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
 	for {
-		referentCandidates := r.getResourcesFromPolicyRegistries()
-		referentCandidatesKeys := maps.Keys(referentCandidates)
+		select {
+		case <-(*r.Dependencies.Context).Done():
+			return
+		case <-ticker.C:
+			referentCandidates := r.getResourcesFromPolicyRegistries()
+			referentCandidatesKeys := maps.Keys(referentCandidates)
 
-		reviewedCandidates := r.Dependencies.ResourceInformerRegistry.GetRegisteredResourceTypes()
+			reviewedCandidates := r.Dependencies.ResourceInformerRegistry.GetRegisteredResourceTypes()
 
-		for _, resourceType := range reviewedCandidates {
-			if !slices.Contains(referentCandidatesKeys, resourceType) {
-				err := r.Dependencies.ResourceInformerRegistry.DisableInformer(resourceType)
-				if err != nil {
-					logger.WithValues("resourceType", resourceType).
-						Info("Failed disabling watcher informer")
+			for _, resourceType := range reviewedCandidates {
+				if !slices.Contains(referentCandidatesKeys, resourceType) {
+					err := r.Dependencies.ResourceInformerRegistry.DisableInformer(resourceType)
+					if err != nil {
+						logger.WithValues("resourceType", resourceType).
+							Info("Failed disabling watcher informer")
+					}
 				}
 			}
 		}
-
-		time.Sleep(5 * time.Second)
 	}
 }
 
@@ -168,7 +173,7 @@ func (r *ObservedResourceController) Start(ctx context.Context) error {
 	logger.Info("Starting Controller")
 
 	// Create an event dispatcher for later usage
-	r.dispatcher = NewEventDispatcher(EventDispatcherDependencies{
+	r.dispatcher = NewEventDispatcher(*r.Dependencies.Context, EventDispatcherDependencies{
 		ClusterGenerationPolicyRegistry: r.Dependencies.ClusterGenerationPolicyRegistry,
 		ClusterCleanPolicyRegistry:      r.Dependencies.ClusterCleanPolicyRegistry,
 		SourcesRegistry:                 r.Dependencies.SourcesRegistry,
@@ -179,14 +184,17 @@ func (r *ObservedResourceController) Start(ctx context.Context) error {
 	go r.informersCleanerWorker()
 
 	// Keep your controller alive
+	ticker := time.NewTicker(secondsToReconcileInformersAgain)
+	defer ticker.Stop()
+
+	r.reconcileInformers()
 	for {
 		select {
 		case <-(*r.Dependencies.Context).Done():
 			logger.Info(controllerContextFinishedMessage)
 			return nil
-		default:
+		case <-ticker.C:
 			r.reconcileInformers()
-			time.Sleep(secondsToReconcileInformersAgain)
 		}
 	}
 }
@@ -294,19 +302,35 @@ func (r *ObservedResourceController) launchInformerForType(resourceType string) 
 	handlers := cache.ResourceEventHandlerFuncs{
 
 		AddFunc: func(eventObject interface{}) {
-			convertedEventObject := eventObject.(*unstructured.Unstructured)
+			convertedEventObject, err := common.UnstructuredFromInformerEvent(eventObject)
+			if err != nil {
+				logger.Error(err, "unexpected event object type in AddFunc")
+				return
+			}
 
 			r.dispatcher.Dispatch(resourceType, watch.Added, convertedEventObject.UnstructuredContent())
 		},
 		UpdateFunc: func(eventObjectOld, eventObject interface{}) {
-			convertedEventObjectOld := eventObjectOld.(*unstructured.Unstructured)
-			convertedEventObject := eventObject.(*unstructured.Unstructured)
+			convertedEventObjectOld, err := common.UnstructuredFromInformerEvent(eventObjectOld)
+			if err != nil {
+				logger.Error(err, "unexpected event object type in UpdateFunc (old)")
+				return
+			}
+			convertedEventObject, err := common.UnstructuredFromInformerEvent(eventObject)
+			if err != nil {
+				logger.Error(err, "unexpected event object type in UpdateFunc")
+				return
+			}
 
 			r.dispatcher.Dispatch(resourceType, watch.Modified,
 				convertedEventObject.UnstructuredContent(), convertedEventObjectOld.UnstructuredContent())
 		},
 		DeleteFunc: func(eventObject interface{}) {
-			convertedEventObject := eventObject.(*unstructured.Unstructured)
+			convertedEventObject, err := common.UnstructuredFromInformerEvent(eventObject)
+			if err != nil {
+				logger.Error(err, "unexpected event object type in DeleteFunc")
+				return
+			}
 
 			r.dispatcher.Dispatch(resourceType, watch.Deleted, convertedEventObject.UnstructuredContent())
 		},

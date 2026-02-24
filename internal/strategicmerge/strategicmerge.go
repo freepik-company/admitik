@@ -1,9 +1,9 @@
 package strategicmerge
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"log"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	//
 	"k8s.io/client-go/discovery"
 	"k8s.io/kube-openapi/pkg/util/proto"
@@ -41,7 +42,8 @@ type StrategicMergePatcherDependencies struct {
 	DiscoveryClient *discovery.DiscoveryClient
 }
 type StrategicMergePatcher struct {
-	mu sync.RWMutex
+	mu  sync.RWMutex
+	ctx context.Context
 
 	//
 	discoveryClient *discovery.DiscoveryClient
@@ -51,9 +53,10 @@ type StrategicMergePatcher struct {
 	openApiSchemasByGVK map[schema.GroupVersionKind]*proto.Schema
 }
 
-func NewStrategicMergePatcher(deps *StrategicMergePatcherDependencies) (*StrategicMergePatcher, error) {
+func NewStrategicMergePatcher(ctx context.Context, deps *StrategicMergePatcherDependencies) (*StrategicMergePatcher, error) {
 
 	smp := &StrategicMergePatcher{
+		ctx:                 ctx,
 		discoveryClient:     deps.DiscoveryClient,
 		openApiSchemasByGVK: map[schema.GroupVersionKind]*proto.Schema{},
 	}
@@ -93,15 +96,20 @@ func (r *StrategicMergePatcher) updateOpenapiModels() error {
 // keepUpdatedOpenapiModels updates local cache of Kubernetes OpenAPI models periodically
 // This function intended to be executed as a goroutine
 func (r *StrategicMergePatcher) keepUpdatedOpenapiModels() {
-	for {
-		err := r.updateOpenapiModels()
-		if err != nil {
-			log.Printf("%v", err.Error())
-			goto takeANap
-		}
+	logger := ctrllog.Log.WithName("strategicmerge")
 
-	takeANap:
-		time.Sleep(5 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.ctx.Done():
+			return
+		case <-ticker.C:
+			if err := r.updateOpenapiModels(); err != nil {
+				logger.Info("failed updating OpenAPI models", "error", err.Error())
+			}
+		}
 	}
 }
 

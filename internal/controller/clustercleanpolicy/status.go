@@ -36,7 +36,7 @@ func (r *ClusterCleanPolicyReconciler) UpdateConditionSuccess(cPolicy *v1alpha1.
 func (r *ClusterCleanPolicyReconciler) UpdateConditionKubernetesApiCallFailure(cPolicy *v1alpha1.ClusterCleanPolicy) {
 
 	//
-	condition := controller.NewCondition(controller.ConditionTypeResourceSynced, metav1.ConditionTrue,
+	condition := controller.NewCondition(controller.ConditionTypeResourceSynced, metav1.ConditionFalse,
 		controller.ConditionReasonKubernetesApiCallErrorType, controller.ConditionReasonKubernetesApiCallErrorMessage)
 
 	controller.UpdateCondition(&cPolicy.Status.Conditions, condition)

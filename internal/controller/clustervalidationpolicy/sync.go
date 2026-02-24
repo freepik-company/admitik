@@ -32,6 +32,7 @@ import (
 
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/internal/keys"
 	"github.com/freepik-company/admitik/internal/controller"
 )
 
@@ -81,12 +82,12 @@ func (r *ClusterValidationPolicyReconciler) ReconcileClusterValidationPolicy(ctx
 			}
 
 			//
-			watchedType := strings.Join([]string{
+			watchedType := keys.GVROKey(
 				intercResourceGroup.Group,
 				intercResourceGroup.Version,
 				intercResourceGroup.Resource,
 				string(operation),
-			}, "/")
+			)
 
 			// Handle deletion requests
 			if eventType == watch.Deleted {

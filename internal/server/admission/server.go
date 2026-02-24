@@ -44,7 +44,7 @@ func NewHttpServer(dependencies *AdmissionServerDependencies) (*HttpServer, erro
 
 	httpServer.dependencies = dependencies
 
-	httpServer.strategicMergePatcher, err = strategicmerge.NewStrategicMergePatcher(&strategicmerge.StrategicMergePatcherDependencies{
+	httpServer.strategicMergePatcher, err = strategicmerge.NewStrategicMergePatcher(*dependencies.Context, &strategicmerge.StrategicMergePatcherDependencies{
 		DiscoveryClient: globals.Application.KubeDiscoveryClient,
 	})
 	if err != nil {

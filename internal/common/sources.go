@@ -22,10 +22,10 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
-	"strings"
 
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/internal/keys"
 	"github.com/freepik-company/admitik/internal/registry/policystore"
 	"github.com/freepik-company/admitik/internal/registry/sources"
 	"github.com/freepik-company/admitik/internal/template"
@@ -44,7 +44,7 @@ func FetchPolicySources[T policystore.PolicyResourceI](
 
 	for sourceIndex, sourceItem := range policy.GetSources() {
 
-		gvrString := strings.Join([]string{sourceItem.Group, sourceItem.Version, sourceItem.Resource}, "/")
+		gvrString := keys.GVRKey(sourceItem.Group, sourceItem.Version, sourceItem.Resource)
 		allResources := sourcesReg.GetResources(gvrString)
 
 		// Deep copy to avoid mutating the original policy (full of pointers, dude)

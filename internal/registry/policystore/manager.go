@@ -19,10 +19,11 @@ package policystore
 import (
 	"reflect"
 	"slices"
-	"strings"
 
 	//
 	"golang.org/x/exp/maps"
+
+	"github.com/freepik-company/admitik/internal/keys"
 )
 
 func NewPolicyStore[T PolicyResourceI]() *PolicyStore[T] {
@@ -56,19 +57,19 @@ func (s *PolicyStore[T]) RemoveResource(collectionName string, policy T) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	clusterValidationPolicies := s.collections[collectionName]
+	policies := s.collections[collectionName]
 	index := -1
-	for itemIndex, itemObject := range clusterValidationPolicies {
+	for itemIndex, itemObject := range policies {
 		if itemObject.GetName() == policy.GetName() {
 			index = itemIndex
 			break
 		}
 	}
 	if index != -1 {
-		s.collections[collectionName] = append(clusterValidationPolicies[:index], clusterValidationPolicies[index+1:]...)
+		s.collections[collectionName] = append(policies[:index], policies[index+1:]...)
 	}
 
-	// Delete resource type from registry when no more ClusterValidationPolicy resource is needing it
+	// Delete resource type from registry when no more policy resources need it
 	if len(s.collections[collectionName]) == 0 {
 		delete(s.collections, collectionName)
 	}
@@ -76,22 +77,24 @@ func (s *PolicyStore[T]) RemoveResource(collectionName string, policy T) {
 
 // GetResources return all the policy objects of desired collection
 func (s *PolicyStore[T]) GetResources(collectionName string) []T {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-	//
-	if list, listFound := s.collections[collectionName]; listFound {
-		return list
+	list, ok := s.collections[collectionName]
+	if !ok {
+		return []T{}
 	}
 
-	return []T{}
+	result := make([]T, len(list))
+	copy(result, list)
+	return result
 }
 
 // GetCollectionNames returns a list of collection names
 // collections are commonly named following pattern: {group}/{version}/{resource}/{operation}
 func (s *PolicyStore[T]) GetCollectionNames() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	return maps.Keys(s.collections)
 }
@@ -99,8 +102,8 @@ func (s *PolicyStore[T]) GetCollectionNames() []string {
 // GetReferencedSources returns a list of GVR names referenced on 'sources' section across the policies.
 // GVR is expressed as {group}/{version}/{resource}
 func (s *PolicyStore[T]) GetReferencedSources() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	sourceTypes := []string{}
 
@@ -117,7 +120,7 @@ func (s *PolicyStore[T]) GetReferencedSources() []string {
 					continue
 				}
 
-				sourceName := strings.Join([]string{source.Group, source.Version, source.Resource}, "/")
+				sourceName := keys.GVRKey(source.Group, source.Version, source.Resource)
 				sourceTypes = append(sourceTypes, sourceName)
 			}
 		}

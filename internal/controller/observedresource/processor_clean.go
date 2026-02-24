@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"gopkg.in/yaml.v3"
 
+	"github.com/go-logr/logr"
+
 	//
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -35,9 +37,9 @@ import (
 )
 
 type CleanProcessorDependencies struct {
-	ClusterCleanPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterCleanPolicy]
-	SourcesRegistry            *sourcesRegistry.SourcesRegistry
-	KubeAvailableResourceList  *[]GVKR
+	ClusterCleanPolicyRegistry  *policyStore.PolicyStore[*v1alpha1.ClusterCleanPolicy]
+	SourcesRegistry             *sourcesRegistry.SourcesRegistry
+	KubeAvailableResourceListFn func() []GVKR
 }
 
 type CleanProcessor struct {
@@ -88,85 +90,75 @@ func (p *CleanProcessor) Process(resourceType string, eventType watch.EventType,
 			continue
 		}
 
-		var kubeEventAction string = "CleanAborted"
-		var kubeEventMessage string
-
-		var targetDefinition map[string]any
-		var targetBasicData globals.ObjectBasicData
-		var tmpResource string
-
-		parsedTarget, parseErr := template.EvaluateTemplate(policyObj.Spec.Target.Engine,
-			policyObj.Spec.Target.Template, &specificTemplateInjectedObject)
-
-		if parseErr != nil {
-			logger.Info(fmt.Sprintf("failed parsing clean target template: %s", parseErr.Error()))
-			kubeEventMessage = "Clean target template failed. More info in controller logs."
-			goto createKubeEvent
-		}
-
-		err = yaml.Unmarshal([]byte(parsedTarget), &targetDefinition)
-		if err != nil {
-			logger.Info(fmt.Sprintf("failed decoding target template result. Invalid object: %s", err.Error()))
-			kubeEventMessage = "Invalid target object after template. More info in controller logs."
-			goto createKubeEvent
-		}
-
-		targetBasicData, err = globals.GetObjectBasicData(&targetDefinition)
-		if err != nil {
-			logger.Info(fmt.Sprintf("failed obtaining metadata from target template result. Invalid object: %s", err.Error()))
-			kubeEventMessage = "Invalid target object after template. More info in controller logs."
-			goto createKubeEvent
-		}
-
-		tmpResource = getResourceFromGvk(p.dependencies.KubeAvailableResourceList, schema.GroupVersionKind{
-			Group:   targetBasicData.Group,
-			Version: targetBasicData.Version,
-			Kind:    targetBasicData.Kind,
-		})
-
-		if tmpResource == "" {
-			logger.Info("failed obtaining resource equivalent from Kubernetes for provided GVK. Is this resource defined?")
-			kubeEventMessage = "Unknown object resource for provided GVK. More info in controller logs."
-			goto createKubeEvent
-		}
-
-		logger = logger.WithValues(
-			"group", targetBasicData.Group,
-			"version", targetBasicData.Version,
-			"resource", tmpResource,
-			"name", targetBasicData.Name,
-			"namespace", targetBasicData.Namespace)
-
-		{
-			resourceClient := globals.Application.KubeRawClient.
-				Resource(schema.GroupVersionResource{
-					Group:    targetBasicData.Group,
-					Version:  targetBasicData.Version,
-					Resource: tmpResource,
-				}).
-				Namespace(targetBasicData.Namespace)
-
-			err = resourceClient.Delete(
-				globals.Application.Context,
-				targetBasicData.Name,
-				metav1.DeleteOptions{},
-			)
-
+		if eventMessage := p.processClean(policyObj, &specificTemplateInjectedObject, logger); eventMessage != "" {
+			err = common.CreateKubeEvent(globals.Application.Context, "default", "resources-controller",
+				object[0], *policyObj, "CleanAborted", eventMessage)
 			if err != nil {
-				logger.Info(fmt.Sprintf("failed deleting target resource: %s", err.Error()))
-				kubeEventMessage = "Object deletion failed. More info in controller logs."
-				goto createKubeEvent
+				logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
 			}
-
-			logger.Info("target resource deleted successfully")
-			continue
-		}
-
-	createKubeEvent:
-		err = common.CreateKubeEvent(globals.Application.Context, "default", "resources-controller",
-			object[0], *policyObj, kubeEventAction, kubeEventMessage)
-		if err != nil {
-			logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
 		}
 	}
+}
+
+// processClean evaluates the clean target template and deletes the target resource.
+// Returns an event message if something went wrong, or empty string on success.
+func (p *CleanProcessor) processClean(policyObj *v1alpha1.ClusterCleanPolicy, injectedData *template.PolicyEvaluationDataT, logger logr.Logger) string {
+
+	parsedTarget, err := template.EvaluateTemplate(policyObj.Spec.Target.Engine,
+		policyObj.Spec.Target.Template, injectedData)
+	if err != nil {
+		logger.Info(fmt.Sprintf("failed parsing clean target template: %s", err.Error()))
+		return "Clean target template failed. More info in controller logs."
+	}
+
+	var targetDefinition map[string]any
+	if err = yaml.Unmarshal([]byte(parsedTarget), &targetDefinition); err != nil {
+		logger.Info(fmt.Sprintf("failed decoding target template result. Invalid object: %s", err.Error()))
+		return "Invalid target object after template. More info in controller logs."
+	}
+
+	targetBasicData, err := globals.GetObjectBasicData(&targetDefinition)
+	if err != nil {
+		logger.Info(fmt.Sprintf("failed obtaining metadata from target template result. Invalid object: %s", err.Error()))
+		return "Invalid target object after template. More info in controller logs."
+	}
+
+	kubeResources := p.dependencies.KubeAvailableResourceListFn()
+	tmpResource := getResourceFromGvk(kubeResources, schema.GroupVersionKind{
+		Group:   targetBasicData.Group,
+		Version: targetBasicData.Version,
+		Kind:    targetBasicData.Kind,
+	})
+	if tmpResource == "" {
+		logger.Info("failed obtaining resource equivalent from Kubernetes for provided GVK. Is this resource defined?")
+		return "Unknown object resource for provided GVK. More info in controller logs."
+	}
+
+	logger = logger.WithValues(
+		"group", targetBasicData.Group,
+		"version", targetBasicData.Version,
+		"resource", tmpResource,
+		"name", targetBasicData.Name,
+		"namespace", targetBasicData.Namespace)
+
+	resourceClient := globals.Application.KubeRawClient.
+		Resource(schema.GroupVersionResource{
+			Group:    targetBasicData.Group,
+			Version:  targetBasicData.Version,
+			Resource: tmpResource,
+		}).
+		Namespace(targetBasicData.Namespace)
+
+	err = resourceClient.Delete(
+		globals.Application.Context,
+		targetBasicData.Name,
+		metav1.DeleteOptions{},
+	)
+	if err != nil {
+		logger.Info(fmt.Sprintf("failed deleting target resource: %s", err.Error()))
+		return "Object deletion failed. More info in controller logs."
+	}
+
+	logger.Info("target resource deleted successfully")
+	return ""
 }

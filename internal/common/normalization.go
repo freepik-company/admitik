@@ -27,7 +27,7 @@ var (
 
 func GetNormalizedOperation(operation any) (opResult string) {
 
-	opResult = fmt.Sprintf("%s", operation)
+	opResult = fmt.Sprint(operation)
 
 	//
 	if normalized, exists := normalizedOperationsMap[opResult]; exists {

@@ -26,8 +26,8 @@ import (
 )
 
 var (
-	// CellBracketExpressionRegexCompiled represents a compiled regex to find {{cel: ...}} patterns
-	CellBracketExpressionRegexCompiled = regexp.MustCompile(`{{cel:\s*([\s\S]*?)\s*}}`)
+	// CelBracketExpressionRegexCompiled represents a compiled regex to find {{cel: ...}} patterns
+	CelBracketExpressionRegexCompiled = regexp.MustCompile(`{{cel:\s*([\s\S]*?)\s*}}`)
 )
 
 func EvaluateTemplateCel(template string, injectedData InjectedDataI) (result string, err error) {
@@ -75,7 +75,7 @@ func EvaluateTemplateCel(template string, injectedData InjectedDataI) (result st
 func EvaluateAndReplaceCelExpressions(input string, injectedData InjectedDataI) (string, error) {
 
 	// Find all CEL expression matches
-	matches := CellBracketExpressionRegexCompiled.FindAllStringSubmatch(input, -1)
+	matches := CelBracketExpressionRegexCompiled.FindAllStringSubmatch(input, -1)
 
 	// Evaluate each expression and replace in the input string
 	result := input
