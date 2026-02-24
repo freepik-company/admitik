@@ -1,0 +1,32 @@
+apiVersion: admitik.dev/v1alpha1
+kind: ClusterCleanPolicy
+metadata:
+  name: 01-plain-delete-configmap-on-namespace-delete
+spec:
+
+  # Watch for namespace deletions
+  watchedResources:
+    - group: ""
+      version: v1
+      resource: namespaces
+      name: ""
+      namespace: ""
+
+  sources: []
+
+  conditions:
+    - name: is-delete-operation
+      engine: cel
+      key: |
+        operation
+      value: "DELETE"
+
+  # When a namespace is deleted, delete the associated ConfigMap
+  target:
+    engine: plain
+    template: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: cleanup-config
+        namespace: default

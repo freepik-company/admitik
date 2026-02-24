@@ -74,10 +74,10 @@ type SourcesControllerOptions struct {
 type SourcesControllerDependencies struct {
 	Context *context.Context
 
-	//
 	ClusterGenerationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterGenerationPolicy]
 	ClusterMutationPolicyRegistry   *policyStore.PolicyStore[*v1alpha1.ClusterMutationPolicy]
 	ClusterValidationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterValidationPolicy]
+	ClusterCleanPolicyRegistry      *policyStore.PolicyStore[*v1alpha1.ClusterCleanPolicy]
 	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
 }
 
@@ -110,7 +110,8 @@ func (r *SourcesController) getSourcesFromRegistries() []string {
 	candidatesFromGeneration := r.Dependencies.ClusterGenerationPolicyRegistry.GetReferencedSources()
 	candidatesFromMutation := r.Dependencies.ClusterMutationPolicyRegistry.GetReferencedSources()
 	candidatesFromValidation := r.Dependencies.ClusterValidationPolicyRegistry.GetReferencedSources()
-	referentCandidates = slices.Concat(candidatesFromGeneration, candidatesFromMutation, candidatesFromValidation)
+	candidatesFromClean := r.Dependencies.ClusterCleanPolicyRegistry.GetReferencedSources()
+	referentCandidates = slices.Concat(candidatesFromGeneration, candidatesFromMutation, candidatesFromValidation, candidatesFromClean)
 
 	// Filter duplicated items
 	slices.Sort(referentCandidates)

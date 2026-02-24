@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clustergenerationpolicy
+package clustercleanpolicy
 
 import (
 	"context"
@@ -33,43 +33,41 @@ import (
 
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
-	"github.com/freepik-company/admitik/internal/common"
 	"github.com/freepik-company/admitik/internal/controller"
 	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 )
 
-type ClusterGenerationPolicyControllerOptions struct {
-	CleanupOnDelete bool
+type ClusterCleanPolicyControllerOptions struct {
 }
 
-type ClusterGenerationPolicyControllerDependencies struct {
-	ClusterGenerationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterGenerationPolicy]
+type ClusterCleanPolicyControllerDependencies struct {
+	ClusterCleanPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterCleanPolicy]
 }
 
-// ClusterGenerationPolicyReconciler reconciles a ClusterGenerationPolicy object
-type ClusterGenerationPolicyReconciler struct {
+// ClusterCleanPolicyReconciler reconciles a ClusterCleanPolicy object
+type ClusterCleanPolicyReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
 	//
-	Options      ClusterGenerationPolicyControllerOptions
-	Dependencies ClusterGenerationPolicyControllerDependencies
+	Options      ClusterCleanPolicyControllerOptions
+	Dependencies ClusterCleanPolicyControllerDependencies
 }
 
-// +kubebuilder:rbac:groups=admitik.dev,resources=clustergenerationpolicies,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=admitik.dev,resources=clustergenerationpolicies/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=admitik.dev,resources=clustergenerationpolicies/finalizers,verbs=update
+// +kubebuilder:rbac:groups=admitik.dev,resources=clustercleanpolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=admitik.dev,resources=clustercleanpolicies/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=admitik.dev,resources=clustercleanpolicies/finalizers,verbs=update
 // +kubebuilder:rbac:groups="*",resources="*",verbs="*"
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.2/pkg/reconcile
-func (r *ClusterGenerationPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
+func (r *ClusterCleanPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	logger := log.FromContext(ctx)
 
 	// 1. Get the content of the resource
-	objectManifest := &v1alpha1.ClusterGenerationPolicy{}
+	objectManifest := &v1alpha1.ClusterCleanPolicy{}
 	err = r.Get(ctx, req.NamespacedName, objectManifest)
 
 	// 2. Check the existence inside the cluster
@@ -77,12 +75,12 @@ func (r *ClusterGenerationPolicyReconciler) Reconcile(ctx context.Context, req c
 
 		// 2.1 It does NOT exist: manage removal
 		if err = client.IgnoreNotFound(err); err == nil {
-			logger.Info(fmt.Sprintf(controller.ResourceNotFoundError, controller.ClusterGenerationPolicyResourceType, req.Name))
+			logger.Info(fmt.Sprintf(controller.ResourceNotFoundError, controller.ClusterCleanPolicyResourceType, req.Name))
 			return result, err
 		}
 
 		// 2.2 Failed to get the resource, requeue the request
-		logger.Info(fmt.Sprintf(controller.ResourceRetrievalError, controller.ClusterGenerationPolicyResourceType, req.Name, err.Error()))
+		logger.Info(fmt.Sprintf(controller.ResourceRetrievalError, controller.ClusterCleanPolicyResourceType, req.Name, err.Error()))
 		return result, err
 	}
 
@@ -90,18 +88,10 @@ func (r *ClusterGenerationPolicyReconciler) Reconcile(ctx context.Context, req c
 	if !objectManifest.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(objectManifest, controller.ResourceFinalizer) {
 			// Delete Notification from WatcherPool
-			err = r.ReconcileClusterGenerationPolicy(ctx, watch.Deleted, objectManifest)
+			err = r.ReconcileClusterCleanPolicy(ctx, watch.Deleted, objectManifest)
 			if err != nil {
-				logger.Info(fmt.Sprintf(controller.ResourceReconcileError, controller.ClusterGenerationPolicyResourceType, req.Name, err.Error()))
+				logger.Info(fmt.Sprintf(controller.ResourceReconcileError, controller.ClusterCleanPolicyResourceType, req.Name, err.Error()))
 				return result, err
-			}
-
-			// Cleanup generated resources if enabled
-			if r.Options.CleanupOnDelete {
-				cleanupErr := common.CleanupGeneratedResources(ctx, objectManifest.Name, controller.ClusterGenerationPolicyResourceType)
-				if cleanupErr != nil {
-					logger.Info(fmt.Sprintf("failed cleaning up generated resources for policy '%s': %s", req.Name, cleanupErr.Error()))
-				}
 			}
 
 			// Remove the finalizers on the resource
@@ -110,7 +100,7 @@ func (r *ClusterGenerationPolicyReconciler) Reconcile(ctx context.Context, req c
 				return nil
 			})
 			if err != nil {
-				logger.Info(fmt.Sprintf(controller.ResourceFinalizersUpdateError, controller.ClusterGenerationPolicyResourceType, req.Name, err.Error()))
+				logger.Info(fmt.Sprintf(controller.ResourceFinalizersUpdateError, controller.ClusterCleanPolicyResourceType, req.Name, err.Error()))
 			}
 		}
 		result = ctrl.Result{}
@@ -135,15 +125,15 @@ func (r *ClusterGenerationPolicyReconciler) Reconcile(ctx context.Context, req c
 			return nil
 		})
 		if err != nil {
-			logger.Info(fmt.Sprintf(controller.ResourceConditionUpdateError, controller.ClusterGenerationPolicyResourceType, req.Name, err.Error()))
+			logger.Info(fmt.Sprintf(controller.ResourceConditionUpdateError, controller.ClusterCleanPolicyResourceType, req.Name, err.Error()))
 		}
 	}()
 
 	// 6. The resource already exists: manage the update
-	err = r.ReconcileClusterGenerationPolicy(ctx, watch.Modified, objectManifest)
+	err = r.ReconcileClusterCleanPolicy(ctx, watch.Modified, objectManifest)
 	if err != nil {
 		r.UpdateConditionKubernetesApiCallFailure(objectManifest)
-		logger.Info(fmt.Sprintf(controller.ResourceReconcileError, controller.ClusterGenerationPolicyResourceType, req.Name, err.Error()))
+		logger.Info(fmt.Sprintf(controller.ResourceReconcileError, controller.ClusterCleanPolicyResourceType, req.Name, err.Error()))
 		return result, err
 	}
 
@@ -154,9 +144,9 @@ func (r *ClusterGenerationPolicyReconciler) Reconcile(ctx context.Context, req c
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *ClusterGenerationPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ClusterCleanPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.ClusterGenerationPolicy{}).
+		For(&v1alpha1.ClusterCleanPolicy{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		WithOptions(controllerRuntimeController.Options{
 			NeedLeaderElection: pointer.Bool(false),

@@ -1,0 +1,33 @@
+apiVersion: admitik.dev/v1alpha1
+kind: ClusterCleanPolicy
+metadata:
+  name: 02-cel-delete-configmap-by-name
+spec:
+
+  # Watch ConfigMaps across all namespaces
+  watchedResources:
+    - group: ""
+      version: v1
+      resource: configmaps
+      name: ""
+      namespace: ""
+
+  sources: []
+
+  # Only act when a ConfigMap with the "cleanup-trigger" label is created
+  conditions:
+    - name: has-trigger-label
+      engine: cel
+      key: |
+        has(object.metadata.labels) && "cleanup-trigger" in object.metadata.labels
+      value: "true"
+
+  # Delete the ConfigMap referenced by the trigger label value
+  target:
+    engine: plain+cel
+    template: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "{{cel: object.metadata.labels['cleanup-trigger'] }}"
+        namespace: "{{cel: object.metadata.namespace }}"

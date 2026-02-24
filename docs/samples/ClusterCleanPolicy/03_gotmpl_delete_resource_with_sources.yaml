@@ -1,0 +1,37 @@
+apiVersion: admitik.dev/v1alpha1
+kind: ClusterCleanPolicy
+metadata:
+  name: 03-gotmpl-delete-resource-with-sources
+spec:
+
+  # Watch for Job completions
+  watchedResources:
+    - group: batch
+      version: v1
+      resource: jobs
+      name: ""
+      namespace: ""
+
+  # Fetch ConfigMaps as sources to resolve the target to clean
+  sources:
+    - group: ""
+      version: v1
+      resource: configmaps
+
+  # Only act when the Job has succeeded
+  conditions:
+    - name: job-succeeded
+      engine: cel
+      key: |
+        has(object.status.succeeded) && object.status.succeeded > 0
+      value: "true"
+
+  # Delete the ConfigMap that shares the Job's name in the same namespace
+  target:
+    engine: gotmpl
+    template: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: {{ .object.metadata.name }}-temp
+        namespace: {{ .object.metadata.namespace }}

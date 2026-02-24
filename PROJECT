@@ -32,4 +32,12 @@ resources:
   kind: ClusterGenerationPolicy
   path: github.com/freepik-company/admitik/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: false
+  controller: true
+  domain: admitik.dev
+  kind: ClusterCleanPolicy
+  path: github.com/freepik-company/admitik/api/v1alpha1
+  version: v1alpha1
 version: "3"

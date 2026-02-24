@@ -48,6 +48,7 @@ import (
 	"github.com/freepik-company/admitik/internal/controller/clustergenerationpolicy"
 	"github.com/freepik-company/admitik/internal/controller/clustermutationpolicy"
 	"github.com/freepik-company/admitik/internal/controller/clustervalidationpolicy"
+	"github.com/freepik-company/admitik/internal/controller/clustercleanpolicy"
 	"github.com/freepik-company/admitik/internal/controller/observedresource"
 	"github.com/freepik-company/admitik/internal/controller/sources"
 	"github.com/freepik-company/admitik/internal/globals"
@@ -102,6 +103,7 @@ func main() {
 	var enableSpecialLabels bool
 	var excludeAdmissionSelfNamespace bool
 	var excludedAdmissionNamespaces string
+	var cleanupOnGenerationPolicyDelete bool
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metric endpoint binds to. "+
 		"Use the port :8080. If not set, it will be 0 in order to disable the metrics server")
@@ -153,6 +155,10 @@ func main() {
 		"Exclude Admitik resources from admission evaluations")
 	flag.StringVar(&excludedAdmissionNamespaces, "excluded-admission-namespaces", "",
 		"Comma-separated list of namespaces to be excluded from admission evaluations. Commonly used for 'kube-system'")
+
+	// Generation cleanup flags
+	flag.BoolVar(&cleanupOnGenerationPolicyDelete, "cleanup-on-generation-policy-delete", true,
+		"Delete auto-generated resources when the ClusterGenerationPolicy that created them is deleted")
 
 	// Ref: https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/log/zap@v0.21.0#Options.BindFlags
 	opts := zap.Options{
@@ -361,6 +367,7 @@ func main() {
 	clusterValidationPolicyReg := policyStore.NewPolicyStore[*v1alpha1.ClusterValidationPolicy]()
 	clusterMutationPolicyReg := policyStore.NewPolicyStore[*v1alpha1.ClusterMutationPolicy]()
 	clusterGenerationPolicyReg := policyStore.NewPolicyStore[*v1alpha1.ClusterGenerationPolicy]()
+	clusterCleanPolicyReg := policyStore.NewPolicyStore[*v1alpha1.ClusterCleanPolicy]()
 	sourcesReg := sourcesRegistry.NewSourcesRegistry()
 	resourceObserverReg := resourceObserverRegistry.NewResourceObserverRegistry()
 	resourceInformerReg := resourceInformerRegistry.NewResourceInformerRegistry()
@@ -373,12 +380,27 @@ func main() {
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 
-		Options: clustergenerationpolicy.ClusterGenerationPolicyControllerOptions{},
+		Options: clustergenerationpolicy.ClusterGenerationPolicyControllerOptions{
+			CleanupOnDelete: cleanupOnGenerationPolicyDelete,
+		},
 		Dependencies: clustergenerationpolicy.ClusterGenerationPolicyControllerDependencies{
 			ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
 		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterGenerationPolicy")
+		os.Exit(1)
+	}
+
+	if err = (&clustercleanpolicy.ClusterCleanPolicyReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+
+		Options: clustercleanpolicy.ClusterCleanPolicyControllerOptions{},
+		Dependencies: clustercleanpolicy.ClusterCleanPolicyControllerDependencies{
+			ClusterCleanPolicyRegistry: clusterCleanPolicyReg,
+		},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterCleanPolicy")
 		os.Exit(1)
 	}
 
@@ -438,6 +460,7 @@ func main() {
 		Dependencies: observedresource.ObservedResourceControllerDependencies{
 			Context:                         &globals.Application.Context,
 			ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
+			ClusterCleanPolicyRegistry:      clusterCleanPolicyReg,
 			SourcesRegistry:                 sourcesReg,
 			ResourceInformerRegistry:        resourceInformerReg,
 			ResourceObserverRegistry:        resourceObserverReg,
@@ -463,6 +486,7 @@ func main() {
 			ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
 			ClusterMutationPolicyRegistry:   clusterMutationPolicyReg,
 			ClusterValidationPolicyRegistry: clusterValidationPolicyReg,
+			ClusterCleanPolicyRegistry:      clusterCleanPolicyReg,
 			SourcesRegistry:                 sourcesReg,
 		},
 	}

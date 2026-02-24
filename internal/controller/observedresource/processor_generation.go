@@ -31,6 +31,7 @@ import (
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/common"
+	"github.com/freepik-company/admitik/internal/controller"
 	"github.com/freepik-company/admitik/internal/globals"
 	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 	sourcesRegistry "github.com/freepik-company/admitik/internal/registry/sources"
@@ -113,6 +114,7 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 		var tmpResource string
 		var tmpGvrnn *v1alpha1.ResourceGroupT
 		var resourceClient dynamic.ResourceInterface
+		var existingLabels map[string]string
 		//////////////////////////////////////////////////////////////////////////
 
 		// Evaluate template for generating the resource
@@ -174,6 +176,15 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 		resultObjConverted = &unstructured.Unstructured{
 			Object: resultObject,
 		}
+
+		// Stamp ownership labels so generated objects can be tracked and cleaned up
+		existingLabels = resultObjConverted.GetLabels()
+		if existingLabels == nil {
+			existingLabels = map[string]string{}
+		}
+		existingLabels[controller.GeneratedByPolicyLabel] = policyObj.Name
+		existingLabels[controller.GeneratedByPolicyKind] = controller.ClusterGenerationPolicyResourceType
+		resultObjConverted.SetLabels(existingLabels)
 
 		// Perform actions against Kubernetes
 		resourceClient = globals.Application.KubeRawClient.

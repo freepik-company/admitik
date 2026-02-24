@@ -36,6 +36,7 @@ const (
 	ClusterValidationPolicyResourceType = "ClusterValidationPolicy"
 	ClusterMutationPolicyResourceType   = "ClusterMutationPolicy"
 	ClusterGenerationPolicyResourceType = "ClusterGenerationPolicy"
+	ClusterCleanPolicyResourceType      = "ClusterCleanPolicy"
 
 	//
 	ResourceNotFoundError         = "%s '%s' resource not found. Ignoring since object must be deleted."
@@ -49,6 +50,9 @@ const (
 
 	//
 	IgnoreAdmissionLabel = "admitik.dev/ignore-admission"
+
+	GeneratedByPolicyLabel = "admitik.dev/generated-by"
+	GeneratedByPolicyKind  = "admitik.dev/generated-by-kind"
 )
 
 // GetWebhookClientConfig return a WebhookClientConfig filled according to if the remote server

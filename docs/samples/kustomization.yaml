@@ -33,3 +33,11 @@ resources:
 
 - ClusterGenerationPolicy/01_plain_generate_configmap.yaml
 - ClusterGenerationPolicy/02_plain_with_cel_generate_configmap.yaml
+
+#####################################
+## ClusterCleanPolicy
+#####################################
+
+- ClusterCleanPolicy/01_plain_delete_configmap_on_namespace_delete.yaml
+- ClusterCleanPolicy/02_cel_delete_configmap_by_name.yaml
+- ClusterCleanPolicy/03_gotmpl_delete_resource_with_sources.yaml

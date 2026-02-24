@@ -63,6 +63,12 @@ func CreateKubeEvent(ctx context.Context, namespace string, reporter string, obj
 		policyName = p.Name
 		eventReason = "ClusterGenerationPolicyAudit"
 
+	case v1alpha1.ClusterCleanPolicy:
+		policyApiVersion = p.APIVersion
+		policyKind = p.Kind
+		policyName = p.Name
+		eventReason = "ClusterCleanPolicyAudit"
+
 	default:
 		return fmt.Errorf("unsupported policy type")
 	}

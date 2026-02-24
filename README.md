@@ -58,17 +58,11 @@ Replicate trusted configurations across scopes to ensure alignment and reduce du
 -->
 
 #### 🧹 **Cleanup**
-
-> [!IMPORTANT]
-> We are working on this feature! 🛠️
-
-<!---
 Continuously remove resources that are no longer relevant or safe to keep.
 
 - Delete completed workloads to avoid clutter and resource waste
 - Clean up temporary or short-lived artifacts after use
 - Enforce retention policies for unused or expired infrastructure
--->
 
 
 ## 🧰 Template Engines
@@ -113,10 +107,7 @@ These variables let you write dynamic, context-aware policies using real cluster
 | `ClusterValidationPolicy` | Validates intercepted resources                       |
 | `ClusterMutationPolicy`   | Modifies intercepted resources                        |
 | `ClusterGenerationPolicy` | Generates new resources (or clone existing) on events |
-
-<!---
-| `ClusterCleanupPolicy`    | Deletes resources under custom rules                  |
--->
+| `ClusterCleanPolicy`      | Deletes resources under custom rules                  |
 
 ## 🧪 Examples
 
@@ -128,6 +119,22 @@ HIDDEN UNTIL DOC PAGES ARE FULLY CRAFTED
 -->
 
 [Examples](./docs/samples)
+
+
+## 🏷️ Ownership & Auto-Cleanup
+
+Resources created by `ClusterGenerationPolicy` are automatically labeled for tracking:
+
+| Label | Description |
+|-------|-------------|
+| `admitik.dev/generated-by` | Name of the policy that created the resource |
+| `admitik.dev/generated-by-kind` | Kind of the policy (`ClusterGenerationPolicy`) |
+
+When a `ClusterGenerationPolicy` is deleted, all resources carrying its ownership labels are automatically cleaned up.
+This behavior is controlled by the `--cleanup-on-generation-policy-delete` flag (default: `true`).
+
+> [!TIP]
+> Set `--cleanup-on-generation-policy-delete=false` if you want generated resources to persist after removing the policy.
 
 
 ## 📦 Installation

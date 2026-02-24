@@ -77,8 +77,8 @@ type ObservedResourceControllerOptions struct {
 type ObservedResourceControllerDependencies struct {
 	Context *context.Context
 
-	//
 	ClusterGenerationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterGenerationPolicy]
+	ClusterCleanPolicyRegistry      *policyStore.PolicyStore[*v1alpha1.ClusterCleanPolicy]
 	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
 	ResourceInformerRegistry        *resourceInformerRegistry.ResourceInformerRegistry
 	ResourceObserverRegistry        *resourceObserverRegistry.ResourceObserverRegistry
@@ -123,7 +123,12 @@ func (r *ObservedResourceController) getResourcesFromPolicyRegistries() map[stri
 		}
 	}
 
-	// TODO: Register potential future CRs here
+	candidatesFromClean := r.Dependencies.ClusterCleanPolicyRegistry.GetCollectionNames()
+	for _, resourceType := range candidatesFromClean {
+		if !slices.Contains(results[resourceType], ObserverTypeClusterCleanPolicies) {
+			results[resourceType] = append(results[resourceType], ObserverTypeClusterCleanPolicies)
+		}
+	}
 
 	return results
 }
@@ -165,6 +170,7 @@ func (r *ObservedResourceController) Start(ctx context.Context) error {
 	// Create an event dispatcher for later usage
 	r.dispatcher = NewEventDispatcher(EventDispatcherDependencies{
 		ClusterGenerationPolicyRegistry: r.Dependencies.ClusterGenerationPolicyRegistry,
+		ClusterCleanPolicyRegistry:      r.Dependencies.ClusterCleanPolicyRegistry,
 		SourcesRegistry:                 r.Dependencies.SourcesRegistry,
 		ResourceObserverRegistry:        r.Dependencies.ResourceObserverRegistry,
 	})

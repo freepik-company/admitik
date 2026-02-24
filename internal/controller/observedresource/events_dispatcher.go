@@ -34,15 +34,14 @@ import (
 const (
 	ObserverTypeNoop                      = "noop"
 	ObserverTypeClusterGenerationPolicies = "clustergenerationpolicies"
+	ObserverTypeClusterCleanPolicies      = "clustercleanpolicies"
 )
 
 type EventDispatcherDependencies struct {
-	//
 	ClusterGenerationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterGenerationPolicy]
+	ClusterCleanPolicyRegistry      *policyStore.PolicyStore[*v1alpha1.ClusterCleanPolicy]
 	SourcesRegistry                 *sourcesRegistry.SourcesRegistry
 	ResourceObserverRegistry        *resourceObserverRegistry.ResourceObserverRegistry
-
-	//
 }
 
 type EventDispatcher struct {
@@ -102,6 +101,12 @@ func (d *EventDispatcher) getInitializedProcessors() (processorsMap map[string]P
 		ClusterGenerationPolicyRegistry: d.dependencies.ClusterGenerationPolicyRegistry,
 		SourcesRegistry:                 d.dependencies.SourcesRegistry,
 		KubeAvailableResourceList:       &d.kubeAvailableResourceList,
+	})
+
+	processors[ObserverTypeClusterCleanPolicies] = NewCleanProcessor(CleanProcessorDependencies{
+		ClusterCleanPolicyRegistry: d.dependencies.ClusterCleanPolicyRegistry,
+		SourcesRegistry:            d.dependencies.SourcesRegistry,
+		KubeAvailableResourceList:  &d.kubeAvailableResourceList,
 	})
 
 	processorsMap = processors
