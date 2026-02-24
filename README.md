@@ -31,7 +31,7 @@ Enforce admission rules to keep your cluster secure, compliant, and predictable.
 - Reject resources that miss required platform standards (e.g. limits, roles, labels)
 
 #### 🔁 **Mutation**
-Modify resources before they’re stored to ensure they meet platform expectations.
+Modify resources before they're stored to ensure they meet platform expectations.
 
 - Auto-inject metadata for cost tracking, ownership, or auditing
 - Add observability settings (e.g. monitoring annotations) automatically
@@ -111,7 +111,7 @@ These variables let you write dynamic, context-aware policies using real cluster
 
 ## 🧪 Examples
 
-We’ve prepared real-world examples so you can get started quickly:
+We've prepared real-world examples so you can get started quickly:
 
 <!---
 HIDDEN UNTIL DOC PAGES ARE FULLY CRAFTED
@@ -155,7 +155,7 @@ Advanced usage guides, examples, and reference docs coming soon:
 
 ## 🤝 Contributing
 
-All contributions are welcome! Whether you're reporting bugs, suggesting features, or submitting code — thank you! Here’s how to get involved:
+All contributions are welcome! Whether you're reporting bugs, suggesting features, or submitting code — thank you! Here's how to get involved:
 
 ▸ [Open an issue](https://github.com/freepik-company/Admitik/issues/new) to report bugs or request features
 
@@ -165,7 +165,7 @@ All contributions are welcome! Whether you're reporting bugs, suggesting feature
 ▸ [Ask a question or start a discussion](https://github.com/freepik-company/Admitik/discussions)
 -->
 
-▸ [Check open milestones](https://github.com/freepik-company/Admitik/milestones) to see what’s coming
+▸ [Check open milestones](https://github.com/freepik-company/Admitik/milestones) to see what's coming
 
 ▸ [Read the contributing guide](./docs/CONTRIBUTING.md) to get started smoothly
 
