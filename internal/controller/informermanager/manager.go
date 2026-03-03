@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -439,6 +440,12 @@ func (m *InformerManager) launchInformer(resourceType string, controllerName str
 
 	kubeInformer := factory.ForResource(resourceGVR).Informer()
 
+	// synced is set to true once the informer's initial list (cache sync) is complete.
+	// AddFunc events fired before synced is true are pre-existing objects from the initial
+	// list — they populate the sources pool but must not be dispatched to watched processors
+	// to avoid flooding them with all existing objects on every controller restart.
+	var synced atomic.Bool
+
 	handlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(eventObject interface{}) {
 			obj, err := common.UnstructuredFromInformerEvent(eventObject)
@@ -446,7 +453,14 @@ func (m *InformerManager) launchInformer(resourceType string, controllerName str
 				logger.Error(err, "unexpected event object type in AddFunc")
 				return
 			}
-			m.Registry.Broadcast(resourceType, watch.Added, obj.UnstructuredContent())
+			content := obj.UnstructuredContent()
+			if synced.Load() {
+				// Real new resource: broadcast to all listeners (pool + watched processors).
+				m.Registry.Broadcast(resourceType, watch.Added, content)
+			} else {
+				// Sync initial: only update the pool, skip watched processors.
+				m.Registry.AddToPool(resourceType, &content)
+			}
 		},
 		UpdateFunc: func(eventObjectOld, eventObject interface{}) {
 			oldObj, err := common.UnstructuredFromInformerEvent(eventObjectOld)
@@ -477,7 +491,17 @@ func (m *InformerManager) launchInformer(resourceType string, controllerName str
 		return
 	}
 
-	kubeInformer.Run(stopCh)
+	// Start the informer in a goroutine so we can wait for cache sync on this goroutine.
+	go kubeInformer.Run(stopCh)
+
+	// Block until the initial list (cache sync) is complete, then mark synced so that
+	// subsequent AddFunc calls are treated as real new-resource events.
+	if cache.WaitForCacheSync(stopCh, kubeInformer.HasSynced) {
+		synced.Store(true)
+	}
+
+	// Keep this goroutine alive until the informer stops.
+	<-stopCh
 }
 
 // consumerName builds a consumer identifier following the canonical pattern

@@ -17,11 +17,18 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // ClusterCleanPolicySpec defines the desired state of ClusterCleanPolicy
 type ClusterCleanPolicySpec struct {
+
+	// ConditionRecheckInterval defines how often the policy conditions are re-evaluated
+	// against the watched resource, even when no change event has been received.
+	// When zero (default), no periodic recheck is performed.
+	ConditionRecheckInterval metav1.Duration `json:"conditionRecheckInterval,omitempty"`
 
 	// WatchedResources represents a list of resource-groups that will be watched to be evaluated
 	// +listType=map
@@ -79,6 +86,12 @@ func (p *ClusterCleanPolicy) GetName() string {
 
 func (p *ClusterCleanPolicy) GetSources() []SourceGroupT {
 	return p.Spec.Sources
+}
+
+// GetConditionRecheckInterval returns the interval at which conditions should be
+// re-evaluated periodically, independent of watched-resource events.
+func (p *ClusterCleanPolicy) GetConditionRecheckInterval() time.Duration {
+	return p.Spec.ConditionRecheckInterval.Duration
 }
 
 // +kubebuilder:object:root=true

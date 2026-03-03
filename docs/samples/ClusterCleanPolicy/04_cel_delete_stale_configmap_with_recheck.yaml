@@ -1,0 +1,38 @@
+apiVersion: admitik.dev/v1alpha1
+kind: ClusterCleanPolicy
+metadata:
+  name: 04-cel-delete-stale-configmap-with-recheck
+spec:
+
+  # Re-evaluate conditions every minute even without a new event.
+  # This ensures stale ConfigMaps are cleaned up even if the triggering
+  # namespace change happened while the controller was offline.
+  conditionRecheckInterval: 1m
+
+  # Watch namespace changes
+  watchedResources:
+    - group: ""
+      version: v1
+      resource: namespaces
+      name: ""
+      namespace: ""
+
+  sources: []
+
+  # Trigger cleanup when the namespace no longer carries the managed label
+  conditions:
+    - name: label-removed
+      engine: cel
+      key: |
+        !has(object.metadata.labels) || !("managed-by-admitik" in object.metadata.labels)
+      value: "true"
+
+  # Delete the ConfigMap that was previously generated for this namespace
+  target:
+    engine: plain+cel
+    template: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: managed-config
+        namespace: "{{cel: object.metadata.name }}"

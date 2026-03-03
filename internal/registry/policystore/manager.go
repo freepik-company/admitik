@@ -19,6 +19,7 @@ package policystore
 import (
 	"reflect"
 	"slices"
+	"time"
 
 	//
 	"golang.org/x/exp/maps"
@@ -180,6 +181,40 @@ func (s *PolicyStore[T]) GetPolicyNamesByCollection() map[string][]string {
 		}
 	}
 
+	return result
+}
+
+// GetPolicyIntervals returns a map from policy name to its ConditionRecheckInterval,
+// for every policy in any collection that has a non-zero interval.
+// This is consumed by ConditionRecheckRunnable to manage per-policy recheck tickers.
+func (s *PolicyStore[T]) GetPolicyIntervals() map[string]time.Duration {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make(map[string]time.Duration)
+	for _, policies := range s.collections {
+		for _, p := range policies {
+			if d := p.GetConditionRecheckInterval(); d > 0 {
+				result[p.GetName()] = d
+			}
+		}
+	}
+	return result
+}
+
+// GetPolicyCollections returns a map from policy name to the list of collection keys
+// where that policy is registered. Used by ConditionRecheckRunnable to know which
+// resource keys to re-evaluate on each recheck tick for a given policy.
+func (s *PolicyStore[T]) GetPolicyCollections() map[string][]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make(map[string][]string)
+	for collectionName, policies := range s.collections {
+		for _, p := range policies {
+			result[p.GetName()] = append(result[p.GetName()], collectionName)
+		}
+	}
 	return result
 }
 

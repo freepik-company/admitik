@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -24,13 +26,13 @@ import (
 type ObjectCloneT struct {
 }
 
-// ObjectDefinitionT TODO
+// ObjectDefinitionT holds the engine and template used to render the generated resource.
 type ObjectDefinitionT struct {
 	Engine   string `json:"engine,omitempty"`
 	Template string `json:"template"`
 }
 
-// ObjectT TODO
+// ObjectT groups the clone (future) and definition configuration for the generated object.
 type ObjectT struct {
 	Clone      ObjectCloneT      `json:"clone"`
 	Definition ObjectDefinitionT `json:"definition"`
@@ -38,7 +40,21 @@ type ObjectT struct {
 
 // ClusterGenerationPolicySpec defines the desired state of ClusterGenerationPolicy
 type ClusterGenerationPolicySpec struct {
+	// OverwriteExisting controls whether an already-existing generated object will be
+	// updated (via server-side apply) when conditions are met again.
 	OverwriteExisting bool `json:"overwriteExisting,omitempty"`
+
+	// DeleteOnConditionFalse controls whether the generated object is deleted when
+	// conditions are evaluated and found to be false. When false (default), the
+	// generated object is left in place even if conditions stop being met.
+	DeleteOnConditionFalse bool `json:"deleteOnConditionFalse,omitempty"`
+
+	// ConditionRecheckInterval defines how often the policy conditions are re-evaluated
+	// against the watched resource, even when no change event has been received.
+	// This covers cases where conditions depend on sources or external state that changed
+	// without triggering a watched-resource event.
+	// When zero (default), no periodic recheck is performed.
+	ConditionRecheckInterval metav1.Duration `json:"conditionRecheckInterval,omitempty"`
 
 	// WatchedResources represents a list of resource-groups that will be watched to be evaluated
 	// +listType=map
@@ -89,6 +105,12 @@ func (p *ClusterGenerationPolicy) GetName() string {
 
 func (p *ClusterGenerationPolicy) GetSources() []SourceGroupT {
 	return p.Spec.Sources
+}
+
+// GetConditionRecheckInterval returns the interval at which conditions should be
+// re-evaluated periodically, independent of watched-resource events.
+func (p *ClusterGenerationPolicy) GetConditionRecheckInterval() time.Duration {
+	return p.Spec.ConditionRecheckInterval.Duration
 }
 
 // +kubebuilder:object:root=true

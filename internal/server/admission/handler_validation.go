@@ -139,6 +139,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 		conditionsPassed, condErr := common.IsPassingConditions(caPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
 		if condErr != nil {
 			logger.Info(fmt.Sprintf("failed evaluating conditions: %s", condErr.Error()))
+			continue
 		}
 
 		// Conditions are met, skip rejection

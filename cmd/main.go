@@ -40,10 +40,10 @@ import (
 	"github.com/freepik-company/admitik/api/v1alpha1"
 	"github.com/freepik-company/admitik/internal/certificates"
 	"github.com/freepik-company/admitik/internal/controller"
+	"github.com/freepik-company/admitik/internal/controller/clustercleanpolicy"
 	"github.com/freepik-company/admitik/internal/controller/clustergenerationpolicy"
 	"github.com/freepik-company/admitik/internal/controller/clustermutationpolicy"
 	"github.com/freepik-company/admitik/internal/controller/clustervalidationpolicy"
-	"github.com/freepik-company/admitik/internal/controller/clustercleanpolicy"
 	"github.com/freepik-company/admitik/internal/controller/eventprocessors"
 	"github.com/freepik-company/admitik/internal/controller/informermanager"
 	"github.com/freepik-company/admitik/internal/globals"
@@ -295,14 +295,15 @@ func main() {
 
 	// WatchedEventListener routes informer events to generation/clean processors.
 	// Each entry maps a policy kind to the processor that handles its events.
+	generationProcessor := eventprocessors.NewGenerationProcessor(eventprocessors.GenerationProcessorDependencies{
+		ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
+		SourcesPool:                     registry,
+		KubeAvailableResourceListFn:     kubeResourceSyncer.GetResources,
+	})
 	watchedListener := informermanager.NewWatchedEventListener(registry, []informermanager.WatchedProcessorEntry{
 		{
 			PolicyKind: "ClusterGenerationPolicy",
-			ProcessFn: eventprocessors.NewGenerationProcessor(eventprocessors.GenerationProcessorDependencies{
-				ClusterGenerationPolicyRegistry: clusterGenerationPolicyReg,
-				SourcesPool:                     registry,
-				KubeAvailableResourceListFn:     kubeResourceSyncer.GetResources,
-			}).Process,
+			ProcessFn:  generationProcessor.Process,
 		},
 		{
 			PolicyKind: "ClusterCleanPolicy",
@@ -411,6 +412,23 @@ func main() {
 	}
 	if err = mgr.Add(im.WatchedRunnable()); err != nil {
 		setupLog.Error(err, "failed adding watched runnable to manager")
+		os.Exit(1)
+	}
+
+	// ConditionRecheckRunnable periodically re-evaluates generation policy conditions
+	// for policies that declare a non-zero conditionRecheckInterval.
+	recheckRunnable := informermanager.NewConditionRecheckRunnable(
+		registry,
+		[]informermanager.RecheckEntry{
+			{
+				Store:     clusterGenerationPolicyReg,
+				ProcessFn: generationProcessor.Process,
+			},
+		},
+		&globals.Application.Context,
+	)
+	if err = mgr.Add(recheckRunnable); err != nil {
+		setupLog.Error(err, "failed adding condition recheck runnable to manager")
 		os.Exit(1)
 	}
 

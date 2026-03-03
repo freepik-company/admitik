@@ -16,11 +16,20 @@ limitations under the License.
 
 package policystore
 
-import "github.com/freepik-company/admitik/api/v1alpha1"
+import (
+	"time"
+
+	"github.com/freepik-company/admitik/api/v1alpha1"
+)
 
 // PolicyResourceI represents the minimal contract that all policy types must fulfill
-// to participate in the policy registry
+// to participate in the policy registry.
 type PolicyResourceI interface {
 	GetName() string
 	GetSources() []v1alpha1.SourceGroupT
+
+	// GetConditionRecheckInterval returns the interval at which the policy's conditions
+	// should be re-evaluated even without a watched-resource event. A zero duration means
+	// no periodic recheck is desired.
+	GetConditionRecheckInterval() time.Duration
 }

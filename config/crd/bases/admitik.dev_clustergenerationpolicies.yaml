@@ -41,6 +41,14 @@ spec:
             description: ClusterGenerationPolicySpec defines the desired state of
               ClusterGenerationPolicy
             properties:
+              conditionRecheckInterval:
+                description: |-
+                  ConditionRecheckInterval defines how often the policy conditions are re-evaluated
+                  against the watched resource, even when no change event has been received.
+                  This covers cases where conditions depend on sources or external state that changed
+                  without triggering a watched-resource event.
+                  When zero (default), no periodic recheck is performed.
+                type: string
               conditions:
                 description: Conditions represents a list of conditions that must
                   be passed to meet the policy
@@ -65,14 +73,22 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
+              deleteOnConditionFalse:
+                description: |-
+                  DeleteOnConditionFalse controls whether the generated object is deleted when
+                  conditions are evaluated and found to be false. When false (default), the
+                  generated object is left in place even if conditions stop being met.
+                type: boolean
               object:
-                description: ObjectT TODO
+                description: ObjectT groups the clone (future) and definition configuration
+                  for the generated object.
                 properties:
                   clone:
                     description: 'ObjectCloneT TODO: Future capability'
                     type: object
                   definition:
-                    description: ObjectDefinitionT TODO
+                    description: ObjectDefinitionT holds the engine and template used
+                      to render the generated resource.
                     properties:
                       engine:
                         type: string
@@ -86,6 +102,9 @@ spec:
                 - definition
                 type: object
               overwriteExisting:
+                description: |-
+                  OverwriteExisting controls whether an already-existing generated object will be
+                  updated (via server-side apply) when conditions are met again.
                 type: boolean
               sources:
                 description: Sources represents a list of extra resource-groups to

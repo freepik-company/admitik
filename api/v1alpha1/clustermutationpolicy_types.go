@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -87,6 +89,10 @@ func (p *ClusterMutationPolicy) GetName() string {
 func (p *ClusterMutationPolicy) GetSources() []SourceGroupT {
 	return p.Spec.Sources
 }
+
+// GetConditionRecheckInterval returns 0 — ClusterMutationPolicy does not support
+// periodic condition recheck (it operates exclusively via admission webhooks).
+func (p *ClusterMutationPolicy) GetConditionRecheckInterval() time.Duration { return 0 }
 
 // +kubebuilder:object:root=true
 

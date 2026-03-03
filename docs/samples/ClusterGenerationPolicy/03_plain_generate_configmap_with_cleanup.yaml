@@ -1,0 +1,48 @@
+apiVersion: admitik.dev/v1alpha1
+kind: ClusterGenerationPolicy
+metadata:
+  name: 03-plain-generate-configmap-with-cleanup
+spec:
+
+  overwriteExisting: true
+
+  # Delete the generated ConfigMap when conditions are no longer met.
+  # Without this flag, the ConfigMap would remain even if the namespace label is removed.
+  deleteOnConditionFalse: true
+
+  # Re-evaluate conditions every 30 seconds even if no event arrives.
+  # Useful when conditions depend on sources or external state that may change
+  # without triggering a watched-resource event.
+  conditionRecheckInterval: 30s
+
+  # Resources to be watched
+  watchedResources:
+    - group: ""
+      version: v1
+      resource: namespaces
+      #name: ""
+      #namespace: ""
+
+  sources: []
+
+  # Only generate when the namespace carries the 'managed-by-admitik: "true"' label.
+  # When the label is removed, deleteOnConditionFalse will clean up the ConfigMap.
+  conditions:
+    - name: has-managed-label
+      engine: cel
+      key: |
+        has(object.metadata.labels) && "managed-by-admitik" in object.metadata.labels && object.metadata.labels["managed-by-admitik"] == "true"
+      value: "true"
+
+  object:
+    clone: {}
+    definition:
+      engine: plain+cel
+      template: |
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: managed-config
+          namespace: "{{cel: object.metadata.name }}"
+        data:
+          managed-by: admitik

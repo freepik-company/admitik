@@ -146,8 +146,8 @@ docs/                                # Documentation, samples, proposals
 |-----|---------|------------|
 | `ClusterValidationPolicy` | Validate admission requests | `interceptedResources`, `conditions`, `message`, `failureAction` (enforce/permissive) |
 | `ClusterMutationPolicy` | Mutate admission requests | `interceptedResources`, `conditions`, `patch` (type + template), `priority` |
-| `ClusterGenerationPolicy` | Generate resources on watched changes | `watchedResources`, `conditions`, `object.definition`, `overwriteExisting` |
-| `ClusterCleanPolicy` | Delete resources when conditions are met on watched changes | `watchedResources`, `conditions`, `target` (engine + template) |
+| `ClusterGenerationPolicy` | Generate resources on watched changes | `watchedResources`, `conditions`, `object.definition`, `overwriteExisting`, `deleteOnConditionFalse`, `conditionRecheckInterval` |
+| `ClusterCleanPolicy` | Delete resources when conditions are met on watched changes | `watchedResources`, `conditions`, `target` (engine + template), `conditionRecheckInterval` |
 
 ### Data Flow
 
@@ -173,6 +173,11 @@ Policy CRDs ──reconcile──► PolicyStore (4 generic instances)
                                     └──────────┬──────────┘
                                                ▼
                                         Kubernetes API
+
+ConditionRecheckRunnable (leader-elected)
+  - Per-policy ticker goroutine (interval from conditionRecheckInterval)
+  - On tick: reads pool objects, fires synthetic Modified events to processors
+  - Reconciles goroutines every 2s (detect add/remove/interval change)
 ```
 
 ### Registry Key Patterns
@@ -333,6 +338,9 @@ All workflows trigger on GitHub `release` events + `workflow_dispatch`:
 - **Auto-cleanup on generation policy deletion** is controlled by `--cleanup-on-generation-policy-delete` flag (default: `true`). When enabled, deleting a `ClusterGenerationPolicy` scans all API resources for matching ownership labels and deletes them.
 - **`ClusterCleanPolicy` cleanup scans API resources.** The `CleanupGeneratedResources` helper discovers all API resource types, which can be slow on clusters with many CRDs. Future optimization may cache or narrow the scope.
 - **`ClusterCleanPolicy` follows the same architecture** as `ClusterGenerationPolicy` — it registers watched resources, triggers on events, evaluates conditions, and uses template-based target resolution for deletion.
+- **`deleteOnConditionFalse` (ClusterGenerationPolicy only):** When `true`, if conditions evaluate to `false` the processor renders the generation template to resolve the target object's identity and deletes it — but only if the object carries the policy ownership labels (`admitik.dev/generated-by` + `admitik.dev/generated-by-kind`). Safe: never deletes objects not owned by the policy.
+- **`conditionRecheckInterval` (ClusterGenerationPolicy + ClusterCleanPolicy):** Sets a `time.Duration` for periodic condition re-evaluation even without a watched-resource event. Implemented by `ConditionRecheckRunnable` (leader-elected, in `internal/controller/informermanager/processors.go`). Each policy with a non-zero interval gets its own ticker goroutine; on tick it reads pool objects and fires synthetic `Modified` events to the processor. Goroutines are reconciled every 2s to handle interval changes or policy additions/deletions. Adding a new policy type to the recheck just requires a new `RecheckEntry` in `cmd/main.go`.
+- **"Conditions not met" is silent.** No log is emitted when conditions evaluate to `false` in any processor or handler — this would produce too much noise during periodic recheck ticks. Condition evaluation *errors* (broken template) are logged at `V(1)` in background processors and at `Info` in synchronous admission handlers.
 
 ---
 

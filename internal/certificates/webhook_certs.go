@@ -36,13 +36,13 @@ type WebhookCertPaths struct {
 }
 
 type WebhookCertOptions struct {
-	CAPath              string
-	CertPath            string
-	PrivateKeyPath      string
-	SecretName          string
-	AutogenerateCerts   bool
-	ClientHostname      string
-	Namespace           string
+	CAPath            string
+	CertPath          string
+	PrivateKeyPath    string
+	SecretName        string
+	AutogenerateCerts bool
+	ClientHostname    string
+	Namespace         string
 }
 
 func EnsureWebhookCerts(ctx context.Context, opts WebhookCertOptions) (*WebhookCertPaths, error) {

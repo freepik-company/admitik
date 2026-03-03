@@ -29,8 +29,8 @@ import (
 
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
-	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 	informerRegistry "github.com/freepik-company/admitik/internal/registry/informer"
+	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 )
 
 const (

@@ -67,6 +67,17 @@ func (p *CleanProcessor) Process(resourceType string, eventType watch.EventType,
 		commonTemplateInjectedObject.OldObject = object[1]
 	}
 
+	if triggerBasicData, bdErr := globals.GetObjectBasicData(&object[0]); bdErr == nil {
+		logger = logger.WithValues(
+			"triggerGroup", triggerBasicData.Group,
+			"triggerVersion", triggerBasicData.Version,
+			"triggerKind", triggerBasicData.Kind,
+			"triggerName", triggerBasicData.Name,
+			"triggerNamespace", triggerBasicData.Namespace,
+			"triggerOperation", commonTemplateInjectedObject.Operation,
+		)
+	}
+
 	policyList := p.dependencies.ClusterCleanPolicyRegistry.GetResources(resourceType)
 	for _, policyObj := range policyList {
 
@@ -83,10 +94,17 @@ func (p *CleanProcessor) Process(resourceType string, eventType watch.EventType,
 
 		conditionsPassed, condErr := common.IsPassingConditions(policyObj.Spec.Conditions, &specificTemplateInjectedObject)
 		if condErr != nil {
-			logger.Info(fmt.Sprintf("failed evaluating conditions: %s", condErr.Error()))
+			logger.V(1).Info(fmt.Sprintf("failed evaluating conditions: %s", condErr.Error()))
+			err = common.CreateKubeEvent(globals.Application.Context, "default", "resources-controller",
+				object[0], *policyObj, "ConditionEvaluationFailed", condErr.Error())
+			if err != nil {
+				logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
+			}
+			continue
 		}
 
 		if !conditionsPassed {
+			logger.V(1).Info("conditions not met, skipping clean")
 			continue
 		}
 

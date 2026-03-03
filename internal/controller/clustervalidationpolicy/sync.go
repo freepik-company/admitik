@@ -32,8 +32,8 @@ import (
 
 	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
-	"github.com/freepik-company/admitik/internal/keys"
 	"github.com/freepik-company/admitik/internal/controller"
+	"github.com/freepik-company/admitik/internal/keys"
 )
 
 const (

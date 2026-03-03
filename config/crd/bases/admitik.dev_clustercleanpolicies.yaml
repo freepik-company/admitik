@@ -40,6 +40,12 @@ spec:
           spec:
             description: ClusterCleanPolicySpec defines the desired state of ClusterCleanPolicy
             properties:
+              conditionRecheckInterval:
+                description: |-
+                  ConditionRecheckInterval defines how often the policy conditions are re-evaluated
+                  against the watched resource, even when no change event has been received.
+                  When zero (default), no periodic recheck is performed.
+                type: string
               conditions:
                 description: Conditions represents a list of conditions that must
                   be passed to trigger the clean action

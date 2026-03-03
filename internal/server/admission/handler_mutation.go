@@ -144,11 +144,12 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 		conditionsPassed, condErr := common.IsPassingConditions(cmPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
 		if condErr != nil {
 			logger.Info("failed evaluating conditions", "error", condErr.Error())
+			continue
 		}
 
 		// Conditions are not met, skip patching the resource
 		if !conditionsPassed {
-			// TODO: Should we log, or throw an event, when conditions are not met?
+			logger.V(1).Info("conditions not met, skipping mutation")
 			continue
 		}
 
@@ -336,4 +337,3 @@ func (s *HttpServer) generateStrategicMergePatch(objectToPatch []byte, patch []b
 
 	return patchedObjectBytes, nil
 }
-

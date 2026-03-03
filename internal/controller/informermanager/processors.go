@@ -171,3 +171,196 @@ func (w *WatchedEventListener) OnEvent(resourceKey informerRegistry.ResourceKey,
 		}
 	}
 }
+
+// RecheckableStore is the minimal interface required by ConditionRecheckRunnable to manage
+// per-policy recheck tickers. Any PolicyStore satisfies this interface automatically via
+// its GetPolicyIntervals() and GetPolicyCollections() methods.
+type RecheckableStore interface {
+	// GetPolicyIntervals returns a map from policy name to its ConditionRecheckInterval,
+	// for every policy with a non-zero interval.
+	GetPolicyIntervals() map[string]time.Duration
+
+	// GetPolicyCollections returns a map from policy name to the list of collection keys
+	// (e.g. GVRNN keys) where that policy is registered. Used to build the set of
+	// resource keys to re-evaluate on each recheck tick.
+	GetPolicyCollections() map[string][]string
+}
+
+// RecheckEntry pairs a RecheckableStore with the ProcessFn that should be invoked on each
+// recheck tick. Add one entry per policy kind that supports conditionRecheckInterval.
+type RecheckEntry struct {
+	// Store is the policy store to scan for policies with a non-zero ConditionRecheckInterval.
+	Store RecheckableStore
+
+	// ProcessFn is the processor function to call with a synthetic Modified event on each tick.
+	ProcessFn func(resourceType string, eventType watch.EventType, objects ...map[string]interface{})
+}
+
+// recheckTickerState holds the runtime state of a single per-policy recheck goroutine.
+type recheckTickerState struct {
+	cancel   context.CancelFunc
+	interval time.Duration
+}
+
+// ConditionRecheckRunnable is a leader-elected manager.Runnable that periodically re-evaluates
+// policy conditions even when no watched-resource event has been received. It is generic:
+// any policy kind can participate by providing a RecheckEntry.
+//
+// For each policy that has a non-zero ConditionRecheckInterval, it maintains an independent
+// ticker goroutine. On every tick it fetches all objects currently in the pool for each of the
+// policy's watched GVRNN keys and fires the ProcessFn with a synthetic Modified event.
+// Ticker goroutines are started, stopped, or restarted as policies are added, updated, or removed.
+// If a policy's ConditionRecheckInterval changes, its goroutine is restarted with the new period.
+type ConditionRecheckRunnable struct {
+	registry *informerRegistry.Registry
+	entries  []RecheckEntry
+	ctx      *context.Context
+
+	mu      sync.Mutex
+	tickers map[string]recheckTickerState // keyed by "{entryIndex}:{policyName}"
+}
+
+// NewConditionRecheckRunnable creates a ConditionRecheckRunnable. Parameters:
+//   - registry: used to read the watched-object pool for synthetic events.
+//   - entries: one RecheckEntry per policy kind that supports conditionRecheckInterval.
+//   - ctx: application context pointer (same pattern as InformerManager).
+func NewConditionRecheckRunnable(
+	registry *informerRegistry.Registry,
+	entries []RecheckEntry,
+	ctx *context.Context,
+) *ConditionRecheckRunnable {
+	return &ConditionRecheckRunnable{
+		registry: registry,
+		entries:  entries,
+		ctx:      ctx,
+		tickers:  make(map[string]recheckTickerState),
+	}
+}
+
+// NeedLeaderElection returns true — recheck processing must only happen on the leader
+// to avoid duplicate generation/cleanup actions.
+func (r *ConditionRecheckRunnable) NeedLeaderElection() bool { return true }
+
+// Start runs the ConditionRecheckRunnable. It periodically reconciles the set of active
+// per-policy recheck goroutines and blocks until the context is cancelled.
+func (r *ConditionRecheckRunnable) Start(ctx context.Context) error {
+	logger := log.FromContext(*r.ctx).WithValues("controller", "condition-recheck")
+	logger.Info("Starting Controller")
+
+	ticker := time.NewTicker(secondsToReconcileInformers)
+	defer ticker.Stop()
+
+	r.reconcileRecheckTickers()
+	for {
+		select {
+		case <-(*r.ctx).Done():
+			r.stopAllTickers()
+			logger.Info("Controller finished by context")
+			return nil
+		case <-ticker.C:
+			r.reconcileRecheckTickers()
+		}
+	}
+}
+
+// reconcileRecheckTickers ensures exactly one recheck goroutine per (entry, policy) pair that
+// has a non-zero ConditionRecheckInterval. Stale goroutines are cancelled; new ones are started;
+// goroutines whose interval changed are restarted with the new period.
+func (r *ConditionRecheckRunnable) reconcileRecheckTickers() {
+	desired := r.collectDesiredTickers()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Stop tickers no longer desired or whose interval changed.
+	for tickerKey, state := range r.tickers {
+		d, ok := desired[tickerKey]
+		if !ok || state.interval != d.interval {
+			state.cancel()
+			delete(r.tickers, tickerKey)
+		}
+	}
+
+	// Start tickers for new or restarted entries.
+	for tickerKey, spec := range desired {
+		if _, running := r.tickers[tickerKey]; !running {
+			tickCtx, cancel := context.WithCancel(*r.ctx)
+			r.tickers[tickerKey] = recheckTickerState{cancel: cancel, interval: spec.interval}
+			go r.recheckLoop(tickCtx, tickerKey, spec.interval, spec.collectionKeys, spec.processFn)
+		}
+	}
+}
+
+// desiredTickerSpec is transient state used during reconcileRecheckTickers.
+type desiredTickerSpec struct {
+	interval       time.Duration
+	collectionKeys []string
+	processFn      func(resourceType string, eventType watch.EventType, objects ...map[string]interface{})
+}
+
+// collectDesiredTickers returns a map from ticker key → desiredTickerSpec for every
+// (entry, policy) pair that has a non-zero ConditionRecheckInterval.
+// The ticker key is "{entryIndex}:{policyName}" to avoid collisions across entries.
+func (r *ConditionRecheckRunnable) collectDesiredTickers() map[string]desiredTickerSpec {
+	desired := make(map[string]desiredTickerSpec)
+
+	for i, entry := range r.entries {
+		intervals := entry.Store.GetPolicyIntervals()
+		if len(intervals) == 0 {
+			continue
+		}
+		collections := entry.Store.GetPolicyCollections()
+
+		for policyName, interval := range intervals {
+			tickerKey := fmt.Sprintf("%d:%s", i, policyName)
+			desired[tickerKey] = desiredTickerSpec{
+				interval:       interval,
+				collectionKeys: collections[policyName],
+				processFn:      entry.ProcessFn,
+			}
+		}
+	}
+
+	return desired
+}
+
+// recheckLoop is the per-(entry, policy) goroutine. On every tick it reads all objects for each
+// of the collection keys from the registry pool and calls processFn with a synthetic Modified
+// event, triggering a full condition re-evaluation.
+func (r *ConditionRecheckRunnable) recheckLoop(
+	ctx context.Context,
+	tickerKey string,
+	interval time.Duration,
+	collectionKeys []string,
+	processFn func(resourceType string, eventType watch.EventType, objects ...map[string]interface{}),
+) {
+	logger := log.FromContext(*r.ctx).WithValues("controller", "condition-recheck", "ticker", tickerKey)
+	logger.Info("Starting recheck loop", "interval", interval)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info("Recheck loop stopped")
+			return
+		case <-ticker.C:
+			for _, key := range collectionKeys {
+				for _, obj := range r.registry.GetPool(key) {
+					go processFn(key, watch.Modified, *obj)
+				}
+			}
+		}
+	}
+}
+
+// stopAllTickers cancels every active recheck goroutine. Called on shutdown.
+func (r *ConditionRecheckRunnable) stopAllTickers() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for key, state := range r.tickers {
+		state.cancel()
+		delete(r.tickers, key)
+	}
+}
