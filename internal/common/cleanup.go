@@ -36,6 +36,12 @@ func CleanupGeneratedResources(ctx context.Context, policyName, policyKind strin
 		controller.GeneratedByPolicyLabel, policyName,
 		controller.GeneratedByPolicyKind, policyKind)
 
+	return cleanupByLabelSelector(ctx, labelSelector)
+}
+
+// cleanupByLabelSelector discovers all API resources and deletes every object matching
+// the given label selector across all namespaces.
+func cleanupByLabelSelector(ctx context.Context, labelSelector string) error {
 	_, apiGroupResourcesLists, err := globals.Application.KubeDiscoveryClient.ServerGroupsAndResources()
 	if err != nil {
 		return fmt.Errorf("failed discovering API resources: %w", err)
@@ -90,6 +96,17 @@ func CleanupGeneratedResources(ctx context.Context, policyName, policyKind strin
 	}
 
 	return lastErr
+}
+
+// CleanupClonedResources finds and deletes all resources labeled as cloned
+// by the given policy name and kind. Same approach as CleanupGeneratedResources
+// but uses the clone-specific labels.
+func CleanupClonedResources(ctx context.Context, policyName, policyKind string) error {
+	labelSelector := fmt.Sprintf("%s=%s,%s=%s",
+		controller.ClonedByPolicyLabel, policyName,
+		controller.ClonedByPolicyKind, policyKind)
+
+	return cleanupByLabelSelector(ctx, labelSelector)
 }
 
 func containsVerb(verbs metav1.Verbs, verb string) bool {

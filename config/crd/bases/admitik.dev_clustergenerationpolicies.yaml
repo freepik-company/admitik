@@ -79,6 +79,17 @@ spec:
                   conditions are evaluated and found to be false. When false (default), the
                   generated object is left in place even if conditions stop being met.
                 type: boolean
+              eventMode:
+                default: All
+                description: |-
+                  EventMode controls which Kubernetes events this policy emits.
+                  "All" (default) emits both success and failure events, "Errors" emits only
+                  failure/warning events, and "None" disables event emission entirely.
+                enum:
+                - All
+                - Errors
+                - None
+                type: string
               object:
                 description: ObjectT groups the clone (future) and definition configuration
                   for the generated object.

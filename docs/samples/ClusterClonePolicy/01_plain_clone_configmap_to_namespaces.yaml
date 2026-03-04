@@ -1,0 +1,41 @@
+apiVersion: admitik.dev/v1alpha1
+kind: ClusterClonePolicy
+metadata:
+  name: 01-plain-clone-configmap-to-namespaces
+spec:
+
+  overwriteExisting: true
+
+  # Watch for ConfigMap changes in the "shared" namespace
+  watchedResources:
+    - group: ""
+      version: v1
+      resource: configmaps
+      name: shared-config
+      namespace: shared
+
+  sources: []
+
+  # Clone whenever the watched ConfigMap exists (any operation)
+  conditions:
+    - name: always-clone
+      engine: cel
+      key: |
+        operation == "CREATE" || operation == "UPDATE"
+      value: "true"
+
+  # Namespaces where the ConfigMap will be cloned
+  targetNamespaces:
+    - namespace: team-a
+    - namespace: team-b
+    - namespace: team-c
+
+  # The object to clone — mirrors the watched ConfigMap with its data
+  object:
+    engine: plain+cel
+    template: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: shared-config
+      data: {{cel: object.data }}

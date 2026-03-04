@@ -1,0 +1,47 @@
+apiVersion: admitik.dev/v1alpha1
+kind: ClusterClonePolicy
+metadata:
+  name: 03-cel-clone-with-cleanup
+spec:
+
+  overwriteExisting: true
+
+  # Delete the cloned objects when conditions are no longer met.
+  # When the "clone-me" label is removed from the source, clones are cleaned up.
+  deleteOnConditionFalse: true
+
+  # Re-evaluate conditions every 30 seconds to catch label changes
+  # that might not trigger a watched-resource event.
+  conditionRecheckInterval: 30s
+
+  # Watch for ConfigMap changes in the "platform" namespace
+  watchedResources:
+    - group: ""
+      version: v1
+      resource: configmaps
+      name: ""
+      namespace: platform
+
+  sources: []
+
+  # Only clone ConfigMaps that carry the "clone-me: true" label.
+  # When the label is removed, deleteOnConditionFalse will clean up all clones.
+  conditions:
+    - name: has-clone-label
+      engine: cel
+      key: |
+        has(object.metadata.labels) && "clone-me" in object.metadata.labels && object.metadata.labels["clone-me"] == "true"
+      value: "true"
+
+  targetNamespaces:
+    - namespace: tenant-alpha
+    - namespace: tenant-beta
+
+  object:
+    engine: plain+cel
+    template: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "{{cel: object.metadata.name }}"
+      data: {{cel: object.data }}

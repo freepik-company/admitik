@@ -63,6 +63,32 @@ rules:
 - apiGroups:
   - admitik.dev
   resources:
+  - clusterclonepolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - admitik.dev
+  resources:
+  - clusterclonepolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - admitik.dev
+  resources:
+  - clusterclonepolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - admitik.dev
+  resources:
   - clustergenerationpolicies
   verbs:
   - create

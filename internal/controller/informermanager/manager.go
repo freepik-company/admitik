@@ -73,6 +73,7 @@ type Dependencies struct {
 
 	ClusterGenerationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterGenerationPolicy]
 	ClusterCleanPolicyRegistry      *policyStore.PolicyStore[*v1alpha1.ClusterCleanPolicy]
+	ClusterClonePolicyRegistry      *policyStore.PolicyStore[*v1alpha1.ClusterClonePolicy]
 	ClusterMutationPolicyRegistry   *policyStore.PolicyStore[*v1alpha1.ClusterMutationPolicy]
 	ClusterValidationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterValidationPolicy]
 }
@@ -180,6 +181,7 @@ func (m *InformerManager) WatchedRunnable() manager.Runnable {
 const (
 	kindClusterGenerationPolicy = "ClusterGenerationPolicy"
 	kindClusterCleanPolicy      = "ClusterCleanPolicy"
+	kindClusterClonePolicy      = "ClusterClonePolicy"
 	kindClusterMutationPolicy   = "ClusterMutationPolicy"
 	kindClusterValidationPolicy = "ClusterValidationPolicy"
 )
@@ -211,9 +213,10 @@ func (m *InformerManager) getSourceConsumers() map[string]map[string]bool {
 	}
 
 	addFromStore(m.Deps.ClusterGenerationPolicyRegistry, kindClusterGenerationPolicy)
+	addFromStore(m.Deps.ClusterCleanPolicyRegistry, kindClusterCleanPolicy)
+	addFromStore(m.Deps.ClusterClonePolicyRegistry, kindClusterClonePolicy)
 	addFromStore(m.Deps.ClusterMutationPolicyRegistry, kindClusterMutationPolicy)
 	addFromStore(m.Deps.ClusterValidationPolicyRegistry, kindClusterValidationPolicy)
-	addFromStore(m.Deps.ClusterCleanPolicyRegistry, kindClusterCleanPolicy)
 
 	return result
 }
@@ -246,6 +249,7 @@ func (m *InformerManager) getWatchedConsumers() map[string]map[string]bool {
 
 	addFromStore(m.Deps.ClusterGenerationPolicyRegistry, kindClusterGenerationPolicy)
 	addFromStore(m.Deps.ClusterCleanPolicyRegistry, kindClusterCleanPolicy)
+	addFromStore(m.Deps.ClusterClonePolicyRegistry, kindClusterClonePolicy)
 
 	return result
 }

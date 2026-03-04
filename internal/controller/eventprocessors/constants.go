@@ -19,6 +19,7 @@ package eventprocessors
 const (
 	ObserverTypeClusterGenerationPolicies = "clustergenerationpolicies"
 	ObserverTypeClusterCleanPolicies      = "clustercleanpolicies"
+	ObserverTypeClusterClonePolicies      = "clusterclonepolicies"
 
 	controllerName = "eventprocessors"
 )

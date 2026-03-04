@@ -45,17 +45,11 @@ Create complementary resources in response to cluster activity.
 - Generate environment-specific configs to simplify onboarding
 
 #### 🧬 **Cloning**
-
-> [!IMPORTANT]
-> We are working on this feature! 🛠️
-
-<!---
 Replicate trusted configurations across scopes to ensure alignment and reduce duplication.
 
 - Distribute shared policies or settings across teams or namespaces
 - Keep environments in sync by replicating structural patterns
 - Copy access or config resources securely between isolated areas
--->
 
 #### 🧹 **Cleanup**
 Continuously remove resources that are no longer relevant or safe to keep.
@@ -102,12 +96,13 @@ These variables let you write dynamic, context-aware policies using real cluster
 
 ## 📂 Policy Kinds
 
-| Kind                      | What it does                                          |
-|---------------------------|-------------------------------------------------------|
-| `ClusterValidationPolicy` | Validates intercepted resources                       |
-| `ClusterMutationPolicy`   | Modifies intercepted resources                        |
-| `ClusterGenerationPolicy` | Generates new resources (or clone existing) on events |
-| `ClusterCleanPolicy`      | Deletes resources under custom rules                  |
+| Kind                      | What it does                                                  |
+|---------------------------|---------------------------------------------------------------|
+| `ClusterValidationPolicy` | Validates intercepted resources                               |
+| `ClusterMutationPolicy`   | Modifies intercepted resources                                |
+| `ClusterGenerationPolicy` | Generates new resources on events                             |
+| `ClusterClonePolicy`      | Clones a resource into one or more namespaces on events       |
+| `ClusterCleanPolicy`      | Deletes resources under custom rules                          |
 
 ## 🧪 Examples
 
@@ -123,18 +118,25 @@ HIDDEN UNTIL DOC PAGES ARE FULLY CRAFTED
 
 ## 🏷️ Ownership & Auto-Cleanup
 
-Resources created by `ClusterGenerationPolicy` are automatically labeled for tracking:
+Resources created by `ClusterGenerationPolicy` and `ClusterClonePolicy` are automatically labeled for tracking:
 
 | Label | Description |
 |-------|-------------|
-| `admitik.dev/generated-by` | Name of the policy that created the resource |
+| `admitik.dev/generated-by` | Name of the generation policy that created the resource |
 | `admitik.dev/generated-by-kind` | Kind of the policy (`ClusterGenerationPolicy`) |
+| `admitik.dev/cloned-by` | Name of the clone policy that created the resource |
+| `admitik.dev/cloned-by-kind` | Kind of the policy (`ClusterClonePolicy`) |
 
-When a `ClusterGenerationPolicy` is deleted, all resources carrying its ownership labels are automatically cleaned up.
-This behavior is controlled by the `--cleanup-on-generation-policy-delete` flag (default: `true`).
+When a policy is deleted, all resources carrying its ownership labels are automatically cleaned up.
+This behavior is controlled per policy kind:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--cleanup-on-generation-policy-delete` | `true` | Delete generated resources when the `ClusterGenerationPolicy` is removed |
+| `--cleanup-on-clone-policy-delete` | `true` | Delete cloned resources when the `ClusterClonePolicy` is removed |
 
 > [!TIP]
-> Set `--cleanup-on-generation-policy-delete=false` if you want generated resources to persist after removing the policy.
+> Set these flags to `false` if you want resources to persist after removing the policy.
 
 
 ## 📦 Installation

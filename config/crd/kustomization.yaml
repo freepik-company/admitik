@@ -6,6 +6,7 @@ resources:
   - bases/admitik.dev_clustermutationpolicies.yaml
   - bases/admitik.dev_clustergenerationpolicies.yaml
   - bases/admitik.dev_clustercleanpolicies.yaml
+  - bases/admitik.dev_clusterclonepolicies.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

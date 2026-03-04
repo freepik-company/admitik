@@ -43,3 +43,12 @@ resources:
 - ClusterCleanPolicy/02_cel_delete_configmap_by_name.yaml
 - ClusterCleanPolicy/03_gotmpl_delete_resource_with_sources.yaml
 - ClusterCleanPolicy/04_cel_delete_stale_configmap_with_recheck.yaml
+
+#####################################
+## ClusterClonePolicy
+#####################################
+
+- ClusterClonePolicy/01_plain_clone_configmap_to_namespaces.yaml
+- ClusterClonePolicy/02_cel_clone_secret_with_condition.yaml
+- ClusterClonePolicy/03_cel_clone_with_cleanup.yaml
+- ClusterClonePolicy/04_gotmpl_clone_with_sources.yaml

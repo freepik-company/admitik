@@ -64,6 +64,17 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
+              eventMode:
+                default: All
+                description: |-
+                  EventMode controls which Kubernetes events this policy emits.
+                  "All" (default) emits both success and failure events, "Errors" emits only
+                  failure/warning events, and "None" disables event emission entirely.
+                enum:
+                - All
+                - Errors
+                - None
+                type: string
               interceptedResources:
                 description: InterceptedResources represents a list of resource-groups
                   that will be sent to the admissions server to be evaluated

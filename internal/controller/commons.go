@@ -37,6 +37,7 @@ const (
 	ClusterMutationPolicyResourceType   = "ClusterMutationPolicy"
 	ClusterGenerationPolicyResourceType = "ClusterGenerationPolicy"
 	ClusterCleanPolicyResourceType      = "ClusterCleanPolicy"
+	ClusterClonePolicyResourceType      = "ClusterClonePolicy"
 
 	//
 	ResourceNotFoundError         = "%s '%s' resource not found. Ignoring since object must be deleted."
@@ -53,6 +54,9 @@ const (
 
 	GeneratedByPolicyLabel = "admitik.dev/generated-by"
 	GeneratedByPolicyKind  = "admitik.dev/generated-by-kind"
+
+	ClonedByPolicyLabel = "admitik.dev/cloned-by"
+	ClonedByPolicyKind  = "admitik.dev/cloned-by-kind"
 )
 
 // GetWebhookClientConfig return a WebhookClientConfig filled according to if the remote server
