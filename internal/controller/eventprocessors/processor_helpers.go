@@ -16,6 +16,8 @@ limitations under the License.
 package eventprocessors
 
 import (
+	"fmt"
+
 	"github.com/go-logr/logr"
 	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -102,7 +104,10 @@ func evaluatePolicy[T policystore.PolicyResourceI](
 	passed, condErr := common.IsPassingConditions(policy.GetConditions(), evalData)
 	if condErr != nil {
 		logger.V(1).Info("failed evaluating conditions", "error", condErr.Error())
-		emitter.Emit(triggerObj, policy, "ConditionEvaluationFailed", condErr.Error())
+		emitter.Emit(triggerObj, policy, common.PolicyEvent{
+			Action:  "ConditionEvaluationFailed",
+			Message: condErr.Error(),
+		})
 		return false, evalData, condErr
 	}
 
@@ -111,30 +116,30 @@ func evaluatePolicy[T policystore.PolicyResourceI](
 
 // renderAndResolve renders a template engine/template pair, unmarshals the YAML result,
 // extracts object basic data and resolves the Kubernetes resource name for the resulting GVK.
-// Returns the unmarshaled object map, its metadata, and the GVR — or a non-empty event
-// message describing what went wrong.
+// Returns the unmarshaled object map, its metadata, and the GVR — or a non-empty error
+// message with the real error detail.
 func renderAndResolve(
 	engine, tmpl string,
 	data *template.PolicyEvaluationDataT,
 	kubeResources []GVKR,
 	logger logr.Logger,
-) (obj map[string]any, bd globals.ObjectBasicData, gvr schema.GroupVersionResource, eventMsg string) {
+) (obj map[string]any, bd globals.ObjectBasicData, gvr schema.GroupVersionResource, errMsg string) {
 
 	rendered, err := template.EvaluateTemplate(engine, tmpl, data)
 	if err != nil {
 		logger.Info("failed rendering template", "error", err.Error())
-		return nil, bd, gvr, "Template rendering failed. More info in controller logs."
+		return nil, bd, gvr, fmt.Sprintf("Template rendering failed: %s", err.Error())
 	}
 
 	if err = yaml.Unmarshal([]byte(rendered), &obj); err != nil {
 		logger.Info("failed decoding template result as YAML", "error", err.Error())
-		return nil, bd, gvr, "Invalid YAML after template. More info in controller logs."
+		return nil, bd, gvr, fmt.Sprintf("Invalid YAML after template: %s", err.Error())
 	}
 
 	bd, err = globals.GetObjectBasicData(&obj)
 	if err != nil {
 		logger.Info("failed extracting metadata from template result", "error", err.Error())
-		return nil, bd, gvr, "Invalid object metadata after template. More info in controller logs."
+		return nil, bd, gvr, fmt.Sprintf("Invalid object metadata after template: %s", err.Error())
 	}
 
 	resource := getResourceFromGvk(kubeResources, schema.GroupVersionKind{
@@ -142,7 +147,7 @@ func renderAndResolve(
 	})
 	if resource == "" {
 		logger.Info("unknown Kubernetes resource for GVK — is this resource defined?")
-		return nil, bd, gvr, "Unknown resource for provided GVK. More info in controller logs."
+		return nil, bd, gvr, fmt.Sprintf("Unknown resource for GVK %s/%s %s", bd.Group, bd.Version, bd.Kind)
 	}
 
 	gvr = schema.GroupVersionResource{Group: bd.Group, Version: bd.Version, Resource: resource}

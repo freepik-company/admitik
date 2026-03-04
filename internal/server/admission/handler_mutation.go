@@ -145,6 +145,10 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 		conditionsPassed, condErr := common.IsPassingConditions(cmPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
 		if condErr != nil {
 			logger.Info("failed evaluating conditions", "error", condErr.Error())
+			emitter.Emit(commonTemplateInjectedObject.Object, cmPolicyObj, common.PolicyEvent{
+				Action:  "ConditionEvaluationFailed",
+				Message: condErr.Error(),
+			})
 			continue
 		}
 
@@ -154,10 +158,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 			continue
 		}
 
-		// When some condition is not met, evaluate patch's template and emit a response
-		var kubeEventAction string = "MutationAborted"
-		var kubeEventMessage string
-
+		// Evaluate patch template and generate JSON patch operations
 		var parsedPatch string
 		var tmpJsonPatchOperations jsondiff.Patch
 		var tmpPatchedObjectBytes []byte
@@ -165,20 +166,30 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 		parsedPatch, err = template.EvaluateTemplate(cmPolicyObj.Spec.Patch.Engine, cmPolicyObj.Spec.Patch.Template, &specificTemplateInjectedObject)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed parsing patch template: %s", err.Error()))
-			kubeEventMessage = "Patch template failed. More info in controller logs."
-		} else {
-			tmpJsonPatchOperations, tmpPatchedObjectBytes, err = s.generateJsonPatchOperations(patchedObjectBytes, cmPolicyObj.Spec.Patch.Type, []byte(parsedPatch))
-			if err != nil {
-				logger.Info(fmt.Sprintf("failed generating canonical jsonPatch operations for Kube API server: %s", err.Error()))
-				kubeEventMessage = "Generated patch is invalid. More info in controller logs."
-			} else {
-				patchedObjectBytes = tmpPatchedObjectBytes
-				jsonPatchOperations = append(jsonPatchOperations, tmpJsonPatchOperations...)
-				continue
-			}
+			emitter.Emit(commonTemplateInjectedObject.Object, cmPolicyObj, common.PolicyEvent{
+				Action:  "MutationAborted",
+				Message: fmt.Sprintf("Patch template failed: %s", err.Error()),
+			})
+			continue
 		}
 
-		emitter.Emit(commonTemplateInjectedObject.Object, cmPolicyObj, kubeEventAction, kubeEventMessage)
+		tmpJsonPatchOperations, tmpPatchedObjectBytes, err = s.generateJsonPatchOperations(patchedObjectBytes, cmPolicyObj.Spec.Patch.Type, []byte(parsedPatch))
+		if err != nil {
+			logger.Info(fmt.Sprintf("failed generating canonical jsonPatch operations for Kube API server: %s", err.Error()))
+			emitter.Emit(commonTemplateInjectedObject.Object, cmPolicyObj, common.PolicyEvent{
+				Action:  "MutationAborted",
+				Message: fmt.Sprintf("Generated patch is invalid: %s", err.Error()),
+			})
+			continue
+		}
+
+		patchedObjectBytes = tmpPatchedObjectBytes
+		jsonPatchOperations = append(jsonPatchOperations, tmpJsonPatchOperations...)
+
+		emitter.Emit(commonTemplateInjectedObject.Object, cmPolicyObj, common.PolicyEvent{
+			Action:  "MutationApplied",
+			Message: "Patch applied successfully",
+		})
 	}
 
 	// All working mutation patches are collected from policies, send them to Kubernetes

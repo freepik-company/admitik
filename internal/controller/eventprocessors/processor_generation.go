@@ -16,6 +16,8 @@ limitations under the License.
 package eventprocessors
 
 import (
+	"fmt"
+
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -91,15 +93,20 @@ func (p *GenerationProcessor) processGeneration(
 	emitter *common.EventEmitter,
 	triggerObj map[string]interface{},
 ) {
-	obj, bd, gvr, eventMsg := renderAndResolve(
+	obj, bd, gvr, errMsg := renderAndResolve(
 		policy.Spec.Object.Definition.Engine,
 		policy.Spec.Object.Definition.Template,
 		data, p.dependencies.KubeAvailableResourceListFn(), logger,
 	)
-	if eventMsg != "" {
-		emitter.Emit(triggerObj, policy, "GenerationAborted", eventMsg)
+	if errMsg != "" {
+		emitter.Emit(triggerObj, policy, common.PolicyEvent{
+			Action:  "GenerationAborted",
+			Message: errMsg,
+		})
 		return
 	}
+
+	targetRef := common.TargetRefFromBasicData(bd)
 
 	logger = logger.WithValues(
 		"group", gvr.Group, "version", gvr.Version, "resource", gvr.Resource,
@@ -113,18 +120,31 @@ func (p *GenerationProcessor) processGeneration(
 
 	_, err := client.Create(globals.Application.Context, result, metav1.CreateOptions{})
 	if err == nil {
+		emitter.Emit(triggerObj, policy, common.PolicyEvent{
+			Action:    "GenerationSucceeded",
+			Message:   "Object created successfully",
+			TargetRef: targetRef,
+		})
 		return
 	}
 
 	if !errors.IsAlreadyExists(err) {
 		logger.Info("failed creating generated object", "error", err.Error())
-		emitter.Emit(triggerObj, policy, "GenerationAborted", "Object creation failed. More info in controller logs.")
+		emitter.Emit(triggerObj, policy, common.PolicyEvent{
+			Action:    "GenerationAborted",
+			Message:   fmt.Sprintf("Object creation failed: %s", err.Error()),
+			TargetRef: targetRef,
+		})
 		return
 	}
 
 	if !policy.Spec.OverwriteExisting {
 		logger.Info("object already exists and overwriteExisting is disabled")
-		emitter.Emit(triggerObj, policy, "GenerationAborted", "Object exists and overwrite disabled. More info in controller logs.")
+		emitter.Emit(triggerObj, policy, common.PolicyEvent{
+			Action:    "GenerationAborted",
+			Message:   "Object already exists and overwriteExisting is disabled",
+			TargetRef: targetRef,
+		})
 		return
 	}
 
@@ -133,8 +153,19 @@ func (p *GenerationProcessor) processGeneration(
 		Force:        true,
 	}); err != nil {
 		logger.Info("failed updating generated object via server-side apply", "error", err.Error())
-		emitter.Emit(triggerObj, policy, "GenerationAborted", "Object update failed. More info in controller logs.")
+		emitter.Emit(triggerObj, policy, common.PolicyEvent{
+			Action:    "GenerationAborted",
+			Message:   fmt.Sprintf("Object update via server-side apply failed: %s", err.Error()),
+			TargetRef: targetRef,
+		})
+		return
 	}
+
+	emitter.Emit(triggerObj, policy, common.PolicyEvent{
+		Action:    "GenerationSucceeded",
+		Message:   "Object updated successfully",
+		TargetRef: targetRef,
+	})
 }
 
 // processCleanup renders the generation template to resolve the target object's identity,
@@ -146,23 +177,31 @@ func (p *GenerationProcessor) processCleanup(
 	emitter *common.EventEmitter,
 	triggerObj map[string]interface{},
 ) {
-	_, bd, gvr, eventMsg := renderAndResolve(
+	_, bd, gvr, errMsg := renderAndResolve(
 		policy.Spec.Object.Definition.Engine,
 		policy.Spec.Object.Definition.Template,
 		data, p.dependencies.KubeAvailableResourceListFn(), logger,
 	)
-	if eventMsg != "" {
-		emitter.Emit(triggerObj, policy, "CleanupAborted", eventMsg)
+	if errMsg != "" {
+		emitter.Emit(triggerObj, policy, common.PolicyEvent{
+			Action:  "CleanupAborted",
+			Message: errMsg,
+		})
 		return
 	}
 
+	targetRef := common.TargetRefFromBasicData(bd)
 	client := globals.Application.KubeRawClient.Resource(gvr).Namespace(bd.Namespace)
 
 	existing, err := client.Get(globals.Application.Context, bd.Name, metav1.GetOptions{})
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			logger.Info("failed getting object for cleanup", "error", err.Error())
-			emitter.Emit(triggerObj, policy, "CleanupAborted", "Cleanup get failed. More info in controller logs.")
+			emitter.Emit(triggerObj, policy, common.PolicyEvent{
+				Action:    "CleanupAborted",
+				Message:   fmt.Sprintf("Failed to get object for cleanup: %s", err.Error()),
+				TargetRef: targetRef,
+			})
 		}
 		return
 	}
@@ -175,8 +214,19 @@ func (p *GenerationProcessor) processCleanup(
 
 	if err = client.Delete(globals.Application.Context, bd.Name, metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
 		logger.Info("failed deleting generated object during cleanup", "error", err.Error())
-		emitter.Emit(triggerObj, policy, "CleanupAborted", "Object deletion during cleanup failed. More info in controller logs.")
+		emitter.Emit(triggerObj, policy, common.PolicyEvent{
+			Action:    "CleanupAborted",
+			Message:   fmt.Sprintf("Object deletion during cleanup failed: %s", err.Error()),
+			TargetRef: targetRef,
+		})
+		return
 	}
+
+	emitter.Emit(triggerObj, policy, common.PolicyEvent{
+		Action:    "CleanupSucceeded",
+		Message:   "Generated object deleted because conditions are no longer met",
+		TargetRef: targetRef,
+	})
 }
 
 // stampOwnershipLabels sets the admitik ownership labels on the given unstructured object.

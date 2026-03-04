@@ -140,7 +140,11 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 		// Evaluate template conditions
 		conditionsPassed, condErr := common.IsPassingConditions(caPolicyObj.Spec.Conditions, &specificTemplateInjectedObject)
 		if condErr != nil {
-			logger.Info(fmt.Sprintf("failed evaluating conditions: %s", condErr.Error()))
+			logger.Info("failed evaluating conditions", "error", condErr.Error())
+			emitter.Emit(commonTemplateInjectedObject.Object, caPolicyObj, common.PolicyEvent{
+				Action:  "ConditionEvaluationFailed",
+				Message: condErr.Error(),
+			})
 			continue
 		}
 
@@ -154,7 +158,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 		parsedMessage, err = template.EvaluateTemplate(caPolicyObj.Spec.Message.Engine, caPolicyObj.Spec.Message.Template, &specificTemplateInjectedObject)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed parsing message template: %s", err.Error()))
-			parsedMessage = "Reason unavailable: message template failed. More info in controller logs."
+			parsedMessage = fmt.Sprintf("Reason unavailable: message template failed: %s", err.Error())
 		}
 
 		reviewResponse.Response.Result.Message = parsedMessage
@@ -170,7 +174,10 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 			logger.Info(fmt.Sprintf("object rejected due to unmet conditions: %s", parsedMessage))
 		}
 
-		emitter.Emit(commonTemplateInjectedObject.Object, caPolicyObj, kubeEventAction, parsedMessage)
+		emitter.Emit(commonTemplateInjectedObject.Object, caPolicyObj, common.PolicyEvent{
+			Action:  kubeEventAction,
+			Message: parsedMessage,
+		})
 
 		// On conditions not being met, first required policy causes early full rejection
 		if strings.ToLower(caPolicyObj.Spec.FailureAction) == v1alpha1.ValidationFailureActionEnforce {

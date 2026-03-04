@@ -16,6 +16,8 @@ limitations under the License.
 package eventprocessors
 
 import (
+	"fmt"
+
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -84,15 +86,20 @@ func (p *CleanProcessor) processClean(
 	emitter *common.EventEmitter,
 	triggerObj map[string]interface{},
 ) {
-	_, bd, gvr, eventMsg := renderAndResolve(
+	_, bd, gvr, errMsg := renderAndResolve(
 		policy.Spec.Target.Engine,
 		policy.Spec.Target.Template,
 		data, p.dependencies.KubeAvailableResourceListFn(), logger,
 	)
-	if eventMsg != "" {
-		emitter.Emit(triggerObj, policy, "CleanAborted", eventMsg)
+	if errMsg != "" {
+		emitter.Emit(triggerObj, policy, common.PolicyEvent{
+			Action:  "CleanAborted",
+			Message: errMsg,
+		})
 		return
 	}
+
+	targetRef := common.TargetRefFromBasicData(bd)
 
 	logger = logger.WithValues(
 		"group", gvr.Group, "version", gvr.Version, "resource", gvr.Resource,
@@ -103,9 +110,17 @@ func (p *CleanProcessor) processClean(
 
 	if err := client.Delete(globals.Application.Context, bd.Name, metav1.DeleteOptions{}); err != nil {
 		logger.Info("failed deleting target resource", "error", err.Error())
-		emitter.Emit(triggerObj, policy, "CleanAborted", "Object deletion failed. More info in controller logs.")
+		emitter.Emit(triggerObj, policy, common.PolicyEvent{
+			Action:    "CleanAborted",
+			Message:   fmt.Sprintf("Object deletion failed: %s", err.Error()),
+			TargetRef: targetRef,
+		})
 		return
 	}
 
-	logger.Info("target resource deleted successfully")
+	emitter.Emit(triggerObj, policy, common.PolicyEvent{
+		Action:    "CleanSucceeded",
+		Message:   "Target resource deleted successfully",
+		TargetRef: targetRef,
+	})
 }
