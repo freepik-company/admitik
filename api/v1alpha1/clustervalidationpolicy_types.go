@@ -36,6 +36,12 @@ type MessageT struct {
 type ClusterValidationPolicySpec struct {
 	FailureAction string `json:"failureAction,omitempty"`
 
+	// EventMode controls which Kubernetes events this policy emits.
+	// "All" (default) emits both success and failure events, "Errors" emits only
+	// failure/warning events, and "None" disables event emission entirely.
+	// +kubebuilder:default="All"
+	EventMode EventMode `json:"eventMode,omitempty"`
+
 	// InterceptedResources represents a list of resource-groups that will be sent to the admissions server to be evaluated
 	// +listType=map
 	// +listMapKey=group
@@ -91,6 +97,10 @@ func (p *ClusterValidationPolicy) GetSources() []SourceGroupT {
 
 func (p *ClusterValidationPolicy) GetConditions() []ConditionT {
 	return p.Spec.Conditions
+}
+
+func (p *ClusterValidationPolicy) GetEventMode() EventMode {
+	return p.Spec.EventMode
 }
 
 // GetConditionRecheckInterval returns 0 — ClusterValidationPolicy does not support

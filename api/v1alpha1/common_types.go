@@ -83,3 +83,13 @@ type ConditionT struct {
 	Key    string `json:"key"`
 	Value  string `json:"value"`
 }
+
+// EventMode controls which Kubernetes events a policy emits.
+// +kubebuilder:validation:Enum=All;Errors;None
+type EventMode string
+
+const (
+	EventModeAll    EventMode = "All"
+	EventModeErrors EventMode = "Errors"
+	EventModeNone   EventMode = "None"
+)

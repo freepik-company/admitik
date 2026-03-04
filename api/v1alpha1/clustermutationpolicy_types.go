@@ -41,6 +41,12 @@ type ClusterMutationPolicySpec struct {
 	// Policies with higher values are evaluated later.
 	Priority int `json:"priority,omitempty"`
 
+	// EventMode controls which Kubernetes events this policy emits.
+	// "All" (default) emits both success and failure events, "Errors" emits only
+	// failure/warning events, and "None" disables event emission entirely.
+	// +kubebuilder:default="All"
+	EventMode EventMode `json:"eventMode,omitempty"`
+
 	// InterceptedResources represents a list of resource-groups that will be sent to the admissions server to be evaluated
 	// +listType=map
 	// +listMapKey=group
@@ -96,6 +102,10 @@ func (p *ClusterMutationPolicy) GetSources() []SourceGroupT {
 
 func (p *ClusterMutationPolicy) GetConditions() []ConditionT {
 	return p.Spec.Conditions
+}
+
+func (p *ClusterMutationPolicy) GetEventMode() EventMode {
+	return p.Spec.EventMode
 }
 
 // GetConditionRecheckInterval returns 0 — ClusterMutationPolicy does not support

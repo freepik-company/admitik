@@ -36,6 +36,7 @@ import (
 type PolicyIdentifiable interface {
 	GetName() string
 	GetPolicyKind() string
+	GetEventMode() v1alpha1.EventMode
 }
 
 // PolicyEvent describes a single event to be emitted to the Kubernetes API.
@@ -79,8 +80,17 @@ func NewEventEmitter(ctx context.Context, reporter string, logger logr.Logger) *
 
 // Emit creates a Kubernetes Event that links the trigger object to the given policy.
 // The event type (Normal/Warning) is derived automatically from the action name.
+// Events are silently dropped when the policy's EventMode excludes them:
+//   - "None" suppresses all events
+//   - "Errors" suppresses Normal (success) events, only emitting Warning events
+//   - "All" or "" (default) emits everything
+//
 // Any error during event creation is logged silently — callers never need to handle it.
 func (e *EventEmitter) Emit(triggerObj map[string]interface{}, policy PolicyIdentifiable, pe PolicyEvent) {
+	if !shouldEmit(policy.GetEventMode(), pe.Action) {
+		return
+	}
+
 	objectData, err := globals.GetObjectBasicData(&triggerObj)
 	if err != nil {
 		e.logger.V(1).Info("failed extracting trigger object data for event", "error", err.Error())
@@ -141,6 +151,20 @@ func eventType(action string) string {
 		}
 	}
 	return "Normal"
+}
+
+// shouldEmit returns true when the given EventMode allows emitting an event with the
+// given action. "None" suppresses everything, "Errors" only allows Warning-type actions,
+// and "All" (or empty, for backwards compatibility) allows everything.
+func shouldEmit(mode v1alpha1.EventMode, action string) bool {
+	switch mode {
+	case v1alpha1.EventModeNone:
+		return false
+	case v1alpha1.EventModeErrors:
+		return eventType(action) == "Warning"
+	default:
+		return true
+	}
 }
 
 // buildNote assembles the event note from the message and optional target reference.

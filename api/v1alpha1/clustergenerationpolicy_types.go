@@ -56,6 +56,12 @@ type ClusterGenerationPolicySpec struct {
 	// When zero (default), no periodic recheck is performed.
 	ConditionRecheckInterval metav1.Duration `json:"conditionRecheckInterval,omitempty"`
 
+	// EventMode controls which Kubernetes events this policy emits.
+	// "All" (default) emits both success and failure events, "Errors" emits only
+	// failure/warning events, and "None" disables event emission entirely.
+	// +kubebuilder:default="All"
+	EventMode EventMode `json:"eventMode,omitempty"`
+
 	// WatchedResources represents a list of resource-groups that will be watched to be evaluated
 	// +listType=map
 	// +listMapKey=group
@@ -113,6 +119,10 @@ func (p *ClusterGenerationPolicy) GetSources() []SourceGroupT {
 
 func (p *ClusterGenerationPolicy) GetConditions() []ConditionT {
 	return p.Spec.Conditions
+}
+
+func (p *ClusterGenerationPolicy) GetEventMode() EventMode {
+	return p.Spec.EventMode
 }
 
 // GetConditionRecheckInterval returns the interval at which conditions should be

@@ -29,6 +29,7 @@ type PolicyResourceI interface {
 	GetPolicyKind() string
 	GetSources() []v1alpha1.SourceGroupT
 	GetConditions() []v1alpha1.ConditionT
+	GetEventMode() v1alpha1.EventMode
 
 	// GetConditionRecheckInterval returns the interval at which the policy's conditions
 	// should be re-evaluated even without a watched-resource event. A zero duration means
