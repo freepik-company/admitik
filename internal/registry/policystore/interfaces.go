@@ -27,6 +27,7 @@ import (
 type PolicyResourceI interface {
 	GetName() string
 	GetSources() []v1alpha1.SourceGroupT
+	GetConditions() []v1alpha1.ConditionT
 
 	// GetConditionRecheckInterval returns the interval at which the policy's conditions
 	// should be re-evaluated even without a watched-resource event. A zero duration means

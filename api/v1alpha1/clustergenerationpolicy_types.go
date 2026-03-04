@@ -107,6 +107,10 @@ func (p *ClusterGenerationPolicy) GetSources() []SourceGroupT {
 	return p.Spec.Sources
 }
 
+func (p *ClusterGenerationPolicy) GetConditions() []ConditionT {
+	return p.Spec.Conditions
+}
+
 // GetConditionRecheckInterval returns the interval at which conditions should be
 // re-evaluated periodically, independent of watched-resource events.
 func (p *ClusterGenerationPolicy) GetConditionRecheckInterval() time.Duration {

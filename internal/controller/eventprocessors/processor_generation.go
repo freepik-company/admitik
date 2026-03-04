@@ -16,21 +16,13 @@ limitations under the License.
 package eventprocessors
 
 import (
-	"fmt"
-	"gopkg.in/yaml.v3"
-
-	//
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
-	"github.com/freepik-company/admitik/internal/common"
 	"github.com/freepik-company/admitik/internal/controller"
 	"github.com/freepik-company/admitik/internal/globals"
 	informerRegistry "github.com/freepik-company/admitik/internal/registry/informer"
@@ -42,10 +34,7 @@ import (
 type GenerationProcessorDependencies struct {
 	ClusterGenerationPolicyRegistry *policyStore.PolicyStore[*v1alpha1.ClusterGenerationPolicy]
 	SourcesPool                     informerRegistry.SourcesPool
-
-	// KubeAvailableResourceListFn returns the current cached list of Kubernetes API resources.
-	// Used to resolve a GVK to its resource name when creating or deleting objects.
-	KubeAvailableResourceListFn func() []GVKR
+	KubeAvailableResourceListFn     func() []GVKR
 }
 
 // GenerationProcessor handles events for watched resources and creates, updates, or deletes
@@ -56,258 +45,143 @@ type GenerationProcessor struct {
 
 // NewGenerationProcessor creates a GenerationProcessor wired to the given dependencies.
 func NewGenerationProcessor(deps GenerationProcessorDependencies) *GenerationProcessor {
-	return &GenerationProcessor{
-		dependencies: deps,
-	}
+	return &GenerationProcessor{dependencies: deps}
 }
 
 // Process is the entry point called by WatchedEventListener when a watched resource event arrives.
-// For each matching ClusterGenerationPolicy it:
-//   - evaluates conditions against the event object and sources,
-//   - creates/updates the generated object when conditions pass,
-//   - deletes the generated object when conditions fail and DeleteOnConditionFalse is enabled.
-func (p *GenerationProcessor) Process(resourceType string, eventType watch.EventType, object ...map[string]interface{}) {
-	logger := log.FromContext(globals.Application.Context).WithValues("processor", ObserverTypeClusterGenerationPolicies)
+// For each matching ClusterGenerationPolicy it evaluates conditions, then either generates/updates
+// the target object or — when deleteOnConditionFalse is enabled — cleans it up.
+func (p *GenerationProcessor) Process(resourceType string, eventType watch.EventType, objects ...map[string]interface{}) {
+	baseData := buildEventContext(eventType, objects)
+	logger := newProcessorLogger(ObserverTypeClusterGenerationPolicies, objects[0], baseData.Operation)
 
-	var err error
-
-	commonTemplateInjectedObject := template.PolicyEvaluationDataT{}
-	commonTemplateInjectedObject.Initialize()
-
-	commonTemplateInjectedObject.Operation = common.GetNormalizedOperation(eventType)
-	commonTemplateInjectedObject.Object = object[0]
-
-	if commonTemplateInjectedObject.Operation == common.NormalizedOperationUpdate && len(object) > 1 {
-		commonTemplateInjectedObject.OldObject = object[1]
+	deps := commonDeps{
+		SourcesPool:             p.dependencies.SourcesPool,
+		KubeAvailableResourceFn: p.dependencies.KubeAvailableResourceListFn,
 	}
 
-	if triggerBasicData, bdErr := globals.GetObjectBasicData(&object[0]); bdErr == nil {
-		logger = logger.WithValues(
-			"triggerGroup", triggerBasicData.Group,
-			"triggerVersion", triggerBasicData.Version,
-			"triggerKind", triggerBasicData.Kind,
-			"triggerName", triggerBasicData.Name,
-			"triggerNamespace", triggerBasicData.Namespace,
-			"triggerOperation", commonTemplateInjectedObject.Operation,
-		)
-	}
+	for _, policy := range p.dependencies.ClusterGenerationPolicyRegistry.GetResources(resourceType) {
+		policyLogger := logger.WithValues("ClusterGenerationPolicy", policy.Name)
 
-	policyList := p.dependencies.ClusterGenerationPolicyRegistry.GetResources(resourceType)
-	for _, policyObj := range policyList {
-
-		logger = logger.WithValues("ClusterGenerationPolicy", policyObj.Name)
-
-		triggerInjectedObject := commonTemplateInjectedObject.TriggerInjectedDataT
-		tmpFetchedPolicySources, fetchErr := common.FetchPolicySources(p.dependencies.SourcesPool, policyObj, &triggerInjectedObject)
-		if fetchErr != nil {
-			logger.Info("failed fetching sources. Broken ones will be empty", "error", fetchErr.Error())
+		passed, evalData, err := evaluatePolicy(policy, &baseData, deps, policyLogger, objects[0])
+		if err != nil {
+			continue
 		}
 
-		specificTemplateInjectedObject := commonTemplateInjectedObject
-		specificTemplateInjectedObject.Sources = tmpFetchedPolicySources
-
-		conditionsPassed, condErr := common.IsPassingConditions(policyObj.Spec.Conditions, &specificTemplateInjectedObject)
-		if condErr != nil {
-			logger.V(1).Info(fmt.Sprintf("failed evaluating conditions: %s", condErr.Error()))
-			err = common.CreateKubeEvent(globals.Application.Context, "default", "resources-controller",
-				object[0], *policyObj, "ConditionEvaluationFailed", condErr.Error())
-			if err != nil {
-				logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
+		if !passed {
+			policyLogger.V(1).Info("conditions not met, skipping generation")
+			if policy.Spec.DeleteOnConditionFalse {
+				p.processCleanup(policy, evalData, policyLogger, objects[0])
 			}
 			continue
 		}
 
-		if !conditionsPassed {
-			logger.V(1).Info("conditions not met, skipping generation")
-			// When conditions are not met and the policy opts into cleanup, delete any
-			// previously generated object that matches this policy's template output.
-			if policyObj.Spec.DeleteOnConditionFalse {
-				if eventMsg := p.processCleanup(policyObj, &specificTemplateInjectedObject, logger); eventMsg != "" {
-					err = common.CreateKubeEvent(globals.Application.Context, "default", "resources-controller",
-						object[0], *policyObj, "CleanupAborted", eventMsg)
-					if err != nil {
-						logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
-					}
-				}
-			}
-			continue
-		}
-
-		if eventMessage := p.processGeneration(policyObj, &specificTemplateInjectedObject, logger); eventMessage != "" {
-			err = common.CreateKubeEvent(globals.Application.Context, "default", "resources-controller",
-				object[0], *policyObj, "GenerationAborted", eventMessage)
-			if err != nil {
-				logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
-			}
-		}
+		p.processGeneration(policy, evalData, policyLogger, objects[0])
 	}
 }
 
-// processGeneration evaluates the generation template and creates or updates the resource.
-// Returns an event message if something went wrong, or empty string on success.
-func (p *GenerationProcessor) processGeneration(policyObj *v1alpha1.ClusterGenerationPolicy, injectedData *template.PolicyEvaluationDataT, logger logr.Logger) string {
-
-	parsedDefinition, err := template.EvaluateTemplate(policyObj.Spec.Object.Definition.Engine,
-		policyObj.Spec.Object.Definition.Template, injectedData)
-	if err != nil {
-		logger.Info(fmt.Sprintf("failed parsing generation template: %s", err.Error()))
-		return "Generation template failed. More info in controller logs."
-	}
-
-	var resultObject map[string]any
-	if err = yaml.Unmarshal([]byte(parsedDefinition), &resultObject); err != nil {
-		logger.Info(fmt.Sprintf("failed decoding template result. Invalid object: %s", err.Error()))
-		return "Invalid object after template. More info in controller logs."
-	}
-
-	resultObjectBasicData, err := globals.GetObjectBasicData(&resultObject)
-	if err != nil {
-		logger.Info(fmt.Sprintf("failed obtaining metadata from template result. Invalid object: %s", err.Error()))
-		return "Invalid object after template. More info in controller logs."
-	}
-
-	kubeResources := p.dependencies.KubeAvailableResourceListFn()
-	tmpResource := getResourceFromGvk(kubeResources, schema.GroupVersionKind{
-		Group:   resultObjectBasicData.Group,
-		Version: resultObjectBasicData.Version,
-		Kind:    resultObjectBasicData.Kind,
-	})
-	if tmpResource == "" {
-		logger.Info("failed obtaining resource equivalent from Kubernetes for provided GVK. Is this resource defined?")
-		return "Unknown object resource for provided GVK. More info in controller logs."
-	}
-
-	gvr := schema.GroupVersionResource{
-		Group:    resultObjectBasicData.Group,
-		Version:  resultObjectBasicData.Version,
-		Resource: tmpResource,
-	}
-	logger = logger.WithValues(
-		"group", gvr.Group,
-		"version", gvr.Version,
-		"resource", gvr.Resource,
-		"name", resultObjectBasicData.Name,
-		"namespace", resultObjectBasicData.Namespace)
-
-	resultObjConverted := &unstructured.Unstructured{
-		Object: resultObject,
-	}
-
-	existingLabels := resultObjConverted.GetLabels()
-	if existingLabels == nil {
-		existingLabels = map[string]string{}
-	}
-	existingLabels[controller.GeneratedByPolicyLabel] = policyObj.Name
-	existingLabels[controller.GeneratedByPolicyKind] = controller.ClusterGenerationPolicyResourceType
-	resultObjConverted.SetLabels(existingLabels)
-
-	resourceClient := globals.Application.KubeRawClient.
-		Resource(gvr).
-		Namespace(resultObjectBasicData.Namespace)
-
-	_, err = resourceClient.Create(
-		globals.Application.Context,
-		resultObjConverted,
-		metav1.CreateOptions{},
+// processGeneration renders the object template, stamps ownership labels, and creates or
+// updates (server-side apply) the resulting Kubernetes resource.
+func (p *GenerationProcessor) processGeneration(
+	policy *v1alpha1.ClusterGenerationPolicy,
+	data *template.PolicyEvaluationDataT,
+	logger logr.Logger,
+	triggerObj map[string]interface{},
+) {
+	obj, bd, gvr, eventMsg := renderAndResolve(
+		policy.Spec.Object.Definition.Engine,
+		policy.Spec.Object.Definition.Template,
+		data, p.dependencies.KubeAvailableResourceListFn(), logger,
 	)
+	if eventMsg != "" {
+		emitKubeEvent(logger, triggerObj, *policy, "GenerationAborted", eventMsg)
+		return
+	}
+
+	logger = logger.WithValues(
+		"group", gvr.Group, "version", gvr.Version, "resource", gvr.Resource,
+		"name", bd.Name, "namespace", bd.Namespace,
+	)
+
+	result := &unstructured.Unstructured{Object: obj}
+	stampOwnershipLabels(result, policy.Name)
+
+	client := globals.Application.KubeRawClient.Resource(gvr).Namespace(bd.Namespace)
+
+	_, err := client.Create(globals.Application.Context, result, metav1.CreateOptions{})
 	if err == nil {
-		return ""
+		return
 	}
 
 	if !errors.IsAlreadyExists(err) {
-		logger.Info(fmt.Sprintf("failed creating generated object from template result: %s", err.Error()))
-		return "Object creation after template failed. More info in controller logs."
+		logger.Info("failed creating generated object", "error", err.Error())
+		emitKubeEvent(logger, triggerObj, *policy, "GenerationAborted", "Object creation failed. More info in controller logs.")
+		return
 	}
 
-	if !policyObj.Spec.OverwriteExisting {
-		logger.Info("failed updating generated object from template result: 'OverwriteExisting' is disabled")
-		return "Object update after template failed. More info in controller logs."
+	if !policy.Spec.OverwriteExisting {
+		logger.Info("object already exists and overwriteExisting is disabled")
+		emitKubeEvent(logger, triggerObj, *policy, "GenerationAborted", "Object exists and overwrite disabled. More info in controller logs.")
+		return
 	}
 
-	_, err = resourceClient.Apply(
-		globals.Application.Context,
-		resultObjConverted.GetName(),
-		resultObjConverted,
-		metav1.ApplyOptions{
-			FieldManager: controllerName,
-			Force:        true,
-		},
-	)
-	if err != nil {
-		logger.Info(fmt.Sprintf("failed updating generated object from template result: %s", err.Error()))
-		return "Object update after template failed. More info in controller logs."
+	if _, err = client.Apply(globals.Application.Context, result.GetName(), result, metav1.ApplyOptions{
+		FieldManager: controllerName,
+		Force:        true,
+	}); err != nil {
+		logger.Info("failed updating generated object via server-side apply", "error", err.Error())
+		emitKubeEvent(logger, triggerObj, *policy, "GenerationAborted", "Object update failed. More info in controller logs.")
 	}
-
-	return ""
 }
 
-// processCleanup renders the generation template to resolve the target object's identity
-// (GVK, name, namespace) and deletes it if it exists and carries the policy ownership labels.
-// This is called when conditions evaluate to false and DeleteOnConditionFalse is enabled.
-// Returns an event message if something went wrong, or empty string on success (including
-// the case where the object simply does not exist).
-func (p *GenerationProcessor) processCleanup(policyObj *v1alpha1.ClusterGenerationPolicy, injectedData *template.PolicyEvaluationDataT, logger logr.Logger) string {
+// processCleanup renders the generation template to resolve the target object's identity,
+// verifies ownership labels, and deletes it. Safe: never touches objects not owned by this policy.
+func (p *GenerationProcessor) processCleanup(
+	policy *v1alpha1.ClusterGenerationPolicy,
+	data *template.PolicyEvaluationDataT,
+	logger logr.Logger,
+	triggerObj map[string]interface{},
+) {
+	_, bd, gvr, eventMsg := renderAndResolve(
+		policy.Spec.Object.Definition.Engine,
+		policy.Spec.Object.Definition.Template,
+		data, p.dependencies.KubeAvailableResourceListFn(), logger,
+	)
+	if eventMsg != "" {
+		emitKubeEvent(logger, triggerObj, *policy, "CleanupAborted", eventMsg)
+		return
+	}
 
-	parsedDefinition, err := template.EvaluateTemplate(policyObj.Spec.Object.Definition.Engine,
-		policyObj.Spec.Object.Definition.Template, injectedData)
+	client := globals.Application.KubeRawClient.Resource(gvr).Namespace(bd.Namespace)
+
+	existing, err := client.Get(globals.Application.Context, bd.Name, metav1.GetOptions{})
 	if err != nil {
-		logger.Info(fmt.Sprintf("failed parsing generation template for cleanup: %s", err.Error()))
-		return "Cleanup template failed. More info in controller logs."
-	}
-
-	var resultObject map[string]any
-	if err = yaml.Unmarshal([]byte(parsedDefinition), &resultObject); err != nil {
-		logger.Info(fmt.Sprintf("failed decoding template result for cleanup. Invalid object: %s", err.Error()))
-		return "Invalid object after cleanup template. More info in controller logs."
-	}
-
-	resultObjectBasicData, err := globals.GetObjectBasicData(&resultObject)
-	if err != nil {
-		logger.Info(fmt.Sprintf("failed obtaining metadata from template result for cleanup: %s", err.Error()))
-		return "Invalid object after cleanup template. More info in controller logs."
-	}
-
-	kubeResources := p.dependencies.KubeAvailableResourceListFn()
-	tmpResource := getResourceFromGvk(kubeResources, schema.GroupVersionKind{
-		Group:   resultObjectBasicData.Group,
-		Version: resultObjectBasicData.Version,
-		Kind:    resultObjectBasicData.Kind,
-	})
-	if tmpResource == "" {
-		logger.Info("failed obtaining resource equivalent from Kubernetes for provided GVK during cleanup")
-		return "Unknown object resource for provided GVK. More info in controller logs."
-	}
-
-	gvr := schema.GroupVersionResource{
-		Group:    resultObjectBasicData.Group,
-		Version:  resultObjectBasicData.Version,
-		Resource: tmpResource,
-	}
-
-	resourceClient := globals.Application.KubeRawClient.
-		Resource(gvr).
-		Namespace(resultObjectBasicData.Namespace)
-
-	existing, err := resourceClient.Get(globals.Application.Context, resultObjectBasicData.Name, metav1.GetOptions{})
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return ""
+		if !errors.IsNotFound(err) {
+			logger.Info("failed getting object for cleanup", "error", err.Error())
+			emitKubeEvent(logger, triggerObj, *policy, "CleanupAborted", "Cleanup get failed. More info in controller logs.")
 		}
-		logger.Info(fmt.Sprintf("failed getting existing object for cleanup: %s", err.Error()))
-		return "Cleanup get failed. More info in controller logs."
+		return
 	}
 
-	// Only delete objects that were created by this policy to avoid touching unrelated resources.
 	labels := existing.GetLabels()
-	if labels[controller.GeneratedByPolicyLabel] != policyObj.Name ||
+	if labels[controller.GeneratedByPolicyLabel] != policy.Name ||
 		labels[controller.GeneratedByPolicyKind] != controller.ClusterGenerationPolicyResourceType {
-		return ""
+		return
 	}
 
-	if err = resourceClient.Delete(globals.Application.Context, resultObjectBasicData.Name, metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
-		logger.Info(fmt.Sprintf("failed deleting generated object during cleanup: %s", err.Error()))
-		return "Object deletion during cleanup failed. More info in controller logs."
+	if err = client.Delete(globals.Application.Context, bd.Name, metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
+		logger.Info("failed deleting generated object during cleanup", "error", err.Error())
+		emitKubeEvent(logger, triggerObj, *policy, "CleanupAborted", "Object deletion during cleanup failed. More info in controller logs.")
 	}
+}
 
-	return ""
+// stampOwnershipLabels sets the admitik ownership labels on the given unstructured object.
+func stampOwnershipLabels(obj *unstructured.Unstructured, policyName string) {
+	labels := obj.GetLabels()
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	labels[controller.GeneratedByPolicyLabel] = policyName
+	labels[controller.GeneratedByPolicyKind] = controller.ClusterGenerationPolicyResourceType
+	obj.SetLabels(labels)
 }

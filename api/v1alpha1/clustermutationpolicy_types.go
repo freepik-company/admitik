@@ -90,6 +90,10 @@ func (p *ClusterMutationPolicy) GetSources() []SourceGroupT {
 	return p.Spec.Sources
 }
 
+func (p *ClusterMutationPolicy) GetConditions() []ConditionT {
+	return p.Spec.Conditions
+}
+
 // GetConditionRecheckInterval returns 0 — ClusterMutationPolicy does not support
 // periodic condition recheck (it operates exclusively via admission webhooks).
 func (p *ClusterMutationPolicy) GetConditionRecheckInterval() time.Duration { return 0 }

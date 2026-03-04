@@ -16,167 +16,93 @@ limitations under the License.
 package eventprocessors
 
 import (
-	"fmt"
-	"gopkg.in/yaml.v3"
-
 	"github.com/go-logr/logr"
-
-	//
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	//
 	"github.com/freepik-company/admitik/api/v1alpha1"
-	"github.com/freepik-company/admitik/internal/common"
 	"github.com/freepik-company/admitik/internal/globals"
 	informerRegistry "github.com/freepik-company/admitik/internal/registry/informer"
 	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
 	"github.com/freepik-company/admitik/internal/template"
 )
 
+// CleanProcessorDependencies holds the external dependencies required by CleanProcessor.
 type CleanProcessorDependencies struct {
 	ClusterCleanPolicyRegistry  *policyStore.PolicyStore[*v1alpha1.ClusterCleanPolicy]
 	SourcesPool                 informerRegistry.SourcesPool
 	KubeAvailableResourceListFn func() []GVKR
 }
 
+// CleanProcessor handles events for watched resources and deletes target resources
+// when conditions are met, according to each matching ClusterCleanPolicy.
 type CleanProcessor struct {
 	dependencies CleanProcessorDependencies
 }
 
+// NewCleanProcessor creates a CleanProcessor wired to the given dependencies.
 func NewCleanProcessor(deps CleanProcessorDependencies) *CleanProcessor {
-	return &CleanProcessor{
-		dependencies: deps,
-	}
+	return &CleanProcessor{dependencies: deps}
 }
 
-func (p *CleanProcessor) Process(resourceType string, eventType watch.EventType, object ...map[string]interface{}) {
-	logger := log.FromContext(globals.Application.Context).WithValues("processor", ObserverTypeClusterCleanPolicies)
+// Process is the entry point called by WatchedEventListener when a watched resource event arrives.
+// For each matching ClusterCleanPolicy it evaluates conditions and, when they pass, deletes
+// the templated target resource.
+func (p *CleanProcessor) Process(resourceType string, eventType watch.EventType, objects ...map[string]interface{}) {
+	baseData := buildEventContext(eventType, objects)
+	logger := newProcessorLogger(ObserverTypeClusterCleanPolicies, objects[0], baseData.Operation)
 
-	var err error
-
-	commonTemplateInjectedObject := template.PolicyEvaluationDataT{}
-	commonTemplateInjectedObject.Initialize()
-
-	commonTemplateInjectedObject.Operation = common.GetNormalizedOperation(eventType)
-	commonTemplateInjectedObject.Object = object[0]
-
-	if commonTemplateInjectedObject.Operation == common.NormalizedOperationUpdate {
-		commonTemplateInjectedObject.OldObject = object[1]
+	deps := commonDeps{
+		SourcesPool:             p.dependencies.SourcesPool,
+		KubeAvailableResourceFn: p.dependencies.KubeAvailableResourceListFn,
 	}
 
-	if triggerBasicData, bdErr := globals.GetObjectBasicData(&object[0]); bdErr == nil {
-		logger = logger.WithValues(
-			"triggerGroup", triggerBasicData.Group,
-			"triggerVersion", triggerBasicData.Version,
-			"triggerKind", triggerBasicData.Kind,
-			"triggerName", triggerBasicData.Name,
-			"triggerNamespace", triggerBasicData.Namespace,
-			"triggerOperation", commonTemplateInjectedObject.Operation,
-		)
-	}
+	for _, policy := range p.dependencies.ClusterCleanPolicyRegistry.GetResources(resourceType) {
+		policyLogger := logger.WithValues("ClusterCleanPolicy", policy.Name)
 
-	policyList := p.dependencies.ClusterCleanPolicyRegistry.GetResources(resourceType)
-	for _, policyObj := range policyList {
-
-		logger = logger.WithValues("ClusterCleanPolicy", policyObj.Name)
-
-		triggerInjectedObject := commonTemplateInjectedObject.TriggerInjectedDataT
-		tmpFetchedPolicySources, fetchErr := common.FetchPolicySources(p.dependencies.SourcesPool, policyObj, &triggerInjectedObject)
-		if fetchErr != nil {
-			logger.Info("failed fetching sources. Broken ones will be empty", "error", fetchErr.Error())
-		}
-
-		specificTemplateInjectedObject := commonTemplateInjectedObject
-		specificTemplateInjectedObject.Sources = tmpFetchedPolicySources
-
-		conditionsPassed, condErr := common.IsPassingConditions(policyObj.Spec.Conditions, &specificTemplateInjectedObject)
-		if condErr != nil {
-			logger.V(1).Info(fmt.Sprintf("failed evaluating conditions: %s", condErr.Error()))
-			err = common.CreateKubeEvent(globals.Application.Context, "default", "resources-controller",
-				object[0], *policyObj, "ConditionEvaluationFailed", condErr.Error())
-			if err != nil {
-				logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
-			}
+		passed, evalData, err := evaluatePolicy(policy, &baseData, deps, policyLogger, objects[0])
+		if err != nil {
 			continue
 		}
 
-		if !conditionsPassed {
-			logger.V(1).Info("conditions not met, skipping clean")
+		if !passed {
+			policyLogger.V(1).Info("conditions not met, skipping clean")
 			continue
 		}
 
-		if eventMessage := p.processClean(policyObj, &specificTemplateInjectedObject, logger); eventMessage != "" {
-			err = common.CreateKubeEvent(globals.Application.Context, "default", "resources-controller",
-				object[0], *policyObj, "CleanAborted", eventMessage)
-			if err != nil {
-				logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
-			}
-		}
+		p.processClean(policy, evalData, policyLogger, objects[0])
 	}
 }
 
-// processClean evaluates the clean target template and deletes the target resource.
-// Returns an event message if something went wrong, or empty string on success.
-func (p *CleanProcessor) processClean(policyObj *v1alpha1.ClusterCleanPolicy, injectedData *template.PolicyEvaluationDataT, logger logr.Logger) string {
-
-	parsedTarget, err := template.EvaluateTemplate(policyObj.Spec.Target.Engine,
-		policyObj.Spec.Target.Template, injectedData)
-	if err != nil {
-		logger.Info(fmt.Sprintf("failed parsing clean target template: %s", err.Error()))
-		return "Clean target template failed. More info in controller logs."
-	}
-
-	var targetDefinition map[string]any
-	if err = yaml.Unmarshal([]byte(parsedTarget), &targetDefinition); err != nil {
-		logger.Info(fmt.Sprintf("failed decoding target template result. Invalid object: %s", err.Error()))
-		return "Invalid target object after template. More info in controller logs."
-	}
-
-	targetBasicData, err := globals.GetObjectBasicData(&targetDefinition)
-	if err != nil {
-		logger.Info(fmt.Sprintf("failed obtaining metadata from target template result. Invalid object: %s", err.Error()))
-		return "Invalid target object after template. More info in controller logs."
-	}
-
-	kubeResources := p.dependencies.KubeAvailableResourceListFn()
-	tmpResource := getResourceFromGvk(kubeResources, schema.GroupVersionKind{
-		Group:   targetBasicData.Group,
-		Version: targetBasicData.Version,
-		Kind:    targetBasicData.Kind,
-	})
-	if tmpResource == "" {
-		logger.Info("failed obtaining resource equivalent from Kubernetes for provided GVK. Is this resource defined?")
-		return "Unknown object resource for provided GVK. More info in controller logs."
+// processClean renders the target template, resolves the GVR, and deletes the resource.
+func (p *CleanProcessor) processClean(
+	policy *v1alpha1.ClusterCleanPolicy,
+	data *template.PolicyEvaluationDataT,
+	logger logr.Logger,
+	triggerObj map[string]interface{},
+) {
+	_, bd, gvr, eventMsg := renderAndResolve(
+		policy.Spec.Target.Engine,
+		policy.Spec.Target.Template,
+		data, p.dependencies.KubeAvailableResourceListFn(), logger,
+	)
+	if eventMsg != "" {
+		emitKubeEvent(logger, triggerObj, *policy, "CleanAborted", eventMsg)
+		return
 	}
 
 	logger = logger.WithValues(
-		"group", targetBasicData.Group,
-		"version", targetBasicData.Version,
-		"resource", tmpResource,
-		"name", targetBasicData.Name,
-		"namespace", targetBasicData.Namespace)
-
-	resourceClient := globals.Application.KubeRawClient.
-		Resource(schema.GroupVersionResource{
-			Group:    targetBasicData.Group,
-			Version:  targetBasicData.Version,
-			Resource: tmpResource,
-		}).
-		Namespace(targetBasicData.Namespace)
-
-	err = resourceClient.Delete(
-		globals.Application.Context,
-		targetBasicData.Name,
-		metav1.DeleteOptions{},
+		"group", gvr.Group, "version", gvr.Version, "resource", gvr.Resource,
+		"name", bd.Name, "namespace", bd.Namespace,
 	)
-	if err != nil {
-		logger.Info(fmt.Sprintf("failed deleting target resource: %s", err.Error()))
-		return "Object deletion failed. More info in controller logs."
+
+	client := globals.Application.KubeRawClient.Resource(gvr).Namespace(bd.Namespace)
+
+	if err := client.Delete(globals.Application.Context, bd.Name, metav1.DeleteOptions{}); err != nil {
+		logger.Info("failed deleting target resource", "error", err.Error())
+		emitKubeEvent(logger, triggerObj, *policy, "CleanAborted", "Object deletion failed. More info in controller logs.")
+		return
 	}
 
 	logger.Info("target resource deleted successfully")
-	return ""
 }

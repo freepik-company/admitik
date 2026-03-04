@@ -85,6 +85,10 @@ func (p *ClusterValidationPolicy) GetSources() []SourceGroupT {
 	return p.Spec.Sources
 }
 
+func (p *ClusterValidationPolicy) GetConditions() []ConditionT {
+	return p.Spec.Conditions
+}
+
 // GetConditionRecheckInterval returns 0 — ClusterValidationPolicy does not support
 // periodic condition recheck (it operates exclusively via admission webhooks).
 func (p *ClusterValidationPolicy) GetConditionRecheckInterval() time.Duration { return 0 }
