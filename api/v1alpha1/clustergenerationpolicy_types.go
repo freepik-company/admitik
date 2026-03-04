@@ -103,6 +103,10 @@ func (p *ClusterGenerationPolicy) GetName() string {
 	return p.Name
 }
 
+func (p *ClusterGenerationPolicy) GetPolicyKind() string {
+	return "ClusterGenerationPolicy"
+}
+
 func (p *ClusterGenerationPolicy) GetSources() []SourceGroupT {
 	return p.Spec.Sources
 }

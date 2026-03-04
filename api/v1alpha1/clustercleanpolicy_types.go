@@ -84,6 +84,10 @@ func (p *ClusterCleanPolicy) GetName() string {
 	return p.Name
 }
 
+func (p *ClusterCleanPolicy) GetPolicyKind() string {
+	return "ClusterCleanPolicy"
+}
+
 func (p *ClusterCleanPolicy) GetSources() []SourceGroupT {
 	return p.Spec.Sources
 }

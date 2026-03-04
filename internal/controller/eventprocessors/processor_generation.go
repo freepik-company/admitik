@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 
 	"github.com/freepik-company/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/internal/common"
 	"github.com/freepik-company/admitik/internal/controller"
 	"github.com/freepik-company/admitik/internal/globals"
 	informerRegistry "github.com/freepik-company/admitik/internal/registry/informer"
@@ -54,6 +55,7 @@ func NewGenerationProcessor(deps GenerationProcessorDependencies) *GenerationPro
 func (p *GenerationProcessor) Process(resourceType string, eventType watch.EventType, objects ...map[string]interface{}) {
 	baseData := buildEventContext(eventType, objects)
 	logger := newProcessorLogger(ObserverTypeClusterGenerationPolicies, objects[0], baseData.Operation)
+	emitter := newEventEmitter(logger)
 
 	deps := commonDeps{
 		SourcesPool:             p.dependencies.SourcesPool,
@@ -63,7 +65,7 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 	for _, policy := range p.dependencies.ClusterGenerationPolicyRegistry.GetResources(resourceType) {
 		policyLogger := logger.WithValues("ClusterGenerationPolicy", policy.Name)
 
-		passed, evalData, err := evaluatePolicy(policy, &baseData, deps, policyLogger, objects[0])
+		passed, evalData, err := evaluatePolicy(policy, &baseData, deps, policyLogger, emitter, objects[0])
 		if err != nil {
 			continue
 		}
@@ -71,12 +73,12 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 		if !passed {
 			policyLogger.V(1).Info("conditions not met, skipping generation")
 			if policy.Spec.DeleteOnConditionFalse {
-				p.processCleanup(policy, evalData, policyLogger, objects[0])
+				p.processCleanup(policy, evalData, policyLogger, emitter, objects[0])
 			}
 			continue
 		}
 
-		p.processGeneration(policy, evalData, policyLogger, objects[0])
+		p.processGeneration(policy, evalData, policyLogger, emitter, objects[0])
 	}
 }
 
@@ -86,6 +88,7 @@ func (p *GenerationProcessor) processGeneration(
 	policy *v1alpha1.ClusterGenerationPolicy,
 	data *template.PolicyEvaluationDataT,
 	logger logr.Logger,
+	emitter *common.EventEmitter,
 	triggerObj map[string]interface{},
 ) {
 	obj, bd, gvr, eventMsg := renderAndResolve(
@@ -94,7 +97,7 @@ func (p *GenerationProcessor) processGeneration(
 		data, p.dependencies.KubeAvailableResourceListFn(), logger,
 	)
 	if eventMsg != "" {
-		emitKubeEvent(logger, triggerObj, *policy, "GenerationAborted", eventMsg)
+		emitter.Emit(triggerObj, policy, "GenerationAborted", eventMsg)
 		return
 	}
 
@@ -115,13 +118,13 @@ func (p *GenerationProcessor) processGeneration(
 
 	if !errors.IsAlreadyExists(err) {
 		logger.Info("failed creating generated object", "error", err.Error())
-		emitKubeEvent(logger, triggerObj, *policy, "GenerationAborted", "Object creation failed. More info in controller logs.")
+		emitter.Emit(triggerObj, policy, "GenerationAborted", "Object creation failed. More info in controller logs.")
 		return
 	}
 
 	if !policy.Spec.OverwriteExisting {
 		logger.Info("object already exists and overwriteExisting is disabled")
-		emitKubeEvent(logger, triggerObj, *policy, "GenerationAborted", "Object exists and overwrite disabled. More info in controller logs.")
+		emitter.Emit(triggerObj, policy, "GenerationAborted", "Object exists and overwrite disabled. More info in controller logs.")
 		return
 	}
 
@@ -130,7 +133,7 @@ func (p *GenerationProcessor) processGeneration(
 		Force:        true,
 	}); err != nil {
 		logger.Info("failed updating generated object via server-side apply", "error", err.Error())
-		emitKubeEvent(logger, triggerObj, *policy, "GenerationAborted", "Object update failed. More info in controller logs.")
+		emitter.Emit(triggerObj, policy, "GenerationAborted", "Object update failed. More info in controller logs.")
 	}
 }
 
@@ -140,6 +143,7 @@ func (p *GenerationProcessor) processCleanup(
 	policy *v1alpha1.ClusterGenerationPolicy,
 	data *template.PolicyEvaluationDataT,
 	logger logr.Logger,
+	emitter *common.EventEmitter,
 	triggerObj map[string]interface{},
 ) {
 	_, bd, gvr, eventMsg := renderAndResolve(
@@ -148,7 +152,7 @@ func (p *GenerationProcessor) processCleanup(
 		data, p.dependencies.KubeAvailableResourceListFn(), logger,
 	)
 	if eventMsg != "" {
-		emitKubeEvent(logger, triggerObj, *policy, "CleanupAborted", eventMsg)
+		emitter.Emit(triggerObj, policy, "CleanupAborted", eventMsg)
 		return
 	}
 
@@ -158,7 +162,7 @@ func (p *GenerationProcessor) processCleanup(
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			logger.Info("failed getting object for cleanup", "error", err.Error())
-			emitKubeEvent(logger, triggerObj, *policy, "CleanupAborted", "Cleanup get failed. More info in controller logs.")
+			emitter.Emit(triggerObj, policy, "CleanupAborted", "Cleanup get failed. More info in controller logs.")
 		}
 		return
 	}
@@ -171,7 +175,7 @@ func (p *GenerationProcessor) processCleanup(
 
 	if err = client.Delete(globals.Application.Context, bd.Name, metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
 		logger.Info("failed deleting generated object during cleanup", "error", err.Error())
-		emitKubeEvent(logger, triggerObj, *policy, "CleanupAborted", "Object deletion during cleanup failed. More info in controller logs.")
+		emitter.Emit(triggerObj, policy, "CleanupAborted", "Object deletion during cleanup failed. More info in controller logs.")
 	}
 }
 

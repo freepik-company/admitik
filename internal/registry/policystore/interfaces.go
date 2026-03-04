@@ -26,6 +26,7 @@ import (
 // to participate in the policy registry.
 type PolicyResourceI interface {
 	GetName() string
+	GetPolicyKind() string
 	GetSources() []v1alpha1.SourceGroupT
 	GetConditions() []v1alpha1.ConditionT
 

@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 
 	"github.com/freepik-company/admitik/api/v1alpha1"
+	"github.com/freepik-company/admitik/internal/common"
 	"github.com/freepik-company/admitik/internal/globals"
 	informerRegistry "github.com/freepik-company/admitik/internal/registry/informer"
 	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
@@ -51,6 +52,7 @@ func NewCleanProcessor(deps CleanProcessorDependencies) *CleanProcessor {
 func (p *CleanProcessor) Process(resourceType string, eventType watch.EventType, objects ...map[string]interface{}) {
 	baseData := buildEventContext(eventType, objects)
 	logger := newProcessorLogger(ObserverTypeClusterCleanPolicies, objects[0], baseData.Operation)
+	emitter := newEventEmitter(logger)
 
 	deps := commonDeps{
 		SourcesPool:             p.dependencies.SourcesPool,
@@ -60,7 +62,7 @@ func (p *CleanProcessor) Process(resourceType string, eventType watch.EventType,
 	for _, policy := range p.dependencies.ClusterCleanPolicyRegistry.GetResources(resourceType) {
 		policyLogger := logger.WithValues("ClusterCleanPolicy", policy.Name)
 
-		passed, evalData, err := evaluatePolicy(policy, &baseData, deps, policyLogger, objects[0])
+		passed, evalData, err := evaluatePolicy(policy, &baseData, deps, policyLogger, emitter, objects[0])
 		if err != nil {
 			continue
 		}
@@ -70,7 +72,7 @@ func (p *CleanProcessor) Process(resourceType string, eventType watch.EventType,
 			continue
 		}
 
-		p.processClean(policy, evalData, policyLogger, objects[0])
+		p.processClean(policy, evalData, policyLogger, emitter, objects[0])
 	}
 }
 
@@ -79,6 +81,7 @@ func (p *CleanProcessor) processClean(
 	policy *v1alpha1.ClusterCleanPolicy,
 	data *template.PolicyEvaluationDataT,
 	logger logr.Logger,
+	emitter *common.EventEmitter,
 	triggerObj map[string]interface{},
 ) {
 	_, bd, gvr, eventMsg := renderAndResolve(
@@ -87,7 +90,7 @@ func (p *CleanProcessor) processClean(
 		data, p.dependencies.KubeAvailableResourceListFn(), logger,
 	)
 	if eventMsg != "" {
-		emitKubeEvent(logger, triggerObj, *policy, "CleanAborted", eventMsg)
+		emitter.Emit(triggerObj, policy, "CleanAborted", eventMsg)
 		return
 	}
 
@@ -100,7 +103,7 @@ func (p *CleanProcessor) processClean(
 
 	if err := client.Delete(globals.Application.Context, bd.Name, metav1.DeleteOptions{}); err != nil {
 		logger.Info("failed deleting target resource", "error", err.Error())
-		emitKubeEvent(logger, triggerObj, *policy, "CleanAborted", "Object deletion failed. More info in controller logs.")
+		emitter.Emit(triggerObj, policy, "CleanAborted", "Object deletion failed. More info in controller logs.")
 		return
 	}
 

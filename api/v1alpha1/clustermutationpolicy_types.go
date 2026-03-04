@@ -86,6 +86,10 @@ func (p *ClusterMutationPolicy) GetName() string {
 	return p.Name
 }
 
+func (p *ClusterMutationPolicy) GetPolicyKind() string {
+	return "ClusterMutationPolicy"
+}
+
 func (p *ClusterMutationPolicy) GetSources() []SourceGroupT {
 	return p.Spec.Sources
 }

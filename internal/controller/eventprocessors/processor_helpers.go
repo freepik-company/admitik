@@ -16,8 +16,6 @@ limitations under the License.
 package eventprocessors
 
 import (
-	"fmt"
-
 	"github.com/go-logr/logr"
 	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -57,6 +55,12 @@ func newProcessorLogger(processorName string, triggerObj map[string]interface{},
 	)
 }
 
+// newEventEmitter creates an EventEmitter for background processors, bound to
+// the application context and the given logger.
+func newEventEmitter(logger logr.Logger) *common.EventEmitter {
+	return common.NewEventEmitter(globals.Application.Context, "resources-controller", logger)
+}
+
 // buildEventContext creates a PolicyEvaluationDataT pre-populated with the trigger
 // operation, current object, and (for updates) the previous object revision.
 func buildEventContext(eventType watch.EventType, objects []map[string]interface{}) template.PolicyEvaluationDataT {
@@ -81,6 +85,7 @@ func evaluatePolicy[T policystore.PolicyResourceI](
 	baseData *template.PolicyEvaluationDataT,
 	deps commonDeps,
 	logger logr.Logger,
+	emitter *common.EventEmitter,
 	triggerObj map[string]interface{},
 ) (passed bool, evalData *template.PolicyEvaluationDataT, err error) {
 
@@ -97,7 +102,7 @@ func evaluatePolicy[T policystore.PolicyResourceI](
 	passed, condErr := common.IsPassingConditions(policy.GetConditions(), evalData)
 	if condErr != nil {
 		logger.V(1).Info("failed evaluating conditions", "error", condErr.Error())
-		emitKubeEvent(logger, triggerObj, policy, "ConditionEvaluationFailed", condErr.Error())
+		emitter.Emit(triggerObj, policy, "ConditionEvaluationFailed", condErr.Error())
 		return false, evalData, condErr
 	}
 
@@ -142,12 +147,4 @@ func renderAndResolve(
 
 	gvr = schema.GroupVersionResource{Group: bd.Group, Version: bd.Version, Resource: resource}
 	return obj, bd, gvr, ""
-}
-
-// emitKubeEvent creates a Kubernetes event and logs any failure silently.
-func emitKubeEvent(logger logr.Logger, triggerObj map[string]interface{}, policy any, action, message string) {
-	if err := common.CreateKubeEvent(globals.Application.Context, "default", "resources-controller",
-		triggerObj, policy, action, message); err != nil {
-		logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
-	}
 }

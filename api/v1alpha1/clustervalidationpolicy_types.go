@@ -81,6 +81,10 @@ func (p *ClusterValidationPolicy) GetName() string {
 	return p.Name
 }
 
+func (p *ClusterValidationPolicy) GetPolicyKind() string {
+	return "ClusterValidationPolicy"
+}
+
 func (p *ClusterValidationPolicy) GetSources() []SourceGroupT {
 	return p.Spec.Sources
 }

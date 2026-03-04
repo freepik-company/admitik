@@ -123,6 +123,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 	// At this point, some extra params will be added to the object that will be injected in template
 	jsonPatchOperations := jsondiff.Patch{}
 	patchedObjectBytes := requestObj.Request.Object.Raw
+	emitter := common.NewEventEmitter(request.Context(), "admission-server", logger)
 
 	cmPolicyList := s.dependencies.ClusterMutationPolicyRegistry.GetResources(resourcePattern)
 	for _, cmPolicyObj := range cmPolicyList {
@@ -177,10 +178,7 @@ func (s *HttpServer) handleMutationRequest(response http.ResponseWriter, request
 			}
 		}
 
-		if err := common.CreateKubeEvent(request.Context(), "default", "admission-server",
-			commonTemplateInjectedObject.Object, *cmPolicyObj, kubeEventAction, kubeEventMessage); err != nil {
-			logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
-		}
+		emitter.Emit(commonTemplateInjectedObject.Object, cmPolicyObj, kubeEventAction, kubeEventMessage)
 	}
 
 	// All working mutation patches are collected from policies, send them to Kubernetes

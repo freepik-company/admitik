@@ -116,6 +116,8 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 
 	// Loop over ClusterValidationPolicy resources performing actions
 	// At this point, some extra params will be added to the object that will be injected in template
+	emitter := common.NewEventEmitter(request.Context(), "admission-server", logger)
+
 	caPolicyList := s.dependencies.ClusterValidationPolicyRegistry.GetResources(resourcePattern)
 	for _, caPolicyObj := range caPolicyList {
 
@@ -168,12 +170,7 @@ func (s *HttpServer) handleValidationRequest(response http.ResponseWriter, reque
 			logger.Info(fmt.Sprintf("object rejected due to unmet conditions: %s", parsedMessage))
 		}
 
-		// Create the Event in Kubernetes about involved object
-		err = common.CreateKubeEvent(request.Context(), "default", "admission-server",
-			commonTemplateInjectedObject.Object, *caPolicyObj, kubeEventAction, parsedMessage)
-		if err != nil {
-			logger.Info(fmt.Sprintf("failed creating Kubernetes event: %s", err.Error()))
-		}
+		emitter.Emit(commonTemplateInjectedObject.Object, caPolicyObj, kubeEventAction, parsedMessage)
 
 		// On conditions not being met, first required policy causes early full rejection
 		if strings.ToLower(caPolicyObj.Spec.FailureAction) == v1alpha1.ValidationFailureActionEnforce {
