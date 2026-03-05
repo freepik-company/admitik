@@ -214,7 +214,6 @@ func (m *InformerManager) getSourceConsumers() map[string]map[string]bool {
 
 	addFromStore(m.Deps.ClusterGenerationPolicyRegistry, kindClusterGenerationPolicy)
 	addFromStore(m.Deps.ClusterCleanPolicyRegistry, kindClusterCleanPolicy)
-	addFromStore(m.Deps.ClusterClonePolicyRegistry, kindClusterClonePolicy)
 	addFromStore(m.Deps.ClusterMutationPolicyRegistry, kindClusterMutationPolicy)
 	addFromStore(m.Deps.ClusterValidationPolicyRegistry, kindClusterValidationPolicy)
 

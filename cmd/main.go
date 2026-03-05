@@ -308,7 +308,6 @@ func main() {
 	})
 	cloneProcessor := eventprocessors.NewCloneProcessor(eventprocessors.CloneProcessorDependencies{
 		ClusterClonePolicyRegistry:  clusterClonePolicyReg,
-		SourcesPool:                 registry,
 		KubeAvailableResourceListFn: kubeResourceSyncer.GetResources,
 	})
 	watchedListener := informermanager.NewWatchedEventListener(registry, []informermanager.WatchedProcessorEntry{

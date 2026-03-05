@@ -87,115 +87,96 @@ spec:
                 - Errors
                 - None
                 type: string
-              object:
-                description: Object defines the template used to render the object
-                  that will be cloned.
-                properties:
-                  engine:
-                    type: string
-                  template:
-                    type: string
-                required:
-                - template
-                type: object
               overwriteExisting:
                 description: |-
                   OverwriteExisting controls whether an already-existing cloned object in the
                   target namespace will be updated (via server-side apply). When false (default),
                   the clone is skipped if the object already exists.
                 type: boolean
-              sources:
-                description: Sources represents a list of extra resource-groups to
-                  watch and inject in templates
+              target:
+                description: |-
+                  Target is a list of namespace selectors defining where watched objects will be cloned.
+                  Multiple entries are ORed: a namespace matching any entry is a target.
+                  Within a single entry, selectors are ANDed: the namespace must satisfy all specified criteria.
+                  The source namespace of the watched object is automatically excluded.
                 items:
-                  description: SourceGroupT represents a TODO
+                  description: |-
+                    CloneTargetT defines one target selector entry for the clone policy.
+                    Each entry selects a set of namespaces where watched objects will be cloned.
                   properties:
-                    filters:
+                    namespace:
+                      description: Namespace defines how to select the target namespaces
+                        for this entry.
                       properties:
-                        metadata:
+                        annotationSelector:
+                          additionalProperties:
+                            type: string
+                          description: |-
+                            AnnotationSelector selects namespaces by their annotations.
+                            All entries must match (AND semantics).
+                          type: object
+                        labelSelector:
+                          description: |-
+                            LabelSelector selects namespaces by their labels.
+                            Uses the standard Kubernetes LabelSelector (matchLabels + matchExpressions).
                           properties:
-                            matchAnnotations:
-                              additionalProperties:
-                                type: string
-                              type: object
+                            matchExpressions:
+                              description: matchExpressions is a list of label selector
+                                requirements. The requirements are ANDed.
+                              items:
+                                description: |-
+                                  A label selector requirement is a selector that contains values, a key, and an operator that
+                                  relates the key and values.
+                                properties:
+                                  key:
+                                    description: key is the label key that the selector
+                                      applies to.
+                                    type: string
+                                  operator:
+                                    description: |-
+                                      operator represents a key's relationship to a set of values.
+                                      Valid operators are In, NotIn, Exists and DoesNotExist.
+                                    type: string
+                                  values:
+                                    description: |-
+                                      values is an array of string values. If the operator is In or NotIn,
+                                      the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                      the values array must be empty. This array is replaced during a strategic
+                                      merge patch.
+                                    items:
+                                      type: string
+                                    type: array
+                                    x-kubernetes-list-type: atomic
+                                required:
+                                - key
+                                - operator
+                                type: object
+                              type: array
+                              x-kubernetes-list-type: atomic
                             matchLabels:
                               additionalProperties:
                                 type: string
+                              description: |-
+                                matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                operator is "In", and the values array contains only "value". The requirements are ANDed.
                               type: object
                           type: object
-                        name:
-                          properties:
-                            matchList:
-                              items:
-                                type: string
-                              type: array
-                            matchRegex:
-                              properties:
-                                expression:
-                                  type: string
-                                negative:
-                                  type: boolean
-                              required:
-                              - expression
-                              - negative
-                              type: object
-                          type: object
-                        namespace:
-                          properties:
-                            matchList:
-                              items:
-                                type: string
-                              type: array
-                            matchRegex:
-                              properties:
-                                expression:
-                                  type: string
-                                negative:
-                                  type: boolean
-                              required:
-                              - expression
-                              - negative
-                              type: object
-                          type: object
+                          x-kubernetes-map-type: atomic
+                        names:
+                          description: Names is an explicit list of namespace names
+                            to clone into.
+                          items:
+                            type: string
+                          type: array
                       type: object
-                    group:
-                      type: string
-                    resource:
-                      type: string
-                    version:
-                      type: string
-                  required:
-                  - group
-                  - resource
-                  - version
-                  type: object
-                type: array
-                x-kubernetes-list-map-keys:
-                - group
-                - version
-                - resource
-                x-kubernetes-list-type: map
-              targetNamespaces:
-                description: TargetNamespaces is the list of namespaces where the
-                  object will be cloned.
-                items:
-                  description: CloneTargetNamespaceT defines one destination namespace
-                    for the cloned object.
-                  properties:
-                    namespace:
-                      description: Namespace is the destination namespace where the
-                        object will be cloned.
-                      type: string
                   required:
                   - namespace
                   type: object
                 type: array
-                x-kubernetes-list-map-keys:
-                - namespace
-                x-kubernetes-list-type: map
               watchedResources:
                 description: WatchedResources represents a list of resource-groups
-                  that will be watched to be evaluated
+                  that will be watched and cloned
                 items:
                   description: ResourceGroupT represents a resource-group that will
                     be watched to be evaluated
@@ -227,9 +208,7 @@ spec:
                 x-kubernetes-list-type: map
             required:
             - conditions
-            - object
-            - sources
-            - targetNamespaces
+            - target
             - watchedResources
             type: object
           status:

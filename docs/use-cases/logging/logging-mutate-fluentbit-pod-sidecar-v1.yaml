@@ -13,11 +13,11 @@ spec:
 
 # Resources to be intercepted before reaching the cluster
 interceptedResources:
-    - group: ""
+  - group: ""
     version: v1
     resource: pods
     operations:
-        - CREATE
+      - CREATE
 
 # Other resources to be retrieved for conditions templates.
 # They will be included under .sources scope in the template
@@ -25,24 +25,24 @@ sources: []
 
 # Conditions are optional, so no-conditions means they are always met
 conditions:
-    - name: apply-on-specific-mark
+  - name: apply-on-specific-mark
     engine: cel
-    key: |              
-        (has(object.metadata.labels) &&
-        object.metadata.labels.exists(label, label == 'admitik.policy.v1/logging')) ||
-        
-        (has(object.metadata.annotations) &&
-        object.metadata.annotations.exists(label, label == 'admitik.policy.v1/logging') &&
-        object.metadata.annotations.exists(label, label == 'admitik.policy.v1/fluentbitConfigmap'))
+    key: |
+      (has(object.metadata.labels) &&
+      object.metadata.labels.exists(label, label == 'admitik.policy.v1/logging')) ||
+
+      (has(object.metadata.annotations) &&
+      object.metadata.annotations.exists(label, label == 'admitik.policy.v1/logging') &&
+      object.metadata.annotations.exists(label, label == 'admitik.policy.v1/fluentbitConfigmap'))
 
     value: "true"
 
 patch:
-    type: jsonmerge # JsonPatch | JsonMerge
-    engine: starlark
-    template: |           
+  type: jsonmerge # JsonPatch | JsonMerge
+  engine: starlark
+  template: |
     def define_init_container():
-    
+
         # Default resources
         default_resources = {
             "limits": {
@@ -53,15 +53,15 @@ patch:
                 "memory": "50Mi"
             }
         }
-        
+
         # Check if custom resources are provided via annotation
         custom_resources = default_resources
         if object["metadata"].get("annotations", {}).get("admitik.policy.v1/fluentbitResources"):
             custom_resources = json.decode(object["metadata"]["annotations"]["admitik.policy.v1/fluentbitResources"])
-    
+
         # Init containers
         existing_init_containers = object["spec"].get("initContainers", [])
-        
+
         new_container = [
             {
                 "name": "fluentbit-sidecar",

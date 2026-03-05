@@ -1,7 +1,7 @@
 apiVersion: admitik.dev/v1alpha1
 kind: ClusterClonePolicy
 metadata:
-  name: 03-cel-clone-with-cleanup
+  name: 03-clone-with-cleanup-and-selectors
 spec:
 
   overwriteExisting: true
@@ -22,8 +22,6 @@ spec:
       name: ""
       namespace: platform
 
-  sources: []
-
   # Only clone ConfigMaps that carry the "clone-me: true" label.
   # When the label is removed, deleteOnConditionFalse will clean up all clones.
   conditions:
@@ -33,15 +31,17 @@ spec:
         has(object.metadata.labels) && "clone-me" in object.metadata.labels && object.metadata.labels["clone-me"] == "true"
       value: "true"
 
-  targetNamespaces:
-    - namespace: tenant-alpha
-    - namespace: tenant-beta
-
-  object:
-    engine: plain+cel
-    template: |
-      apiVersion: v1
-      kind: ConfigMap
-      metadata:
-        name: "{{cel: object.metadata.name }}"
-      data: {{cel: object.data }}
+  # Multiple target entries (ORed): clone to specific namespaces AND to all
+  # namespaces annotated for cloning. Within the second entry, labelSelector
+  # and annotationSelector are ANDed.
+  target:
+    - namespace:
+        names:
+          - tenant-alpha
+          - tenant-beta
+    - namespace:
+        labelSelector:
+          matchLabels:
+            tier: frontend
+        annotationSelector:
+          admitik.dev/clone-target: "true"

@@ -82,6 +82,7 @@ api/v1alpha1/                        # CRD type definitions (Kubebuilder markers
   clustermutationpolicy_types.go     # ClusterMutationPolicy spec/status (with Priority, Patch)
   clustergenerationpolicy_types.go   # ClusterGenerationPolicy spec/status (with WatchedResources, Object)
   clustercleanpolicy_types.go        # ClusterCleanPolicy spec/status (with WatchedResources, Target)
+  clusterclonepolicy_types.go        # ClusterClonePolicy spec/status (with WatchedResources, Target selectors)
   common_types.go                    # Shared types: SourceGroupT, ResourceGroupT, ConditionT, etc.
   groupversion_info.go               # GroupVersion registration (admitik.dev/v1alpha1)
   zz_generated.deepcopy.go           # Auto-generated — DO NOT EDIT
@@ -94,8 +95,9 @@ internal/
     clustermutationpolicy/           # Reconciler: syncs MutatingWebhookConfiguration (priority-sorted)
     clustergenerationpolicy/         # Reconciler: registry-only (no webhook config), auto-cleanup on delete
     clustercleanpolicy/              # Reconciler: registry-only, declarative cleanup of target resources
+    clusterclonepolicy/              # Reconciler: registry-only, auto-cleanup on delete
     informermanager/                 # Unified InformerManager: sources + watched runnable (replaces old controllers)
-    eventprocessors/                 # Event processors (pool updater, generation, clean) and GVKR utilities
+    eventprocessors/                 # Event processors (pool updater, generation, clean, clone) and GVKR utilities
 
   server/admission/                  # HTTP admission server (validation + mutation handlers)
     server.go                        # HttpServer, route setup, TLS
@@ -148,11 +150,12 @@ docs/                                # Documentation, samples, proposals
 | `ClusterMutationPolicy` | Mutate admission requests | `interceptedResources`, `conditions`, `patch` (type + template), `priority` |
 | `ClusterGenerationPolicy` | Generate resources on watched changes | `watchedResources`, `conditions`, `object.definition`, `overwriteExisting`, `deleteOnConditionFalse`, `conditionRecheckInterval` |
 | `ClusterCleanPolicy` | Delete resources when conditions are met on watched changes | `watchedResources`, `conditions`, `target` (engine + template), `conditionRecheckInterval` |
+| `ClusterClonePolicy` | Clone watched resources into target namespaces | `watchedResources`, `conditions`, `target` (namespace selectors: names/labels/annotations), `overwriteExisting`, `deleteOnConditionFalse`, `conditionRecheckInterval` |
 
 ### Data Flow
 
 ```
-Policy CRDs ──reconcile──► PolicyStore (4 generic instances)
+Policy CRDs ──reconcile──► PolicyStore (5 generic instances)
                                 │
                 ┌───────────────┼───────────────────┐
                 ▼               ▼                   ▼
@@ -163,14 +166,14 @@ Policy CRDs ──reconcile──► PolicyStore (4 generic instances)
                 ▼               │                   ▼
         Unified Registry ◄─────┘         Broadcast → Listeners
         PoolUpdater (pool)                      │
-                                    ┌───────────┴──────────┐
-                                    ▼                      ▼
-                            GenerationProcessor    CleanProcessor
-                                    │                      │
-                                    ▼                      ▼
-                             Create/Update           Delete target
-                              resources               resource
-                                    └──────────┬──────────┘
+                                    ┌───────────┼──────────────────┐
+                                    ▼           ▼                  ▼
+                            GenerationProcessor    CleanProcessor    CloneProcessor
+                                    │                      │                 │
+                                    ▼                      ▼                 ▼
+                             Create/Update           Delete target     Clone watched
+                              resources               resource       to namespaces
+                                    └──────────┬──────────┴──────────────┘
                                                ▼
                                         Kubernetes API
 
@@ -185,6 +188,7 @@ ConditionRecheckRunnable (leader-elected)
 - **Admission policies:** `{group}/{version}/{resource}/{operation}` (e.g., `apps/v1/deployments/CREATE`)
 - **Generation policies:** `{group}/{version}/{resource}/{namespace}/{name}` (e.g., `/v1/configmaps/default/my-cm`)
 - **Clean policies:** `{group}/{version}/{resource}/{namespace}/{name}` (same GVRNN pattern as generation)
+- **Clone policies:** `{group}/{version}/{resource}/{namespace}/{name}` (same GVRNN pattern as generation)
 - **Source informers:** `{group}/{version}/{resource}` (e.g., `/v1/configmaps`)
 
 ### Controller Patterns
@@ -256,11 +260,12 @@ Each controller lives in its own subpackage under `internal/controller/` with 3 
 - Admission server defaults: validation → `Allowed: false` (fail-closed), mutation → `Allowed: true` (fail-open)
 
 ### Naming
-- CRD kinds: `ClusterValidationPolicy`, `ClusterMutationPolicy`, `ClusterGenerationPolicy`, `ClusterCleanPolicy`
+- CRD kinds: `ClusterValidationPolicy`, `ClusterMutationPolicy`, `ClusterGenerationPolicy`, `ClusterCleanPolicy`, `ClusterClonePolicy`
 - Webhook configs: `admitik-cluster-validation-policy`, `admitik-cluster-mutation-policy`
 - Finalizer: `admitik.dev/finalizer`
 - Ignore label: `admitik.dev/ignore-admission`
 - Ownership labels: `admitik.dev/generated-by` (policy name), `admitik.dev/generated-by-kind` (policy kind)
+- Clone ownership labels: `admitik.dev/cloned-by` (policy name), `admitik.dev/cloned-by-kind` (policy kind)
 - Admission paths: `/admission/validate`, `/admission/mutate`
 - Namespace: `admitik-system` (kustomize default)
 
@@ -338,8 +343,9 @@ All workflows trigger on GitHub `release` events + `workflow_dispatch`:
 - **Auto-cleanup on generation policy deletion** is controlled by `--cleanup-on-generation-policy-delete` flag (default: `true`). When enabled, deleting a `ClusterGenerationPolicy` scans all API resources for matching ownership labels and deletes them.
 - **`ClusterCleanPolicy` cleanup scans API resources.** The `CleanupGeneratedResources` helper discovers all API resource types, which can be slow on clusters with many CRDs. Future optimization may cache or narrow the scope.
 - **`ClusterCleanPolicy` follows the same architecture** as `ClusterGenerationPolicy` — it registers watched resources, triggers on events, evaluates conditions, and uses template-based target resolution for deletion.
-- **`deleteOnConditionFalse` (ClusterGenerationPolicy only):** When `true`, if conditions evaluate to `false` the processor renders the generation template to resolve the target object's identity and deletes it — but only if the object carries the policy ownership labels (`admitik.dev/generated-by` + `admitik.dev/generated-by-kind`). Safe: never deletes objects not owned by the policy.
-- **`conditionRecheckInterval` (ClusterGenerationPolicy + ClusterCleanPolicy):** Sets a `time.Duration` for periodic condition re-evaluation even without a watched-resource event. Implemented by `ConditionRecheckRunnable` (leader-elected, in `internal/controller/informermanager/processors.go`). Each policy with a non-zero interval gets its own ticker goroutine; on tick it reads pool objects and fires synthetic `Modified` events to the processor. Goroutines are reconciled every 2s to handle interval changes or policy additions/deletions. Adding a new policy type to the recheck just requires a new `RecheckEntry` in `cmd/main.go`.
+- **`ClusterClonePolicy` is template-free.** Unlike GenerationPolicy, it does not use templates or sources. It takes the watched object directly, strips runtime metadata (`resourceVersion`, `uid`, `creationTimestamp`, `managedFields`, `selfLink`, `ownerReferences`, `finalizers`, `status`), stamps clone ownership labels, and applies it to each target namespace. Target namespaces are resolved dynamically via `target[]` selectors (names, labelSelector, annotationSelector). Multiple target entries are ORed; within an entry, selectors are ANDed. The source namespace is automatically excluded. On source DELETE, clones are unconditionally removed.
+- **`deleteOnConditionFalse` (ClusterGenerationPolicy + ClusterClonePolicy):** For GenerationPolicy: when `true`, if conditions evaluate to `false` the processor renders the generation template to resolve the target object's identity and deletes it — but only if the object carries the policy ownership labels (`admitik.dev/generated-by` + `admitik.dev/generated-by-kind`). For ClonePolicy: when `true`, if conditions are not met, clones are deleted from target namespaces (verified by `admitik.dev/cloned-by` labels). Source DELETE always triggers clone removal regardless of this flag.
+- **`conditionRecheckInterval` (ClusterGenerationPolicy + ClusterCleanPolicy + ClusterClonePolicy):** Sets a `time.Duration` for periodic condition re-evaluation even without a watched-resource event. Implemented by `ConditionRecheckRunnable` (leader-elected, in `internal/controller/informermanager/processors.go`). Each policy with a non-zero interval gets its own ticker goroutine; on tick it reads pool objects and fires synthetic `Modified` events to the processor. Goroutines are reconciled every 2s to handle interval changes or policy additions/deletions. Adding a new policy type to the recheck just requires a new `RecheckEntry` in `cmd/main.go`.
 - **"Conditions not met" is silent.** No log is emitted when conditions evaluate to `false` in any processor or handler — this would produce too much noise during periodic recheck ticks. Condition evaluation *errors* (broken template) are logged at `V(1)` in background processors and at `Info` in synchronous admission handlers.
 
 ---

@@ -22,17 +22,29 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// CloneTargetNamespaceT defines one destination namespace for the cloned object.
-type CloneTargetNamespaceT struct {
-	// Namespace is the destination namespace where the object will be cloned.
-	Namespace string `json:"namespace"`
+// CloneTargetNamespaceSelectorT selects namespaces for cloning using one or more criteria.
+// When multiple selectors are specified within the same entry, they are ANDed together.
+type CloneTargetNamespaceSelectorT struct {
+	// Names is an explicit list of namespace names to clone into.
+	// +optional
+	Names []string `json:"names,omitempty"`
+
+	// LabelSelector selects namespaces by their labels.
+	// Uses the standard Kubernetes LabelSelector (matchLabels + matchExpressions).
+	// +optional
+	LabelSelector *metav1.LabelSelector `json:"labelSelector,omitempty"`
+
+	// AnnotationSelector selects namespaces by their annotations.
+	// All entries must match (AND semantics).
+	// +optional
+	AnnotationSelector map[string]string `json:"annotationSelector,omitempty"`
 }
 
-// CloneObjectT defines the template used to render the object that will be cloned
-// into one or more namespaces.
-type CloneObjectT struct {
-	Engine   string `json:"engine,omitempty"`
-	Template string `json:"template"`
+// CloneTargetT defines one target selector entry for the clone policy.
+// Each entry selects a set of namespaces where watched objects will be cloned.
+type CloneTargetT struct {
+	// Namespace defines how to select the target namespaces for this entry.
+	Namespace CloneTargetNamespaceSelectorT `json:"namespace"`
 }
 
 // ClusterClonePolicySpec defines the desired state of ClusterClonePolicy
@@ -58,7 +70,7 @@ type ClusterClonePolicySpec struct {
 	// +kubebuilder:default="All"
 	EventMode EventMode `json:"eventMode,omitempty"`
 
-	// WatchedResources represents a list of resource-groups that will be watched to be evaluated
+	// WatchedResources represents a list of resource-groups that will be watched and cloned
 	// +listType=map
 	// +listMapKey=group
 	// +listMapKey=version
@@ -67,25 +79,16 @@ type ClusterClonePolicySpec struct {
 	// +listMapKey=namespace
 	WatchedResources []ResourceGroupT `json:"watchedResources"`
 
-	// Sources represents a list of extra resource-groups to watch and inject in templates
-	// +listType=map
-	// +listMapKey=group
-	// +listMapKey=version
-	// +listMapKey=resource
-	Sources []SourceGroupT `json:"sources"`
-
 	// Conditions represents a list of conditions that must be passed to trigger cloning
 	// +listType=map
 	// +listMapKey=name
 	Conditions []ConditionT `json:"conditions"`
 
-	// TargetNamespaces is the list of namespaces where the object will be cloned.
-	// +listType=map
-	// +listMapKey=namespace
-	TargetNamespaces []CloneTargetNamespaceT `json:"targetNamespaces"`
-
-	// Object defines the template used to render the object that will be cloned.
-	Object CloneObjectT `json:"object"`
+	// Target is a list of namespace selectors defining where watched objects will be cloned.
+	// Multiple entries are ORed: a namespace matching any entry is a target.
+	// Within a single entry, selectors are ANDed: the namespace must satisfy all specified criteria.
+	// The source namespace of the watched object is automatically excluded.
+	Target []CloneTargetT `json:"target"`
 }
 
 // ClusterClonePolicyStatus defines the observed state of ClusterClonePolicy
@@ -116,7 +119,7 @@ func (p *ClusterClonePolicy) GetPolicyKind() string {
 }
 
 func (p *ClusterClonePolicy) GetSources() []SourceGroupT {
-	return p.Spec.Sources
+	return nil
 }
 
 func (p *ClusterClonePolicy) GetConditions() []ConditionT {

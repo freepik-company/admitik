@@ -17,11 +17,15 @@ package eventprocessors
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 
@@ -29,15 +33,12 @@ import (
 	"github.com/freepik-company/admitik/internal/common"
 	"github.com/freepik-company/admitik/internal/controller"
 	"github.com/freepik-company/admitik/internal/globals"
-	informerRegistry "github.com/freepik-company/admitik/internal/registry/informer"
 	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
-	"github.com/freepik-company/admitik/internal/template"
 )
 
 // CloneProcessorDependencies holds the external dependencies required by CloneProcessor.
 type CloneProcessorDependencies struct {
 	ClusterClonePolicyRegistry  *policyStore.PolicyStore[*v1alpha1.ClusterClonePolicy]
-	SourcesPool                 informerRegistry.SourcesPool
 	KubeAvailableResourceListFn func() []GVKR
 }
 
@@ -53,76 +54,171 @@ func NewCloneProcessor(deps CloneProcessorDependencies) *CloneProcessor {
 }
 
 // Process is the entry point called by WatchedEventListener when a watched resource event arrives.
-// For each matching ClusterClonePolicy it evaluates conditions, then either clones the rendered
-// object into every target namespace or — when deleteOnConditionFalse is enabled — removes
-// previously cloned objects.
+// For each matching ClusterClonePolicy it evaluates conditions and then:
+//   - On DELETE: unconditionally removes cloned objects from every target namespace.
+//   - On CREATE/UPDATE with passing conditions: clones the watched object into every target namespace.
+//   - When conditions are not met and deleteOnConditionFalse is enabled: removes cloned objects.
 func (p *CloneProcessor) Process(resourceType string, eventType watch.EventType, objects ...map[string]interface{}) {
 	baseData := buildEventContext(eventType, objects)
 	logger := newProcessorLogger(ObserverTypeClusterClonePolicies, objects[0], baseData.Operation)
 	emitter := newEventEmitter(logger)
 
-	deps := commonDeps{
-		SourcesPool:             p.dependencies.SourcesPool,
-		KubeAvailableResourceFn: p.dependencies.KubeAvailableResourceListFn,
-	}
+	gvr := gvrFromResourceType(resourceType)
 
 	for _, policy := range p.dependencies.ClusterClonePolicyRegistry.GetResources(resourceType) {
 		policyLogger := logger.WithValues("ClusterClonePolicy", policy.Name)
 
-		passed, evalData, err := evaluatePolicy(policy, &baseData, deps, policyLogger, emitter, objects[0])
+		bd, err := globals.GetObjectBasicData(&objects[0])
 		if err != nil {
+			policyLogger.Info("failed extracting metadata from watched object", "error", err.Error())
+			emitter.Emit(objects[0], policy, common.PolicyEvent{
+				Action:  "CloneAborted",
+				Message: fmt.Sprintf("Failed to extract object metadata: %s", err.Error()),
+			})
+			continue
+		}
+
+		targetNamespaces, err := resolveTargetNamespaces(policy.Spec.Target, bd.Namespace, policyLogger)
+		if err != nil {
+			policyLogger.Info("failed resolving target namespaces", "error", err.Error())
+			emitter.Emit(objects[0], policy, common.PolicyEvent{
+				Action:  "CloneAborted",
+				Message: fmt.Sprintf("Failed to resolve target namespaces: %s", err.Error()),
+			})
+			continue
+		}
+
+		if len(targetNamespaces) == 0 {
+			policyLogger.V(1).Info("no target namespaces matched")
+			continue
+		}
+
+		if baseData.Operation == common.NormalizedOperationDelete {
+			p.processDeleteAll(policy, objects[0], bd, gvr, targetNamespaces, policyLogger, emitter)
+			continue
+		}
+
+		passed, condErr := common.IsPassingConditions(policy.GetConditions(), &baseData)
+		if condErr != nil {
+			policyLogger.V(1).Info("failed evaluating conditions", "error", condErr.Error())
+			emitter.Emit(objects[0], policy, common.PolicyEvent{
+				Action:  "ConditionEvaluationFailed",
+				Message: condErr.Error(),
+			})
 			continue
 		}
 
 		if !passed {
 			policyLogger.V(1).Info("conditions not met, skipping clone")
 			if policy.Spec.DeleteOnConditionFalse {
-				p.processCleanup(policy, evalData, policyLogger, emitter, objects[0])
+				p.processDeleteAll(policy, objects[0], bd, gvr, targetNamespaces, policyLogger, emitter)
 			}
 			continue
 		}
 
-		p.processClone(policy, evalData, policyLogger, emitter, objects[0])
+		p.processClone(policy, objects[0], bd, gvr, targetNamespaces, policyLogger, emitter)
 	}
 }
 
-// processClone renders the object template, resolves its GVR, then creates or updates
-// the cloned object in each target namespace.
-func (p *CloneProcessor) processClone(
-	policy *v1alpha1.ClusterClonePolicy,
-	data *template.PolicyEvaluationDataT,
-	logger logr.Logger,
-	emitter *common.EventEmitter,
-	triggerObj map[string]interface{},
-) {
-	obj, bd, gvr, errMsg := renderAndResolve(
-		policy.Spec.Object.Engine,
-		policy.Spec.Object.Template,
-		data, p.dependencies.KubeAvailableResourceListFn(), logger,
+// resolveTargetNamespaces resolves the target namespace selectors into a deduplicated list
+// of namespace names. Multiple target entries are ORed. Within a single entry, selectors
+// are ANDed. The source namespace is automatically excluded.
+func resolveTargetNamespaces(targets []v1alpha1.CloneTargetT, sourceNamespace string, logger logr.Logger) ([]string, error) {
+	allNamespaces, err := globals.Application.KubeRawCoreClient.CoreV1().Namespaces().List(
+		globals.Application.Context, metav1.ListOptions{},
 	)
-	if errMsg != "" {
-		emitter.Emit(triggerObj, policy, common.PolicyEvent{
-			Action:  "CloneAborted",
-			Message: errMsg,
-		})
-		return
+	if err != nil {
+		return nil, fmt.Errorf("failed listing namespaces: %w", err)
 	}
 
-	for _, targetNs := range policy.Spec.TargetNamespaces {
-		p.cloneToNamespace(policy, obj, bd, gvr, targetNs.Namespace, logger, emitter, triggerObj)
+	result := map[string]bool{}
+
+	for _, target := range targets {
+		matched := matchNamespaces(allNamespaces.Items, target.Namespace, logger)
+		for _, ns := range matched {
+			if ns != sourceNamespace {
+				result[ns] = true
+			}
+		}
+	}
+
+	namespaces := make([]string, 0, len(result))
+	for ns := range result {
+		namespaces = append(namespaces, ns)
+	}
+	slices.Sort(namespaces)
+	return namespaces, nil
+}
+
+// matchNamespaces filters cluster namespaces against a single CloneTargetNamespaceSelectorT.
+// All specified selectors within the entry are ANDed.
+func matchNamespaces(allNamespaces []corev1.Namespace, selector v1alpha1.CloneTargetNamespaceSelectorT, logger logr.Logger) []string {
+	var matched []string
+
+	for _, ns := range allNamespaces {
+		if matchesSelector(ns, selector, logger) {
+			matched = append(matched, ns.Name)
+		}
+	}
+
+	return matched
+}
+
+// matchesSelector returns true if a namespace satisfies all criteria in the selector (AND).
+func matchesSelector(ns corev1.Namespace, selector v1alpha1.CloneTargetNamespaceSelectorT, logger logr.Logger) bool {
+	if len(selector.Names) > 0 {
+		if !slices.Contains(selector.Names, ns.Name) {
+			return false
+		}
+	}
+
+	if selector.LabelSelector != nil {
+		sel, err := metav1.LabelSelectorAsSelector(selector.LabelSelector)
+		if err != nil {
+			logger.V(1).Info("invalid labelSelector, skipping", "error", err.Error())
+			return false
+		}
+		if !sel.Matches(labels.Set(ns.Labels)) {
+			return false
+		}
+	}
+
+	if len(selector.AnnotationSelector) > 0 {
+		for k, v := range selector.AnnotationSelector {
+			if ns.Annotations[k] != v {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// processClone takes the watched object, strips runtime metadata, and clones it
+// into each target namespace.
+func (p *CloneProcessor) processClone(
+	policy *v1alpha1.ClusterClonePolicy,
+	triggerObj map[string]interface{},
+	bd globals.ObjectBasicData,
+	gvr schema.GroupVersionResource,
+	targetNamespaces []string,
+	logger logr.Logger,
+	emitter *common.EventEmitter,
+) {
+	for _, targetNs := range targetNamespaces {
+		p.cloneToNamespace(policy, triggerObj, bd, gvr, targetNs, logger, emitter)
 	}
 }
 
 // cloneToNamespace creates or updates a single clone in the given namespace.
 func (p *CloneProcessor) cloneToNamespace(
 	policy *v1alpha1.ClusterClonePolicy,
-	obj map[string]any,
+	triggerObj map[string]interface{},
 	bd globals.ObjectBasicData,
 	gvr schema.GroupVersionResource,
 	targetNamespace string,
 	logger logr.Logger,
 	emitter *common.EventEmitter,
-	triggerObj map[string]interface{},
 ) {
 	nsLogger := logger.WithValues(
 		"group", gvr.Group, "version", gvr.Version, "resource", gvr.Resource,
@@ -131,11 +227,11 @@ func (p *CloneProcessor) cloneToNamespace(
 
 	cloneBd := bd
 	cloneBd.Namespace = targetNamespace
-
 	targetRef := common.TargetRefFromBasicData(cloneBd)
 
-	clonedObj := deepCopyMap(obj)
+	clonedObj := deepCopyMap(triggerObj)
 	result := &unstructured.Unstructured{Object: clonedObj}
+	stripRuntimeMetadata(result)
 	result.SetNamespace(targetNamespace)
 	stampCloneLabels(result, policy.Name)
 
@@ -191,30 +287,19 @@ func (p *CloneProcessor) cloneToNamespace(
 	})
 }
 
-// processCleanup renders the clone template to resolve the target object's identity,
-// then removes cloned objects from each target namespace (only if they have ownership labels).
-func (p *CloneProcessor) processCleanup(
+// processDeleteAll removes cloned objects from all target namespaces when the source
+// object is deleted or conditions are no longer met.
+func (p *CloneProcessor) processDeleteAll(
 	policy *v1alpha1.ClusterClonePolicy,
-	data *template.PolicyEvaluationDataT,
+	triggerObj map[string]interface{},
+	bd globals.ObjectBasicData,
+	gvr schema.GroupVersionResource,
+	targetNamespaces []string,
 	logger logr.Logger,
 	emitter *common.EventEmitter,
-	triggerObj map[string]interface{},
 ) {
-	_, bd, gvr, errMsg := renderAndResolve(
-		policy.Spec.Object.Engine,
-		policy.Spec.Object.Template,
-		data, p.dependencies.KubeAvailableResourceListFn(), logger,
-	)
-	if errMsg != "" {
-		emitter.Emit(triggerObj, policy, common.PolicyEvent{
-			Action:  "CloneCleanupAborted",
-			Message: errMsg,
-		})
-		return
-	}
-
-	for _, targetNs := range policy.Spec.TargetNamespaces {
-		p.cleanupFromNamespace(policy, bd, gvr, targetNs.Namespace, logger, emitter, triggerObj)
+	for _, targetNs := range targetNamespaces {
+		p.cleanupFromNamespace(policy, bd, gvr, targetNs, logger, emitter, triggerObj)
 	}
 }
 
@@ -248,9 +333,9 @@ func (p *CloneProcessor) cleanupFromNamespace(
 		return
 	}
 
-	labels := existing.GetLabels()
-	if labels[controller.ClonedByPolicyLabel] != policy.Name ||
-		labels[controller.ClonedByPolicyKind] != controller.ClusterClonePolicyResourceType {
+	objLabels := existing.GetLabels()
+	if objLabels[controller.ClonedByPolicyLabel] != policy.Name ||
+		objLabels[controller.ClonedByPolicyKind] != controller.ClusterClonePolicyResourceType {
 		return
 	}
 
@@ -266,20 +351,58 @@ func (p *CloneProcessor) cleanupFromNamespace(
 
 	emitter.Emit(triggerObj, policy, common.PolicyEvent{
 		Action:    "CloneCleanupSucceeded",
-		Message:   fmt.Sprintf("Cloned object deleted from namespace %s because conditions are no longer met", targetNamespace),
+		Message:   fmt.Sprintf("Cloned object deleted from namespace %s because source was deleted or conditions are no longer met", targetNamespace),
 		TargetRef: targetRef,
 	})
 }
 
+// gvrFromResourceType extracts the GroupVersionResource from a GVRNN resource type key.
+// The key format is "{group}/{version}/{resource}/{namespace}/{name}".
+func gvrFromResourceType(resourceType string) schema.GroupVersionResource {
+	parts := strings.Split(resourceType, "/")
+	if len(parts) >= 3 {
+		return schema.GroupVersionResource{
+			Group:    parts[0],
+			Version:  parts[1],
+			Resource: parts[2],
+		}
+	}
+	return schema.GroupVersionResource{}
+}
+
+// stripRuntimeMetadata removes Kubernetes runtime-managed fields from an object
+// so it can be cleanly created in a different namespace.
+func stripRuntimeMetadata(obj *unstructured.Unstructured) {
+	obj.SetResourceVersion("")
+	obj.SetUID("")
+	obj.SetCreationTimestamp(metav1.Time{})
+	obj.SetDeletionTimestamp(nil)
+	obj.SetDeletionGracePeriodSeconds(nil)
+	obj.SetGenerateName("")
+	obj.SetSelfLink("")
+	obj.SetManagedFields(nil)
+	obj.SetOwnerReferences(nil)
+	obj.SetFinalizers(nil)
+
+	annotations := obj.GetAnnotations()
+	delete(annotations, "kubectl.kubernetes.io/last-applied-configuration")
+	if len(annotations) == 0 {
+		annotations = nil
+	}
+	obj.SetAnnotations(annotations)
+
+	unstructured.RemoveNestedField(obj.Object, "status")
+}
+
 // stampCloneLabels sets the admitik clone ownership labels on the given unstructured object.
 func stampCloneLabels(obj *unstructured.Unstructured, policyName string) {
-	labels := obj.GetLabels()
-	if labels == nil {
-		labels = map[string]string{}
+	l := obj.GetLabels()
+	if l == nil {
+		l = map[string]string{}
 	}
-	labels[controller.ClonedByPolicyLabel] = policyName
-	labels[controller.ClonedByPolicyKind] = controller.ClusterClonePolicyResourceType
-	obj.SetLabels(labels)
+	l[controller.ClonedByPolicyLabel] = policyName
+	l[controller.ClonedByPolicyKind] = controller.ClusterClonePolicyResourceType
+	obj.SetLabels(l)
 }
 
 // deepCopyMap creates a deep copy of a map[string]any, recursively copying nested maps and slices.
