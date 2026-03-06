@@ -22,7 +22,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ClusterCleanPolicySpec defines the desired state of ClusterCleanPolicy
+// ClusterCleanPolicySpec defines the desired state of ClusterCleanPolicy.
+// NOTE: This CRD is registered but not yet functional. The spec will be
+// redesigned in a future iteration.
 type ClusterCleanPolicySpec struct {
 
 	// ConditionRecheckInterval defines how often the policy conditions are re-evaluated
@@ -56,15 +58,6 @@ type ClusterCleanPolicySpec struct {
 	// +listType=map
 	// +listMapKey=name
 	Conditions []ConditionT `json:"conditions"`
-
-	// Target defines the resource to delete when conditions are met
-	Target CleanTargetT `json:"target"`
-}
-
-// CleanTargetT defines the target resource to be cleaned
-type CleanTargetT struct {
-	Engine   string `json:"engine,omitempty"`
-	Template string `json:"template"`
 }
 
 // ClusterCleanPolicyStatus defines the observed state of ClusterCleanPolicy

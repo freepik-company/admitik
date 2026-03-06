@@ -38,7 +38,10 @@ spec:
           metadata:
             type: object
           spec:
-            description: ClusterCleanPolicySpec defines the desired state of ClusterCleanPolicy
+            description: |-
+              ClusterCleanPolicySpec defines the desired state of ClusterCleanPolicy.
+              NOTE: This CRD is registered but not yet functional. The spec will be
+              redesigned in a future iteration.
             properties:
               conditionRecheckInterval:
                 description: |-
@@ -152,17 +155,6 @@ spec:
                 - version
                 - resource
                 x-kubernetes-list-type: map
-              target:
-                description: Target defines the resource to delete when conditions
-                  are met
-                properties:
-                  engine:
-                    type: string
-                  template:
-                    type: string
-                required:
-                - template
-                type: object
               watchedResources:
                 description: WatchedResources represents a list of resource-groups
                   that will be watched to be evaluated
@@ -198,7 +190,6 @@ spec:
             required:
             - conditions
             - sources
-            - target
             - watchedResources
             type: object
           status:

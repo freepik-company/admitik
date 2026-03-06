@@ -16,18 +16,11 @@ limitations under the License.
 package eventprocessors
 
 import (
-	"fmt"
-
-	"github.com/go-logr/logr"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 
 	"github.com/freepik-company/admitik/api/v1alpha1"
-	"github.com/freepik-company/admitik/internal/common"
-	"github.com/freepik-company/admitik/internal/globals"
 	informerRegistry "github.com/freepik-company/admitik/internal/registry/informer"
 	policyStore "github.com/freepik-company/admitik/internal/registry/policystore"
-	"github.com/freepik-company/admitik/internal/template"
 )
 
 // CleanProcessorDependencies holds the external dependencies required by CleanProcessor.
@@ -39,6 +32,9 @@ type CleanProcessorDependencies struct {
 
 // CleanProcessor handles events for watched resources and deletes target resources
 // when conditions are met, according to each matching ClusterCleanPolicy.
+//
+// NOTE: This processor is a skeleton. The clean logic will be implemented in a
+// future iteration once the ClusterCleanPolicy spec is redesigned.
 type CleanProcessor struct {
 	dependencies CleanProcessorDependencies
 }
@@ -49,78 +45,6 @@ func NewCleanProcessor(deps CleanProcessorDependencies) *CleanProcessor {
 }
 
 // Process is the entry point called by WatchedEventListener when a watched resource event arrives.
-// For each matching ClusterCleanPolicy it evaluates conditions and, when they pass, deletes
-// the templated target resource.
+// NOTE: This is a no-op skeleton. The clean logic will be implemented in a future iteration.
 func (p *CleanProcessor) Process(resourceType string, eventType watch.EventType, objects ...map[string]interface{}) {
-	baseData := buildEventContext(eventType, objects)
-	logger := newProcessorLogger(ObserverTypeClusterCleanPolicies, objects[0], baseData.Operation)
-	emitter := newEventEmitter(logger)
-
-	deps := commonDeps{
-		SourcesPool:             p.dependencies.SourcesPool,
-		KubeAvailableResourceFn: p.dependencies.KubeAvailableResourceListFn,
-	}
-
-	for _, policy := range p.dependencies.ClusterCleanPolicyRegistry.GetResources(resourceType) {
-		policyLogger := logger.WithValues("ClusterCleanPolicy", policy.Name)
-
-		passed, evalData, err := evaluatePolicy(policy, &baseData, deps, policyLogger, emitter, objects[0])
-		if err != nil {
-			continue
-		}
-
-		if !passed {
-			policyLogger.V(1).Info("conditions not met, skipping clean")
-			continue
-		}
-
-		p.processClean(policy, evalData, policyLogger, emitter, objects[0])
-	}
-}
-
-// processClean renders the target template, resolves the GVR, and deletes the resource.
-func (p *CleanProcessor) processClean(
-	policy *v1alpha1.ClusterCleanPolicy,
-	data *template.PolicyEvaluationDataT,
-	logger logr.Logger,
-	emitter *common.EventEmitter,
-	triggerObj map[string]interface{},
-) {
-	_, bd, gvr, errMsg := renderAndResolve(
-		policy.Spec.Target.Engine,
-		policy.Spec.Target.Template,
-		data, p.dependencies.KubeAvailableResourceListFn(), logger,
-	)
-	if errMsg != "" {
-		emitter.Emit(triggerObj, policy, common.PolicyEvent{
-			Action:  "CleanAborted",
-			Message: errMsg,
-		})
-		return
-	}
-
-	targetRef := common.TargetRefFromBasicData(bd)
-
-	logger = logger.WithValues(
-		"group", gvr.Group, "version", gvr.Version, "resource", gvr.Resource,
-		"name", bd.Name, "namespace", bd.Namespace,
-	)
-
-	client := globals.Application.KubeRawClient.Resource(gvr).Namespace(bd.Namespace)
-
-	if err := client.Delete(globals.Application.Context, bd.Name, metav1.DeleteOptions{}); err != nil {
-		logger.Info("failed deleting target resource", "error", err.Error())
-		emitter.Emit(triggerObj, policy, common.PolicyEvent{
-			Action:    "CleanAborted",
-			Message:   fmt.Sprintf("Object deletion failed: %s", err.Error()),
-			TargetRef: targetRef,
-		})
-		return
-	}
-
-	emitter.Emit(triggerObj, policy, common.PolicyEvent{
-		Action:    "CleanSucceeded",
-		Message:   "Target resource deleted successfully",
-		TargetRef: targetRef,
-	})
 }

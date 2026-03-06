@@ -13,7 +13,7 @@
 
 
 Admitik is a cloud native policy engine for Kubernetes that lets you define policies 
-to **validate**, **mutate**, **generate**, **clone**, or **clean** resources. 
+to **validate**, **mutate**, **generate**, or **clone** resources. 
 
 It uses template engines (like CEL or Starlark) to apply logic, patch resources, or generate new ones 
 — all directly inside your cluster.
@@ -51,12 +51,14 @@ Replicate trusted configurations across scopes to ensure alignment and reduce du
 - Keep environments in sync by replicating structural patterns
 - Copy access or config resources securely between isolated areas
 
-#### 🧹 **Cleanup**
+<!---
+#### 🧹 **Cleanup** (Coming Soon)
 Continuously remove resources that are no longer relevant or safe to keep.
 
 - Delete completed workloads to avoid clutter and resource waste
 - Clean up temporary or short-lived artifacts after use
 - Enforce retention policies for unused or expired infrastructure
+-->
 
 
 ## 🧰 Template Engines
@@ -102,7 +104,6 @@ These variables let you write dynamic, context-aware policies using real cluster
 | `ClusterMutationPolicy`   | Modifies intercepted resources                                |
 | `ClusterGenerationPolicy` | Generates new resources on events                             |
 | `ClusterClonePolicy`      | Clones a resource into one or more namespaces on events       |
-| `ClusterCleanPolicy`      | Deletes resources under custom rules                          |
 
 ## 🧪 Examples
 
