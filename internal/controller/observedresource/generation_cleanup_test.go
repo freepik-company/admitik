@@ -32,13 +32,13 @@ func TestTriggerFromObject(t *testing.T) {
 	}{
 		{
 			"grouped resource",
-			triggerObject("apps/v1", "Deployment", "microservices", "api", "uid-1"),
-			triggerRef{UID: "uid-1", Group: "apps", Version: "v1", Kind: "Deployment", Namespace: "microservices"},
+			triggerObject("apps/v1", "Deployment", "team-a", "api", "uid-1"),
+			triggerRef{UID: "uid-1", Group: "apps", Version: "v1", Kind: "Deployment", Namespace: "team-a"},
 		},
 		{
 			"core resource",
-			triggerObject("v1", "Service", "pikaso", "web", "uid-2"),
-			triggerRef{UID: "uid-2", Group: "", Version: "v1", Kind: "Service", Namespace: "pikaso"},
+			triggerObject("v1", "Service", "team-b", "web", "uid-2"),
+			triggerRef{UID: "uid-2", Group: "", Version: "v1", Kind: "Service", Namespace: "team-b"},
 		},
 	}
 
@@ -55,18 +55,18 @@ func TestMarkGeneratedSetsOwnershipLabelsAndKeepsExistingOnes(t *testing.T) {
 	obj := &unstructured.Unstructured{Object: map[string]any{
 		"metadata": map[string]any{"labels": map[string]any{"managed-by": "admitik"}},
 	}}
-	trigger := triggerRef{UID: "uid-1", Group: "apps", Version: "v1", Kind: "Deployment", Namespace: "microservices"}
+	trigger := triggerRef{UID: "uid-1", Group: "apps", Version: "v1", Kind: "Deployment", Namespace: "team-a"}
 
-	markGenerated(obj, "redis-policy", trigger)
+	markGenerated(obj, "demo-policy", trigger)
 
 	want := map[string]string{
 		"managed-by":          "admitik",
-		policyLabel:           "redis-policy",
+		policyLabel:           "demo-policy",
 		triggerUIDLabel:       "uid-1",
 		triggerGroupLabel:     "apps",
 		triggerVersionLabel:   "v1",
 		triggerKindLabel:      "Deployment",
-		triggerNamespaceLabel: "microservices",
+		triggerNamespaceLabel: "team-a",
 	}
 	got := obj.GetLabels()
 	for key, value := range want {
@@ -79,7 +79,7 @@ func TestMarkGeneratedSetsOwnershipLabelsAndKeepsExistingOnes(t *testing.T) {
 func TestUnmarkGeneratedRemovesOnlyOwnershipLabels(t *testing.T) {
 	obj := emptyObject()
 	obj.SetLabels(map[string]string{"managed-by": "admitik"})
-	markGenerated(obj, "redis-policy", triggerRef{UID: "uid-1", Kind: "Deployment"})
+	markGenerated(obj, "demo-policy", triggerRef{UID: "uid-1", Kind: "Deployment"})
 
 	unmarkGenerated(obj)
 
