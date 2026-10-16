@@ -63,10 +63,30 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
-# Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
-.PHONY: test-e2e  # Run the e2e tests against a Kind k8s instance that is spun up.
-test-e2e:
-	go test ./test/e2e/ -v -ginkgo.v
+KIND ?= kind
+E2E_CLUSTER ?= admitik-e2e
+E2E_KUBECONFIG ?= $(LOCALBIN)/$(E2E_CLUSTER).kubeconfig
+
+# The e2e kubeconfig is kept apart from ~/.kube/config so the tests can never reach another cluster.
+.PHONY: e2e-cluster-up
+e2e-cluster-up: ## Create the ephemeral kind cluster used by the e2e tests.
+	@mkdir -p $(LOCALBIN)
+	@if $(KIND) get clusters | grep -qx $(E2E_CLUSTER); then \
+		$(KIND) get kubeconfig --name $(E2E_CLUSTER) > $(E2E_KUBECONFIG); \
+	else \
+		$(KIND) create cluster --name $(E2E_CLUSTER) --kubeconfig $(E2E_KUBECONFIG) --wait 120s; \
+	fi
+	@chmod 600 $(E2E_KUBECONFIG)
+
+.PHONY: e2e-cluster-down
+e2e-cluster-down: ## Delete the ephemeral kind cluster used by the e2e tests.
+	-$(KIND) delete cluster --name $(E2E_CLUSTER) --kubeconfig $(E2E_KUBECONFIG)
+	@rm -f $(E2E_KUBECONFIG)
+
+.PHONY: test-e2e
+test-e2e: e2e-cluster-up ## Run the e2e tests in an ephemeral kind cluster. Set E2E_KEEP_CLUSTER=true to keep it afterwards.
+	KUBECONFIG=$(E2E_KUBECONFIG) KIND_CLUSTER=$(E2E_CLUSTER) go test ./test/e2e/ -v -ginkgo.v -timeout 30m && rc=0 || rc=$$?; \
+	if [ "$(E2E_KEEP_CLUSTER)" != "true" ]; then $(MAKE) e2e-cluster-down; fi; exit $$rc
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter
