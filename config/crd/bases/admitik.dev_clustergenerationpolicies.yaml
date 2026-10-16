@@ -68,8 +68,8 @@ spec:
               deleteOnConditionsUnmet:
                 description: |-
                   DeleteOnConditionsUnmet removes the generated object when the watched resource stops meeting
-                  the conditions or is deleted. Only objects labeled with this policy and annotated with the
-                  watched resource that generated them are removed.
+                  the conditions or is deleted. Only objects created by admitik and labeled with this policy and
+                  the UID of the watched resource that generated them are removed. Pre-existing objects are never adopted.
                 type: boolean
               object:
                 description: ObjectT TODO

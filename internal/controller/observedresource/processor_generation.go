@@ -96,27 +96,10 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 		}
 
 		// Remove previously generated resources when the watched one stops matching or disappears
-		parent := parentReference(object[0])
+		trigger := triggerFromObject(object[0])
 		if policyObj.Spec.DeleteOnConditionsUnmet {
-			oldPassed := false
-			if commonTemplateInjectedObject.Operation == common.NormalizedOperationUpdate {
-				previousData := previousStateData(&specificTemplateInjectedObject, object[1])
-				oldPassed, _ = common.IsPassingConditions(policyObj.Spec.Conditions, &previousData)
-			}
-			if commonTemplateInjectedObject.Operation == common.NormalizedOperationDelete {
-				oldPassed = conditionsPassed
-			}
-
-			if shouldCleanup(true, commonTemplateInjectedObject.Operation, oldPassed, conditionsPassed) {
-				previousData := specificTemplateInjectedObject
-				if commonTemplateInjectedObject.Operation == common.NormalizedOperationUpdate {
-					previousData = previousStateData(&specificTemplateInjectedObject, object[1])
-				}
-
-				if delErr := p.deleteGeneratedObject(policyObj, &previousData, parent); delErr != nil {
-					logger.Info(fmt.Sprintf("failed deleting generated object: %s", delErr.Error()))
-				}
-			}
+			p.cleanupGenerated(policyObj, object, &specificTemplateInjectedObject,
+				conditionsPassed, fetchErr != nil || condErr != nil)
 
 			// A deleted watched resource must never regenerate anything
 			if commonTemplateInjectedObject.Operation == common.NormalizedOperationDelete {
@@ -204,7 +187,7 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 			Object: resultObject,
 		}
 		if policyObj.Spec.DeleteOnConditionsUnmet {
-			markGenerated(resultObjConverted, policyObj.Name, parent)
+			markGenerated(resultObjConverted, policyObj.Name, trigger)
 		}
 
 		// Perform actions against Kubernetes
@@ -235,6 +218,10 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 			logger.Info(fmt.Sprintf("failed updating generated object from template result: 'OverwriteExisting' is disabled"))
 			kubeEventMessage = "Object update after template failed. More info in controller logs."
 			goto createKubeEvent
+		}
+
+		if policyObj.Spec.DeleteOnConditionsUnmet {
+			keepMarksOnlyIfOwned(globals.Application.Context, resourceClient, resultObjConverted, policyObj.Name, trigger.UID)
 		}
 
 		_, err = resourceClient.Apply(
