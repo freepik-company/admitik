@@ -95,6 +95,35 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 			logger.Info(fmt.Sprintf("failed evaluating conditions: %s", condErr.Error()))
 		}
 
+		// Remove previously generated resources when the watched one stops matching or disappears
+		parent := parentReference(object[0])
+		if policyObj.Spec.DeleteOnConditionsUnmet {
+			oldPassed := false
+			if commonTemplateInjectedObject.Operation == common.NormalizedOperationUpdate {
+				previousData := previousStateData(&specificTemplateInjectedObject, object[1])
+				oldPassed, _ = common.IsPassingConditions(policyObj.Spec.Conditions, &previousData)
+			}
+			if commonTemplateInjectedObject.Operation == common.NormalizedOperationDelete {
+				oldPassed = conditionsPassed
+			}
+
+			if shouldCleanup(true, commonTemplateInjectedObject.Operation, oldPassed, conditionsPassed) {
+				previousData := specificTemplateInjectedObject
+				if commonTemplateInjectedObject.Operation == common.NormalizedOperationUpdate {
+					previousData = previousStateData(&specificTemplateInjectedObject, object[1])
+				}
+
+				if delErr := p.deleteGeneratedObject(policyObj, &previousData, parent); delErr != nil {
+					logger.Info(fmt.Sprintf("failed deleting generated object: %s", delErr.Error()))
+				}
+			}
+
+			// A deleted watched resource must never regenerate anything
+			if commonTemplateInjectedObject.Operation == common.NormalizedOperationDelete {
+				continue
+			}
+		}
+
 		// Conditions are not met, skip generating the resource
 		if !conditionsPassed {
 			continue
@@ -173,6 +202,9 @@ func (p *GenerationProcessor) Process(resourceType string, eventType watch.Event
 
 		resultObjConverted = &unstructured.Unstructured{
 			Object: resultObject,
+		}
+		if policyObj.Spec.DeleteOnConditionsUnmet {
+			markGenerated(resultObjConverted, policyObj.Name, parent)
 		}
 
 		// Perform actions against Kubernetes

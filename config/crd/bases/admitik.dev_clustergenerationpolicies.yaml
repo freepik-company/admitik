@@ -65,6 +65,12 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
+              deleteOnConditionsUnmet:
+                description: |-
+                  DeleteOnConditionsUnmet removes the generated object when the watched resource stops meeting
+                  the conditions or is deleted. Only objects labeled with this policy and annotated with the
+                  watched resource that generated them are removed.
+                type: boolean
               object:
                 description: ObjectT TODO
                 properties:

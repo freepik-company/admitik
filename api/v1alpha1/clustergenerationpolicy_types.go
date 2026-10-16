@@ -40,6 +40,11 @@ type ObjectT struct {
 type ClusterGenerationPolicySpec struct {
 	OverwriteExisting bool `json:"overwriteExisting,omitempty"`
 
+	// DeleteOnConditionsUnmet removes the generated object when the watched resource stops meeting
+	// the conditions or is deleted. Only objects labeled with this policy and annotated with the
+	// watched resource that generated them are removed.
+	DeleteOnConditionsUnmet bool `json:"deleteOnConditionsUnmet,omitempty"`
+
 	// WatchedResources represents a list of resource-groups that will be watched to be evaluated
 	// +listType=map
 	// +listMapKey=group
